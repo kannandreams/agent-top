@@ -1,0 +1,15 @@
+[package]
+name = "agent-top-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Discovery, accounting and process-tree model for agent-top (no terminal dependencies)."
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sysinfo.workspace = true
+thiserror.workspace = true

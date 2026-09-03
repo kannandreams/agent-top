@@ -1,0 +1,28 @@
+min_version = "2025.12.12"
+
+[settings]
+lockfile = true
+
+[tools]
+rust = "1.96.0"
+
+[tasks.build]
+description = "Build the workspace"
+run = "cargo build"
+
+[tasks.test]
+description = "Run unit tests"
+run = "cargo test"
+
+[tasks.lint]
+description = "Format check and clippy"
+run = ["cargo fmt --check", "cargo clippy --all-targets -- -D warnings"]
+
+[tasks.check]
+description = "Everything CI runs"
+run = [{ task = "lint" }, { task = "test" }]
+
+[tasks.run]
+description = "Run the TUI"
+raw = true
+run = "cargo run --"
