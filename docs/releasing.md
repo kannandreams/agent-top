@@ -67,14 +67,23 @@ agent-top --version
 
 | Runner | Target | Notes |
 |---|---|---|
-| `macos-14` | `aarch64-apple-darwin` | Apple silicon |
-| `macos-13` | `x86_64-apple-darwin` | Intel Macs |
-| `ubuntu-22.04` | `x86_64-unknown-linux-gnu` | glibc 2.35 floor |
-| `ubuntu-22.04-arm` | `aarch64-unknown-linux-gnu` | glibc 2.35 floor |
+| `macos-14` | `aarch64-apple-darwin` | Apple silicon, native |
+| `macos-14` | `x86_64-apple-darwin` | Intel Macs, cross-compiled |
+| `ubuntu-22.04` | `x86_64-unknown-linux-gnu` | native, glibc 2.35 floor |
+| `ubuntu-22.04-arm` | `aarch64-unknown-linux-gnu` | native, glibc 2.35 floor |
 
-Every target is built natively — no cross-compilation, no `cross`, no
-emulation — and the workflow asserts that each runner's host triple is the one
-it is packaging, so a runner image change cannot silently mislabel an asset.
+Intel macOS is cross-compiled from the arm64 runner rather than built on
+`macos-13`. The Apple SDK ships both slices, so no extra linker or `cross` is
+involved, and it removes the dependency on an Intel runner image that GitHub
+has already put on its retirement path. The workflow runs `file` on each
+binary and fails if the architecture is not the one the asset name claims, so
+a runner image change cannot silently mislabel a download. The smoke test runs
+only on the natively-built targets, since a runner cannot be relied on to
+execute a foreign architecture.
+
+`rustup target add` names the toolchain read out of `mise.toml`, so the target
+cannot be installed into the runner's own default Rust while `cargo` is using
+mise's pinned one.
 
 Binaries link the build machine's glibc, which is why Linux is built on 22.04
 rather than the newest image: a binary built against a newer glibc refuses to

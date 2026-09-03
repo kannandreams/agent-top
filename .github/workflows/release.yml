@@ -21,13 +21,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-14, target: aarch64-apple-darwin }
-          - { os: macos-13, target: x86_64-apple-darwin }
+          - { os: macos-14, target: aarch64-apple-darwin, arch: arm64, native: true }
+          # Cross-compiled from the arm64 runner rather than built on macos-13:
+          # the Apple SDK carries both slices so no extra linker is needed, and
+          # the Intel runner image is on GitHub's retirement path.
+          - { os: macos-14, target: x86_64-apple-darwin, arch: x86_64, native: false }
           # Built on 22.04 on purpose: the binary links the runner's glibc, so
           # building on the newest image would refuse to start on any older
           # distribution. 22.04 gives a glibc 2.35 floor.
-          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
-          - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, arch: x86-64, native: true }
+          - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu, arch: aarch64, native: true }
     steps:
       - uses: actions/checkout@v4
 
@@ -37,16 +40,26 @@ jobs:
           version: 2026.8.2
           cache: true
 
-      - name: Verify the runner builds the target it claims
+      - name: Add the target to the pinned toolchain
         run: |
-          host="$(rustc -vV | awk '/^host: /{print $2}')"
-          if [ "$host" != "${{ matrix.target }}" ]; then
-            echo "runner ${{ matrix.os }} is $host, not ${{ matrix.target }}" >&2
-            exit 1
-          fi
+          # Read the version from mise.toml rather than repeating it here, and
+          # name the toolchain explicitly so the target cannot land on the
+          # runner's own default Rust while cargo uses mise's.
+          toolchain="$(awk -F'"' '/^rust *=/{print $2}' mise.toml)"
+          echo "pinned toolchain: $toolchain"
+          rustup target add --toolchain "$toolchain" "${{ matrix.target }}"
 
       - name: Build
-        run: cargo build --release --locked -p agent-top
+        run: cargo build --release --locked -p agent-top --target ${{ matrix.target }}
+
+      - name: Verify the binary is the architecture it claims
+        run: |
+          out="$(file target/${{ matrix.target }}/release/agent-top)"
+          echo "$out"
+          case "$out" in
+            *"${{ matrix.arch }}"*) ;;
+            *) echo "built ${{ matrix.target }} but the binary is not ${{ matrix.arch }}" >&2; exit 1 ;;
+          esac
 
       - name: Package
         id: package
@@ -55,7 +68,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           stage="agent-top-v${version}-${{ matrix.target }}"
           mkdir -p "dist/$stage"
-          cp target/release/agent-top "dist/$stage/"
+          cp target/${{ matrix.target }}/release/agent-top "dist/$stage/"
           cp README.md LICENSE CHANGELOG.md "dist/$stage/"
           tar -C dist -czf "dist/${stage}.tar.gz" "$stage"
           rm -rf "dist/$stage"
@@ -67,10 +80,13 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      # Skipped for the cross-compiled target: the runner cannot be relied on
+      # to execute a foreign architecture.
       - name: Smoke-test the packaged binary
+        if: matrix.native
         run: |
-          ./target/release/agent-top --version
-          ./target/release/agent-top --json > /dev/null
+          ./target/${{ matrix.target }}/release/agent-top --version
+          ./target/${{ matrix.target }}/release/agent-top --json > /dev/null
 
       - uses: actions/upload-artifact@v4
         with:
