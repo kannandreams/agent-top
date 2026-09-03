@@ -25,14 +25,29 @@ You have three Claude Code sessions, a Codex thread in VS Code, and a Gemini CLI
 | **PROCS / MCP** | processes in the tree, and how many of them look like Model Context Protocol servers |
 | **AGE** | process age, or time since the last transcript write for stopped sessions |
 
-The detail pane shows the process tree (`agent`, `subagent`, `mcp`, `shell`, `tool`) and the token breakdown. **Orphaned MCP processes**, servers with no live agent above them, are listed in red. That is the failure mode reported repeatedly against Codex (openai/codex #17574, #25015, #12491, #16256) and it is not specific to Codex.
+The detail pane shows the process tree (`agent`, `subagent`, `mcp`, `shell`, `tool`) and the token breakdown. **Orphaned MCP processes**, servers with no live agent above them, are listed in red.
+
+That failure is not hypothetical. Codex has a run of reports about leaked MCP
+process trees, three of them still open:
+
+| Report | State | What it describes |
+|---|---|---|
+| [#12491](https://github.com/openai/codex/issues/12491) | open | MCP children not reaped after a task completes: 1300+ zombies, 37 GB leaked |
+| [#17574](https://github.com/openai/codex/issues/17574) | open | Subagents leak stdio MCP helper trees, which accumulate indefinitely |
+| [#25015](https://github.com/openai/codex/issues/25015) | open | The app-server leaks a process stack per subagent, so memory grows linearly |
+| [#16256](https://github.com/openai/codex/issues/16256) | closed | MCP subagent processes never terminated when a session is stopped or suspended |
+| [#19753](https://github.com/openai/codex/pull/19753) | merged Apr 2026 | The fix for one of those paths: terminate stdio MCP servers on shutdown |
+
+Nothing about this is specific to Codex. Every harness that spawns helper
+processes has the same shape of bug available to it, which is why `agent-top`
+looks for the symptom rather than for one vendor's bug.
 
 ## Supported harnesses
 
 | Harness | Discovery | Tokens and cost | State |
 |---|---|---|---|
 | Claude Code | process table + `~/.claude/sessions/<pid>.json` (exact) | transcript usage, priced per model | harness-reported |
-| Codex CLI / app-server | process table + rollout `cwd` match (heuristic) | transcript usage; unpriced until a price table exists | transcript events |
+| Codex CLI / app-server | process table + rollout `cwd` match (heuristic) | transcript usage; priced once you add the model to [your price table](#prices) | transcript events |
 | Gemini CLI, OpenCode, Aider, Copilot CLI, cursor-agent | process table only | not yet | CPU heuristic |
 
 ## Install
@@ -145,15 +160,31 @@ built-in prices still apply.
 A model with no entry anywhere is never guessed at. Its tokens are counted and
 reported as unpriced, and any total containing them is shown as a floor.
 
-## How it works
+## Where the numbers come from
 
-1. Enumerate processes with `sysinfo`. Anything whose program is `claude`, `codex`, `gemini`, `opencode`, `aider`, `copilot` or `cursor-agent` (or a Node script under the corresponding npm package) is an agent root. Harness processes nested under a root are subagents of that root.
-2. Attribute a transcript to each root. Claude Code writes `~/.claude/sessions/<pid>.json` with the session id, cwd, a derived name and a busy/idle status, so attribution is exact. Codex is matched by working directory and start time.
-3. Tail the transcript incrementally (byte offset kept between refreshes) to accumulate usage, tool calls, turns and the last event, which decides `running` vs `idle`.
-4. Price each message by its model from a static table. Unknown models are counted as unpriced tokens rather than guessed.
-5. Any MCP-looking process with no agent ancestor is an orphan.
+The whole point of this tool is that its numbers are right, so it is explicit
+about which ones are exact and which are inferred.
 
-Everything is read-only. `agent-top` never signals, writes to, or talks to an agent.
+- **Tokens are counted, never estimated.** They come from the usage records the
+  harness writes itself, deduplicated per API message so a response split across
+  several transcript lines is counted once.
+- **Costs come from a table you can read and change.** `agent-top --prices`
+  shows it. A model with no price is reported as unpriced rather than guessed
+  at, which is why a total containing one is shown as a floor (`≥`, `+`) instead
+  of a number that looks more precise than it is.
+- **Attribution says how confident it is.** Claude Code publishes a per-pid
+  registry, so a session is matched to its process exactly. Codex has no
+  equivalent, so the match is made on working directory and start time, and the
+  detail pane labels that row a heuristic rather than presenting it as fact.
+- **Only metadata is read.** Token counts, model ids, tool names, timestamps.
+  Never a prompt, a tool input, or a tool result.
+- **Nothing is written, signalled, or sent anywhere.** `agent-top` never kills or
+  writes to an agent and makes no network calls. Killing an orphaned MCP server
+  is your decision, with your own `kill`.
+
+[docs/architecture.md](docs/architecture.md) has the mechanism underneath: the
+process walk, the incremental transcript tail, and how a snapshot is assembled
+on each tick.
 
 ## Roadmap
 
