@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.5] - 2026-09-03
+
+### Added
+- Prices are data rather than code. The built-in table is `prices.toml`, compiled into the binary, and `~/.config/agent-top/prices.toml` (or `$XDG_CONFIG_HOME/agent-top/prices.toml`, or `$AGENT_TOP_PRICES`) is merged over it at startup. An entry whose prefix matches a built-in one replaces it, so a stale price can be corrected without waiting for a release; a new prefix is added, which is how a model this project ships no price for gets costed at all. Cache writes default to Anthropic's multipliers of the input price and can be set explicitly per model.
+- `--prices` prints the effective table and whether each row came from the built-in file or yours, which is the quickest way to find out why a model shows `n/a`.
+
+### Fixed
+- A price file that cannot be parsed is reported on stderr and ignored, rather than silently leaving the built-in prices in place. A wrong cost is worse than a missing one.
+- The golden tests priced with whatever `prices.toml` the developer happened to have in their home directory, so a contributor with one of their own would have seen the cost assertions fail for no visible reason. Both trackers now take a price table explicitly and the golden tests pass the built-in one.
+
 ## [0.1.4] - 2026-09-03
 
 ### Added
