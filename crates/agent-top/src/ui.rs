@@ -8,11 +8,19 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Cell, Clear, Paragraph, Row, Sparkline, Table, TableState, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, Clear, Paragraph, Row, Sparkline, Table, TableState, Wrap};
 use std::time::{Duration, SystemTime};
 
 const ACCENT: Color = Color::Cyan;
 const DIM: Color = Color::DarkGray;
+/// Panel borders. Bright enough to actually divide the screen; DarkGray reads
+/// as noise next to the meters rather than as structure.
+const BORDER_RGB: (u8, u8, u8) = (0x8b, 0x96, 0xa8);
+
+/// Column widths of the totals block in the header. The label column is wide
+/// enough that the longest label still leaves a gap before the number.
+const STAT_LABEL_W: usize = 10;
+const STAT_VALUE_W: usize = 7;
 
 fn state_style(s: AgentState) -> Style {
     match s {
@@ -147,11 +155,30 @@ fn meter_line(label: String, ratio: f64, width: usize) -> Line<'static> {
 }
 
 fn block(title: &str) -> Block<'_> {
-    Block::bordered().border_style(Style::default().fg(DIM)).title(Line::from(vec![
+    Block::bordered().border_type(BorderType::Rounded).border_style(Style::default().fg(term_color(BORDER_RGB))).title(Line::from(vec![
         Span::raw(" "),
         Span::styled(title, Style::default().fg(ACCENT).bold()),
         Span::raw(" "),
     ]))
+}
+
+/// One row of the totals block: a fixed-width label, a fixed-width headline
+/// number, then the detail that qualifies it. The fixed columns are what make
+/// the four rows read as a table rather than as ragged sentences.
+fn stat_line(label: &str, value: String, value_style: Style, rest: Vec<Span<'static>>) -> Line<'static> {
+    let mut spans = vec![
+        Span::styled(format!("{label:<STAT_LABEL_W$}"), Style::default().fg(DIM)),
+        // Right-aligned: the numbers line up on their units, which is the
+        // whole point of giving them a column of their own.
+        Span::styled(format!("{value:>STAT_VALUE_W$}"), value_style),
+        Span::raw("  "),
+    ];
+    spans.extend(rest);
+    Line::from(spans)
+}
+
+fn dim(text: impl Into<String>) -> Span<'static> {
+    Span::styled(text.into(), Style::default().fg(DIM))
 }
 
 pub fn draw(f: &mut Frame, app: &mut App) {
@@ -204,61 +231,55 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(Sparkline::default().data(&app.tokens_per_tick).style(Style::default().fg(ACCENT)), spark);
 
     let t = &snap.totals;
-    let agents_cpu = t.cpu_percent;
     let lines = vec![
-        Line::from(vec![
-            Span::styled("agents ", Style::default().fg(DIM)),
-            Span::styled(t.agents.to_string(), Style::default().bold()),
-            Span::raw("   "),
-            Span::styled(format!("{} running", t.running), Style::default().fg(Color::Green)),
-            Span::raw("  "),
-            Span::styled(format!("{} idle", t.idle), Style::default().fg(Color::Yellow)),
-            Span::raw("  "),
-            Span::styled(format!("{} stopped", t.stopped), Style::default().fg(DIM)),
-        ]),
-        Line::from(vec![
-            Span::styled("tokens ", Style::default().fg(DIM)),
-            Span::styled(tokens(t.tokens), Style::default().bold()),
-            Span::raw("   "),
-            Span::styled("cost ", Style::default().fg(DIM)),
-            Span::styled(
-                format!("${:.2}{}", t.cost_usd, if t.unpriced_tokens > 0 { "+" } else { "" }),
-                Style::default().fg(Color::Magenta).bold(),
-            ),
-            if t.unpriced_tokens > 0 {
-                Span::styled(format!("  ({} tokens unpriced)", tokens(t.unpriced_tokens)), Style::default().fg(DIM))
-            } else {
-                Span::raw("")
-            },
-        ]),
-        Line::from(vec![
-            Span::styled("procs ", Style::default().fg(DIM)),
-            Span::raw(t.processes.to_string()),
-            Span::raw("   "),
-            Span::styled("mcp ", Style::default().fg(DIM)),
-            Span::raw(t.mcp_processes.to_string()),
-            Span::raw("   "),
-            Span::styled("orphaned mcp ", Style::default().fg(DIM)),
-            if t.orphaned_mcp > 0 {
-                Span::styled(t.orphaned_mcp.to_string(), Style::default().fg(Color::Red).bold())
-            } else {
-                Span::raw("0")
-            },
-            Span::raw("   "),
-            Span::styled("agent cpu ", Style::default().fg(DIM)),
-            Span::raw(format!("{agents_cpu:.1}%")),
-            Span::raw("  "),
-            Span::styled("agent rss ", Style::default().fg(DIM)),
-            Span::raw(bytes(t.rss_bytes)),
-        ]),
-        Line::from(vec![
-            Span::styled("sort ", Style::default().fg(DIM)),
-            Span::styled(app.sort.label(), Style::default().fg(ACCENT)),
-            Span::raw(if app.sort_desc { " ↑" } else { " ↓" }),
-            Span::raw("   "),
-            Span::styled("stopped ", Style::default().fg(DIM)),
-            Span::raw(if app.show_stopped { "shown" } else { "hidden" }),
-        ]),
+        stat_line(
+            "agents",
+            t.agents.to_string(),
+            Style::default().bold(),
+            vec![
+                Span::styled(format!("{:>2} running", t.running), Style::default().fg(Color::Green)),
+                dim("   "),
+                Span::styled(format!("{:>2} idle", t.idle), Style::default().fg(Color::Yellow)),
+                dim("   "),
+                Span::styled(format!("{:>2} stopped", t.stopped), Style::default().fg(DIM)),
+            ],
+        ),
+        stat_line(
+            "tokens",
+            tokens(t.tokens),
+            Style::default().bold(),
+            vec![
+                dim("total cost "),
+                Span::styled(
+                    format!("${:.2}{}", t.cost_usd, if t.unpriced_tokens > 0 { "+" } else { "" }),
+                    Style::default().fg(Color::Magenta).bold(),
+                ),
+                if t.unpriced_tokens > 0 { dim(format!("  ({} unpriced)", tokens(t.unpriced_tokens))) } else { Span::raw("") },
+            ],
+        ),
+        stat_line(
+            "procs",
+            t.processes.to_string(),
+            Style::default(),
+            vec![
+                dim("mcp "),
+                Span::raw(format!("{:<4}", t.mcp_processes)),
+                dim("orphaned "),
+                if t.orphaned_mcp > 0 {
+                    Span::styled(t.orphaned_mcp.to_string(), Style::default().fg(Color::Red).bold())
+                } else {
+                    Span::raw("0")
+                },
+            ],
+        ),
+        // What the agents themselves are costing the machine, as opposed to
+        // the whole-host meters on the left.
+        stat_line(
+            "agent use",
+            format!("{:.1}%", t.cpu_percent),
+            Style::default(),
+            vec![dim("cpu · "), Span::raw(bytes(t.rss_bytes)), dim(" resident")],
+        ),
     ];
     f.render_widget(Paragraph::new(Text::from(lines)), right);
 }
@@ -612,7 +633,9 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     };
     let mut spans = Vec::new();
     spans.extend(key("↑↓/jk", "select"));
-    spans.extend(key("s", format!("sort:{}", app.sort.label()).as_str()));
+    // The sort direction used to live in the header; it belongs next to the
+    // key that changes it.
+    spans.extend(key("s", format!("sort:{}{}", app.sort.label(), if app.sort_desc { "↑" } else { "↓" }).as_str()));
     spans.extend(key("r", "reverse"));
     spans.extend(key("t", if app.show_detail { "hide detail" } else { "show detail" }));
     spans.extend(key("Tab", if app.detail == DetailView::Tree { "trace" } else { "tree" }));
