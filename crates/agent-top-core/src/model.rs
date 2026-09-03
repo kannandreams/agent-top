@@ -105,6 +105,46 @@ impl TokenUsage {
     }
 }
 
+/// One tool call, reconstructed from a transcript: the unit of an agent trace.
+///
+/// Every harness writes the same shape in its own vocabulary — Claude pairs a
+/// `tool_use` block with a `tool_result` block by `tool_use_id`, Codex pairs a
+/// `function_call` with a `function_call_output` by `call_id` — and both stamp
+/// each line with a timestamp. That is a span: a name, a start and a duration.
+/// Only the call's metadata is kept; arguments and output are never read.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct ToolSpan {
+    /// The harness's own call id, so a span survives across refreshes.
+    pub id: String,
+    /// Tool name as the harness reports it (`Bash`, `exec_command`, ...).
+    pub name: String,
+    pub started_at: SystemTime,
+    /// Wall-clock duration, or `None` while the call is still in flight.
+    pub duration_ms: Option<u64>,
+    /// The call was issued by a subagent (Claude's `isSidechain`).
+    pub sidechain: bool,
+    /// The harness reported the result as an error.
+    pub error: bool,
+}
+
+impl ToolSpan {
+    pub fn is_open(&self) -> bool {
+        self.duration_ms.is_none()
+    }
+
+    /// Duration if closed, otherwise how long it has been running as of `now`.
+    pub fn elapsed_ms(&self, now: SystemTime) -> u64 {
+        match self.duration_ms {
+            Some(ms) => ms,
+            None => now.duration_since(self.started_at).map(|d| d.as_millis() as u64).unwrap_or(0),
+        }
+    }
+
+    pub fn ended_at(&self, now: SystemTime) -> SystemTime {
+        self.started_at + std::time::Duration::from_millis(self.elapsed_ms(now))
+    }
+}
+
 /// Role of a process inside an agent's tree.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -197,6 +237,9 @@ pub struct Agent {
     pub turns: u64,
     pub subagent_turns: u64,
     pub tool_calls: u64,
+    /// The most recent tool calls as spans, oldest first. Bounded; see
+    /// `harness::MAX_SPANS`.
+    pub spans: Vec<ToolSpan>,
     /// Seconds since the process started (live) or since the last transcript write (stopped).
     pub age_secs: u64,
     /// Seconds since the transcript was last written.
@@ -250,9 +293,14 @@ pub struct Totals {
     pub rss_bytes: u64,
 }
 
+/// Version of the `--json` document. Bumped when a field changes meaning or
+/// disappears; new fields alone do not bump it.
+pub const SNAPSHOT_SCHEMA_VERSION: u32 = 1;
+
 /// Everything the UI needs for one frame.
 #[derive(Debug, Clone, Serialize)]
 pub struct Snapshot {
+    pub schema_version: u32,
     pub taken_at: SystemTime,
     pub host: HostStats,
     pub agents: Vec<Agent>,

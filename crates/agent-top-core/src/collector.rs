@@ -134,6 +134,7 @@ impl Collector {
                 turns: summary.turns,
                 subagent_turns: summary.subagent_turns,
                 tool_calls: summary.tool_calls,
+                spans: summary.spans.to_vec(),
                 age_secs: root.age_secs,
                 idle_secs,
                 cpu_percent: cpu,
@@ -184,6 +185,7 @@ impl Collector {
                 turns: s.turns,
                 subagent_turns: s.subagent_turns,
                 tool_calls: s.tool_calls,
+                spans: s.spans.to_vec(),
                 age_secs: idle_secs.unwrap_or(0),
                 idle_secs,
                 cpu_percent: 0.0,
@@ -199,7 +201,8 @@ impl Collector {
         let keep: HashSet<&PathBuf> = agents.iter().filter_map(|a| a.session_path.as_ref()).collect();
         self.trackers.retain(|p, _| keep.contains(p));
 
-        let mut snap = Snapshot { taken_at: now, host, agents, orphans, totals: Totals::default() };
+        let mut snap =
+            Snapshot { schema_version: SNAPSHOT_SCHEMA_VERSION, taken_at: now, host, agents, orphans, totals: Totals::default() };
         snap.compute_totals();
         snap
     }

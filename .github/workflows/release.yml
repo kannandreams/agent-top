@@ -1,0 +1,142 @@
+name: Release
+
+# Tagging is the whole release trigger: `git tag v0.2.0 && git push --tags`.
+# Everything below is derived from the tag, so a release cannot disagree with
+# what is in the repository at that commit.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  MISE_LOCKED: "1"
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, target: aarch64-apple-darwin }
+          - { os: macos-13, target: x86_64-apple-darwin }
+          # Built on 22.04 on purpose: the binary links the runner's glibc, so
+          # building on the newest image would refuse to start on any older
+          # distribution. 22.04 gives a glibc 2.35 floor.
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install development toolchain
+        uses: jdx/mise-action@v4.2.3
+        with:
+          version: 2026.8.2
+          cache: true
+
+      - name: Verify the runner builds the target it claims
+        run: |
+          host="$(rustc -vV | awk '/^host: /{print $2}')"
+          if [ "$host" != "${{ matrix.target }}" ]; then
+            echo "runner ${{ matrix.os }} is $host, not ${{ matrix.target }}" >&2
+            exit 1
+          fi
+
+      - name: Build
+        run: cargo build --release --locked -p agent-top
+
+      - name: Package
+        id: package
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          stage="agent-top-v${version}-${{ matrix.target }}"
+          mkdir -p "dist/$stage"
+          cp target/release/agent-top "dist/$stage/"
+          cp README.md LICENSE CHANGELOG.md "dist/$stage/"
+          tar -C dist -czf "dist/${stage}.tar.gz" "$stage"
+          rm -rf "dist/$stage"
+          # Homebrew and cargo-binstall both verify this.
+          if command -v sha256sum >/dev/null; then
+            (cd dist && sha256sum "${stage}.tar.gz" > "${stage}.tar.gz.sha256")
+          else
+            (cd dist && shasum -a 256 "${stage}.tar.gz" > "${stage}.tar.gz.sha256")
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke-test the packaged binary
+        run: |
+          ./target/release/agent-top --version
+          ./target/release/agent-top --json > /dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: publish
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: staging
+          pattern: dist-*
+          merge-multiple: true
+
+      - name: Check the tag matches the version in Cargo.toml
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          manifest="$(awk -F'"' '/^version = /{print $2; exit}' Cargo.toml)"
+          if [ "$version" != "$manifest" ]; then
+            echo "tag $GITHUB_REF_NAME does not match workspace version $manifest" >&2
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="$(awk '/^## /{ if (seen++) exit } seen' CHANGELOG.md)"
+          gh release create "$GITHUB_REF_NAME" staging/* \
+            --title "agent-top $GITHUB_REF_NAME" \
+            --notes "${notes:-See CHANGELOG.md.}"
+
+      - name: Update the Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "${TAP_TOKEN}" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN is not set; skipping the tap bump. See docs/releasing.md."
+            exit 0
+          fi
+          ./packaging/homebrew/render-formula.sh "$VERSION" staging > /tmp/agent-top.rb
+          git clone --depth 1 "https://x-access-token:${TAP_TOKEN}@github.com/kannandreams/homebrew-tap.git" /tmp/tap
+          mkdir -p /tmp/tap/Formula
+          cp /tmp/agent-top.rb /tmp/tap/Formula/agent-top.rb
+          cd /tmp/tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/agent-top.rb
+          git commit -m "agent-top ${VERSION}"
+          git push
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "${CARGO_REGISTRY_TOKEN}" ]; then
+            echo "::warning::CARGO_REGISTRY_TOKEN is not set; skipping crates.io. See docs/releasing.md."
+            exit 0
+          fi
+          # The core crate first: agent-top depends on it by version.
+          cargo publish --locked -p agent-top-core
+          cargo publish --locked -p agent-top

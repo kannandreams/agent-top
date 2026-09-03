@@ -8,7 +8,9 @@
 //!   `input_tokens` includes `cached_input_tokens`.
 //! * `task_started` / `task_complete` / `turn_aborted` bracket a turn.
 //! * `response_item` with `payload.type` `function_call` or
-//!   `custom_tool_call` is one tool call.
+//!   `custom_tool_call` is one tool call; the matching `*_output` item
+//!   carries the same `payload.call_id`, and the two lines' timestamps
+//!   bracket the call. That pairing is the trace.
 //!
 //! Codex model prices are not in the static table, so cost is reported as
 //! unpriced tokens.
@@ -136,7 +138,22 @@ impl CodexTranscript {
                 _ => {}
             },
             "response_item" => match ptype {
-                "function_call" | "custom_tool_call" | "local_shell_call" => self.summary.tool_calls += 1,
+                "function_call" | "custom_tool_call" | "local_shell_call" => {
+                    self.summary.tool_calls += 1;
+                    if let (Some(ts), Some(p)) = (ts, payload) {
+                        let id = call_id(p);
+                        let name = p.get("name").and_then(Value::as_str).unwrap_or(ptype);
+                        self.summary.spans.open(id, name.to_string(), ts, false);
+                    }
+                }
+                "function_call_output" | "custom_tool_call_output" | "local_shell_call_output" => {
+                    if let (Some(ts), Some(p)) = (ts, payload) {
+                        // Codex reports the result as an opaque string, and
+                        // agent-top does not read tool output, so a failed call
+                        // is not distinguishable from a successful one here.
+                        self.summary.spans.close(&call_id(p), ts, false);
+                    }
+                }
                 "message" if payload.and_then(|p| p.get("role")).and_then(Value::as_str) == Some("assistant") => {
                     self.summary.turns += 1;
                 }
@@ -145,6 +162,11 @@ impl CodexTranscript {
             _ => {}
         }
     }
+}
+
+/// `call_id` on function calls, `id` on the shell-call variants.
+fn call_id(payload: &Value) -> String {
+    payload.get("call_id").or_else(|| payload.get("id")).and_then(Value::as_str).unwrap_or_default().to_string()
 }
 
 impl SessionTracker for CodexTranscript {
@@ -181,7 +203,7 @@ mod tests {
         writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:22.000Z","type":"event_msg","payload":{{"type":"task_started"}}}}"#).unwrap();
         writeln!(
             f,
-            r#"{{"timestamp":"2026-08-28T08:53:23.000Z","type":"response_item","payload":{{"type":"function_call","name":"shell"}}}}"#
+            r#"{{"timestamp":"2026-08-28T08:53:23.000Z","type":"response_item","payload":{{"type":"function_call","call_id":"call_1","name":"shell"}}}}"#
         )
         .unwrap();
         writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:24.000Z","type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":14778,"cached_input_tokens":12672,"output_tokens":241,"total_tokens":15019}}}}}}}}"#).unwrap();
@@ -199,6 +221,32 @@ mod tests {
         assert_eq!(s.tool_calls, 1);
         assert_eq!(s.activity, Activity::Working);
         assert_eq!(read_meta(&path).unwrap().0, PathBuf::from("/tmp/p"));
+        let spans = s.spans.to_vec();
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].name, "shell");
+        assert!(spans[0].is_open(), "no output item yet");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn pairs_calls_with_their_outputs() {
+        let dir = std::env::temp_dir().join(format!("agent-top-codex-spans-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rollout.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:23.000Z","type":"response_item","payload":{{"type":"function_call","call_id":"call_1","name":"exec_command"}}}}"#).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:23.100Z","type":"response_item","payload":{{"type":"custom_tool_call","call_id":"call_2","name":"apply_patch"}}}}"#).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:24.000Z","type":"response_item","payload":{{"type":"function_call_output","call_id":"call_1","output":"ok"}}}}"#).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:26.100Z","type":"response_item","payload":{{"type":"custom_tool_call_output","call_id":"call_2","output":"ok"}}}}"#).unwrap();
+        let mut t = CodexTranscript::new(&path);
+        t.refresh().unwrap();
+        let spans = t.summary().spans.to_vec();
+        assert_eq!(spans.len(), 2);
+        assert_eq!(spans[0].name, "exec_command");
+        assert_eq!(spans[0].duration_ms, Some(1_000));
+        assert_eq!(spans[1].name, "apply_patch");
+        assert_eq!(spans[1].duration_ms, Some(3_000));
+        assert_eq!(t.summary().tool_calls, 2);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

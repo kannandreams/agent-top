@@ -39,6 +39,31 @@ impl SortKey {
     }
 }
 
+/// Which panel the right half of the detail pane shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DetailView {
+    /// The live process tree, plus orphaned MCP servers.
+    Tree,
+    /// A waterfall of the agent's recent tool calls.
+    Trace,
+}
+
+impl DetailView {
+    pub fn label(self) -> &'static str {
+        match self {
+            DetailView::Tree => "tree",
+            DetailView::Trace => "trace",
+        }
+    }
+
+    fn next(self) -> DetailView {
+        match self {
+            DetailView::Tree => DetailView::Trace,
+            DetailView::Trace => DetailView::Tree,
+        }
+    }
+}
+
 const HISTORY: usize = 120;
 
 pub struct App {
@@ -49,6 +74,7 @@ pub struct App {
     pub sort: SortKey,
     pub sort_desc: bool,
     pub show_detail: bool,
+    pub detail: DetailView,
     pub show_help: bool,
     pub show_stopped: bool,
     pub paused: bool,
@@ -68,6 +94,7 @@ impl App {
             sort: SortKey::State,
             sort_desc: false,
             show_detail: true,
+            detail: DetailView::Tree,
             show_help: false,
             show_stopped: true,
             paused: false,
@@ -151,6 +178,15 @@ impl App {
                 self.rebuild_rows();
             }
             KeyCode::Char('t') | KeyCode::Enter => self.show_detail = !self.show_detail,
+            // Cycling the view opens the pane rather than switching a panel
+            // nobody can see.
+            KeyCode::Tab | KeyCode::Char('v') => {
+                if self.show_detail {
+                    self.detail = self.detail.next();
+                } else {
+                    self.show_detail = true;
+                }
+            }
             KeyCode::Char('x') => {
                 self.show_stopped = !self.show_stopped;
                 self.rebuild_rows();

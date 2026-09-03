@@ -1,14 +1,15 @@
 //! Rendering. Layout, top to bottom: header (host gauges + totals), agent
 //! table, optional detail pane (process tree + token breakdown), key bar.
 
-use crate::app::App;
-use crate::format::{age, bytes, cost, short_cmd, short_model, tokens, truncate};
-use agent_top_core::{Agent, AgentState, Attribution, ProcKind, ProcNode};
+use crate::app::{App, DetailView};
+use crate::format::{age, bytes, cost, duration_ms, short_cmd, short_model, tokens, truncate};
+use agent_top_core::{Agent, AgentState, Attribution, ProcKind, ProcNode, ToolSpan};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Cell, Clear, Gauge, Paragraph, Row, Sparkline, Table, TableState, Wrap};
+use std::time::{Duration, SystemTime};
 
 const ACCENT: Color = Color::Cyan;
 const DIM: Color = Color::DarkGray;
@@ -222,13 +223,17 @@ fn draw_detail(f: &mut Frame, app: &App, area: Rect) {
         f.render_widget(block("detail"), area);
         return;
     };
-    let title = format!("{} · {} · {}", a.name, a.harness.label(), a.state.label());
+    let title = format!("{} · {} · {}  [{}]", a.name, a.harness.label(), a.state.label(), app.detail.label());
     let outer = block(&title);
     let inner = outer.inner(area);
     f.render_widget(outer, area);
     let [left, right] = Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)]).areas(inner);
     f.render_widget(Paragraph::new(agent_facts(a)).wrap(Wrap { trim: false }), left);
-    f.render_widget(Paragraph::new(process_tree(a, &app.snapshot.orphans, right.width as usize)), right);
+    let panel = match app.detail {
+        DetailView::Tree => process_tree(a, &app.snapshot.orphans, right.width as usize),
+        DetailView::Trace => tool_trace(a, app.snapshot.taken_at, right.width as usize, right.height as usize),
+    };
+    f.render_widget(Paragraph::new(panel), right);
 }
 
 fn kv<'a>(k: &'a str, v: String) -> Line<'a> {
@@ -275,6 +280,125 @@ fn agent_facts(a: &Agent) -> Text<'static> {
         lines.push(kv("transcript", tilde(p)));
     }
     Text::from(lines)
+}
+
+/// A waterfall of the agent's recent tool calls: one row per call, positioned
+/// and sized on a shared time axis, so a single long call and a storm of short
+/// ones look different at a glance. Answers "why has this agent been busy for
+/// eight minutes", which the table alone cannot.
+fn tool_trace(a: &Agent, now: SystemTime, width: usize, height: usize) -> Text<'static> {
+    let head = |extra: Vec<Span<'static>>| {
+        let mut spans = vec![Span::styled("tool trace", Style::default().fg(ACCENT).bold())];
+        spans.extend(extra);
+        Line::from(spans)
+    };
+    if a.spans.is_empty() {
+        return Text::from(vec![
+            head(vec![Span::styled(format!("   {} tool calls", a.tool_calls), Style::default().fg(DIM))]),
+            Line::styled(
+                if a.tool_calls > 0 { "  (calls happened before agent-top started reading)" } else { "  (no tool calls yet)" },
+                Style::default().fg(DIM),
+            ),
+        ]);
+    }
+
+    // Two header lines, then one row per span, newest at the bottom.
+    let rows = height.saturating_sub(2).max(1);
+    let shown: Vec<&ToolSpan> = {
+        let mut v: Vec<&ToolSpan> = a.spans.iter().rev().take(rows).collect();
+        v.reverse();
+        v
+    };
+    let t0 = shown.iter().map(|s| s.started_at).min().unwrap_or(now);
+    let mut t1 = shown.iter().map(|s| s.ended_at(now)).max().unwrap_or(now);
+    // An in-flight call is still growing, so the axis runs to the present.
+    if shown.iter().any(|s| s.is_open()) && now > t1 {
+        t1 = now;
+    }
+    let window_ms = t1.duration_since(t0).map(|d| d.as_millis() as u64).unwrap_or(0).max(1);
+
+    const NAME_W: usize = 14;
+    const DUR_W: usize = 8;
+    let bar_w = width.saturating_sub(NAME_W + DUR_W + 3).max(4);
+    let cell = |t: SystemTime| -> usize {
+        let off = t.duration_since(t0).map(|d| d.as_millis() as u64).unwrap_or(0);
+        ((off as f64 / window_ms as f64) * bar_w as f64).round() as usize
+    };
+
+    let mut lines = vec![
+        head(vec![Span::styled(
+            format!("   {} of {} calls · window {}", shown.len(), a.tool_calls, duration_ms(window_ms)),
+            Style::default().fg(DIM),
+        )]),
+        Line::from(trace_summary(&shown, now, window_ms)),
+    ];
+    for s in &shown {
+        let elapsed = s.elapsed_ms(now);
+        let start = cell(s.started_at).min(bar_w.saturating_sub(1));
+        let end = cell(s.ended_at(now)).clamp(start + 1, bar_w);
+        let (bar_style, dur_text) = if s.error {
+            (Style::default().fg(Color::Red), format!("{}!", duration_ms(elapsed)))
+        } else if s.is_open() {
+            (Style::default().fg(Color::Yellow), format!("{}…", duration_ms(elapsed)))
+        } else if s.sidechain {
+            (Style::default().fg(Color::Blue), duration_ms(elapsed))
+        } else {
+            (Style::default().fg(ACCENT), duration_ms(elapsed))
+        };
+        let name = format!("{}{}", if s.sidechain { "↳" } else { "" }, s.name);
+        lines.push(Line::from(vec![
+            Span::styled(format!("{:<NAME_W$}", truncate(&name, NAME_W)), Style::default().fg(Color::White)),
+            Span::styled(format!("{dur_text:>DUR_W$} "), Style::default().fg(DIM)),
+            Span::raw(" ".repeat(start)),
+            Span::styled("█".repeat(end - start), bar_style),
+        ]));
+    }
+    Text::from(lines)
+}
+
+/// The line under the trace header: where the window actually went.
+fn trace_summary(shown: &[&ToolSpan], now: SystemTime, window_ms: u64) -> Vec<Span<'static>> {
+    let slowest = shown.iter().max_by_key(|s| s.elapsed_ms(now));
+    let errors = shown.iter().filter(|s| s.error).count();
+    let open = shown.iter().filter(|s| s.is_open()).count();
+    let mut spans = vec![Span::styled(format!("  in tools {}%", busy_ms(shown, now) * 100 / window_ms), Style::default().fg(Color::Green))];
+    if let Some(s) = slowest {
+        spans.push(Span::styled(
+            format!("  slowest {} {}", truncate(&s.name, 14), duration_ms(s.elapsed_ms(now))),
+            Style::default().fg(DIM),
+        ));
+    }
+    if open > 0 {
+        spans.push(Span::styled(format!("  {open} in flight"), Style::default().fg(Color::Yellow)));
+    }
+    if errors > 0 {
+        spans.push(Span::styled(format!("  {errors} failed"), Style::default().fg(Color::Red)));
+    }
+    spans
+}
+
+/// Wall-clock milliseconds covered by at least one call. Agents run tools in
+/// parallel, so summing durations would happily exceed the window; overlapping
+/// intervals are merged instead.
+fn busy_ms(shown: &[&ToolSpan], now: SystemTime) -> u64 {
+    let mut iv: Vec<(SystemTime, SystemTime)> = shown.iter().map(|s| (s.started_at, s.ended_at(now))).collect();
+    iv.sort_by_key(|(a, _)| *a);
+    let mut total = Duration::ZERO;
+    let mut cur: Option<(SystemTime, SystemTime)> = None;
+    for (start, end) in iv {
+        match cur {
+            Some((cs, ce)) if start <= ce => cur = Some((cs, ce.max(end))),
+            Some((cs, ce)) => {
+                total += ce.duration_since(cs).unwrap_or_default();
+                cur = Some((start, end));
+            }
+            None => cur = Some((start, end)),
+        }
+    }
+    if let Some((cs, ce)) = cur {
+        total += ce.duration_since(cs).unwrap_or_default();
+    }
+    total.as_millis() as u64
 }
 
 fn process_tree(a: &Agent, orphans: &[ProcNode], width: usize) -> Text<'static> {
@@ -353,6 +477,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     spans.extend(key("s", format!("sort:{}", app.sort.label()).as_str()));
     spans.extend(key("r", "reverse"));
     spans.extend(key("t", if app.show_detail { "hide detail" } else { "show detail" }));
+    spans.extend(key("Tab", if app.detail == DetailView::Tree { "trace" } else { "tree" }));
     spans.extend(key("x", if app.show_stopped { "hide stopped" } else { "show stopped" }));
     spans.extend(key("p", if app.paused { "resume" } else { "pause" }));
     spans.extend(key("?", "help"));
@@ -362,7 +487,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
 
 fn draw_help(f: &mut Frame, area: Rect) {
     let w = 62.min(area.width.saturating_sub(2));
-    let h = 20.min(area.height.saturating_sub(2));
+    let h = 25.min(area.height.saturating_sub(2));
     let popup = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };
     f.render_widget(Clear, popup);
     let text = Text::from(vec![
@@ -370,6 +495,7 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::raw("  ↑ ↓ j k      move selection      g G     first / last"),
         Line::raw("  s            cycle sort column   r       reverse sort"),
         Line::raw("  t / Enter    toggle detail pane  x       toggle stopped rows"),
+        Line::raw("  Tab / v      detail: tree ⇄ trace"),
         Line::raw("  p / Space    pause refresh       q / Esc quit"),
         Line::raw(""),
         Line::from(vec![Span::styled("columns", Style::default().fg(ACCENT).bold())]),
@@ -381,6 +507,10 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::raw("          Model Context Protocol servers (name heuristic)"),
         Line::raw("  AGE     process age, or time since last write when stopped"),
         Line::raw(""),
+        Line::from(vec![Span::styled("tool trace", Style::default().fg(ACCENT).bold())]),
+        Line::raw("  Each tool call the harness logged, on a shared time axis:"),
+        Line::raw("  cyan = done, blue = subagent, yellow = in flight, red = failed."),
+        Line::raw(""),
         Line::from(vec![
             Span::styled("orphaned mcp", Style::default().fg(Color::Red).bold()),
             Span::raw("  MCP-looking processes whose agent is gone."),
@@ -388,4 +518,144 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::raw("  Inspect with `agent-top --json`; kill with `kill <pid>`."),
     ]);
     f.render_widget(Paragraph::new(text).block(block("help")).wrap(Wrap { trim: false }), popup);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use agent_top_core::{HostStats, Snapshot, TokenUsage, Totals};
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+
+    fn span(name: &str, start_s: u64, dur_ms: Option<u64>, sidechain: bool, error: bool) -> ToolSpan {
+        ToolSpan {
+            id: format!("{name}{start_s}"),
+            name: name.into(),
+            started_at: SystemTime::UNIX_EPOCH + Duration::from_secs(start_s),
+            duration_ms: dur_ms,
+            sidechain,
+            error,
+        }
+    }
+
+    fn agent(name: &str, spans: Vec<ToolSpan>) -> Agent {
+        Agent {
+            id: format!("pid:{}", name.len()),
+            name: name.into(),
+            harness: agent_top_core::Harness::Claude,
+            state: AgentState::Running,
+            activity: agent_top_core::Activity::Working,
+            pid: Some(4242),
+            session_id: Some("a29e19c3".into()),
+            session_path: None,
+            cwd: None,
+            model: Some("claude-fable-5-1".into()),
+            harness_version: Some("2.1.259".into()),
+            usage: TokenUsage { input: 2, cache_write_5m: 9_900, cache_write_1h: 0, cache_read: 22_000, output: 250 },
+            cost_usd: 1.42,
+            unpriced_tokens: 0,
+            turns: 12,
+            subagent_turns: 1,
+            tool_calls: 71,
+            spans,
+            age_secs: 1080,
+            idle_secs: Some(3),
+            cpu_percent: 6.6,
+            rss_bytes: 452 * 1024 * 1024,
+            process_count: 4,
+            mcp_count: 1,
+            tree: None,
+            attribution: Attribution::HarnessRegistry,
+        }
+    }
+
+    fn snapshot(agents: Vec<Agent>) -> Snapshot {
+        let mut s = Snapshot {
+            schema_version: agent_top_core::SNAPSHOT_SCHEMA_VERSION,
+            // 60s after the first span starts, so an open span reads as 20s old.
+            taken_at: SystemTime::UNIX_EPOCH + Duration::from_secs(160),
+            host: HostStats {
+                hostname: Some("test-host".into()),
+                cpu_percent: 23.4,
+                cpu_count: 12,
+                mem_used_bytes: 19 << 30,
+                mem_total_bytes: 32 << 30,
+            },
+            agents,
+            orphans: Vec::new(),
+            totals: Totals::default(),
+        };
+        s.compute_totals();
+        s
+    }
+
+    fn render(app: &mut App, w: u16, h: u16) -> String {
+        let mut term = Terminal::new(TestBackend::new(w, h)).unwrap();
+        term.draw(|f| draw(f, app)).unwrap();
+        let buf = term.backend().buffer().clone();
+        (0..buf.area.height)
+            .map(|y| {
+                let row: String = (0..buf.area.width).map(|x| buf[(x, y)].symbol().to_string()).collect();
+                row.trim_end().to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// Renders the whole frame with the trace panel open. Run with
+    /// `cargo test -- --nocapture` to eyeball the layout.
+    #[test]
+    fn draws_the_trace_waterfall() {
+        let spans = vec![
+            span("Bash", 100, Some(2_500), false, false),
+            span("Read", 103, Some(40), false, false),
+            span("Grep", 103, Some(12_000), true, false),
+            span("Edit", 118, Some(300), false, true),
+            span("Bash", 140, None, false, false),
+        ];
+        let mut app = App::new(snapshot(vec![agent("tuff-25", spans)]));
+        app.detail = DetailView::Trace;
+        let out = render(&mut app, 120, 26);
+        println!("\n{out}\n");
+
+        assert!(out.contains("[trace]"), "the pane says which view it is");
+        assert!(out.contains("5 of 71 calls"), "header counts shown vs total: {out}");
+        assert!(out.contains("↳Grep"), "subagent calls are marked");
+        assert!(out.contains("12.0s"), "durations are formatted");
+        assert!(out.contains("20.0s…"), "the open span is measured against taken_at");
+        assert!(out.contains("300ms!"), "failed calls are flagged");
+        assert!(out.contains("1 in flight"), "summary counts open calls");
+        assert!(out.contains("1 failed"), "summary counts failures");
+        // 100..115 and 118..118.3 and 140..160 covered out of a 60s window.
+        assert!(out.contains("in tools 58%"), "busy share merges overlapping calls: {out}");
+        // The waterfall is monotonic: each row starts no earlier than the one
+        // above. (Filtered by tool name so the header's CPU gauge is excluded.)
+        let bars: Vec<usize> = out
+            .lines()
+            .filter(|l| l.contains('█') && ["Bash", "Read", "Grep", "Edit"].iter().any(|n| l.contains(n)))
+            .map(|l| l.find('█').unwrap())
+            .collect();
+        assert_eq!(bars.len(), 5);
+        assert!(bars.windows(2).all(|w| w[0] <= w[1]), "spans are ordered along the axis: {bars:?}");
+    }
+
+    #[test]
+    fn trace_panel_explains_itself_when_there_is_nothing_to_show() {
+        let mut app = App::new(snapshot(vec![agent("fresh", Vec::new())]));
+        app.detail = DetailView::Trace;
+        let out = render(&mut app, 120, 26);
+        assert!(out.contains("calls happened before agent-top started reading"), "{out}");
+    }
+
+    /// The panel must not panic or overflow at the sizes people actually use.
+    #[test]
+    fn survives_a_narrow_terminal() {
+        let spans = vec![span("SomeVeryLongToolName", 100, Some(2_500), false, false), span("Bash", 159, None, false, false)];
+        let mut app = App::new(snapshot(vec![agent("tuff-25", spans)]));
+        app.detail = DetailView::Trace;
+        for (w, h) in [(40u16, 12u16), (60, 10), (200, 60), (24, 8)] {
+            let out = render(&mut app, w, h);
+            assert!(out.lines().all(|l| l.chars().count() <= w as usize), "no row overflows {w} columns");
+        }
+    }
 }

@@ -26,7 +26,7 @@ You have three Claude Code sessions, a Codex thread in VS Code, and a Gemini CLI
 │           cache wr 9.9k · out 250  │  └─ [tool] 57278 0.7% 37M 19s python3 -    │
 │ cost      $1.42                    └─ [mcp]   58102 0.1% 61M 18m npx -y @model…│
 └─────────────────────────────────────────────────────────────────────────────────┘
- ↑↓/jk select  s sort:state  r reverse  t hide detail  x hide stopped  p pause  ? help  q quit
+ ↑↓/jk select  s sort  r reverse  t detail  Tab trace  x hide stopped  p pause  ? help  q quit
 ```
 
 ## What it shows
@@ -54,10 +54,21 @@ The detail pane shows the process tree (`agent`, `subagent`, `mcp`, `shell`, `to
 ## Install
 
 ```sh
-cargo install --path crates/agent-top
+brew install kannandreams/tap/agent-top
 ```
 
-Requires Rust 1.85+ (edition 2024). No Python, no Node, no daemon.
+Or, without Homebrew:
+
+```sh
+cargo binstall agent-top          # prebuilt binary, no compiler needed
+cargo install agent-top           # build from crates.io
+cargo install --path crates/agent-top   # build from a clone
+```
+
+Prebuilt binaries for macOS and Linux (x86_64 and arm64) are attached to every
+[release](https://github.com/kannandreams/agent-top/releases) with checksums.
+Building from source needs Rust 1.85+ (edition 2024). Either way: one static
+binary, no Python, no Node, no daemon.
 
 ## Usage
 
@@ -69,7 +80,39 @@ agent-top --interval-ms 500  # faster refresh
 agent-top --stopped-window-min 120
 ```
 
-Keys: `j`/`k` move, `s` cycle sort, `r` reverse, `t` toggle the detail pane, `x` hide stopped sessions, `p` pause, `?` help, `q` quit.
+Keys: `j`/`k` move, `s` cycle sort, `r` reverse, `t` toggle the detail pane,
+`Tab` switch that pane between the process tree and the tool trace, `x` hide
+stopped sessions, `p` pause, `?` help, `q` quit.
+
+## Tool trace
+
+`Tab` turns the detail pane into a waterfall of the selected agent's recent
+tool calls, on a shared time axis:
+
+```
+ tool trace   10 of 37 calls · window 3m21s
+   in tools 14%  slowest Bash 6.7s  1 in flight
+ Bash              3.3s █
+ Bash              4.5s        ██
+ Bash              3.1s           █
+ Bash              6.7s             ██
+ ↳Grep            12.0s                  ████████
+ Edit            300ms!                           █
+ Bash             20.0s…                                    █████████████
+```
+
+Cyan is a finished call, blue is a subagent's call (`↳`), yellow with `…` is
+still running, red with `!` came back an error. **in tools** is the share of
+the window covered by at least one call — the rest is the model thinking, which
+is usually the answer to "why has this agent been busy for eight minutes".
+
+No configuration and no telemetry opt-in: the spans are reconstructed from the
+transcript the harness already writes, by pairing each call with its result
+(Claude's `tool_use` / `tool_result` on `tool_use_id`, Codex's `function_call` /
+`function_call_output` on `call_id`) and reading the timestamps that bracket
+them. Only the call's name, id and timing are read, never its arguments or
+output. The spans are in `--json` as well, so they can be fed to a real tracing
+tool.
 
 ## How it works
 
@@ -83,7 +126,7 @@ Everything is read-only. `agent-top` never signals, writes to, or talks to an ag
 
 ## Roadmap
 
-See [docs/roadmap.md](docs/roadmap.md). Short version: exact Codex attribution, a logical subagent tree from transcripts, per-tool-call timelines, user-supplied price tables, a `hook` subcommand for harnesses that support it, and Linux packaging.
+See [docs/roadmap.md](docs/roadmap.md). Short version: exact Codex attribution, a logical subagent tree from transcripts, trace export to OTLP, user-supplied price tables, and a `hook` subcommand for harnesses that support it. [docs/releasing.md](docs/releasing.md) is the release runbook.
 
 ## Development
 

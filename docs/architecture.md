@@ -4,7 +4,7 @@ Two crates in one Cargo workspace.
 
 ```text
 crates/agent-top-core          no terminal dependency; what --json prints
-  model.rs        Agent, AgentState, TokenUsage, ProcNode, Snapshot
+  model.rs        Agent, AgentState, TokenUsage, ToolSpan, ProcNode, Snapshot
   process.rs      sysinfo scan -> agent roots, child kinds, orphans
   harness/        one adapter per harness (claude.rs, codex.rs)
   jsonl.rs        incremental line reader with a byte offset
@@ -14,7 +14,7 @@ crates/agent-top-core          no terminal dependency; what --json prints
 crates/agent-top               ratatui front end
   main.rs         clap flags, event loop, --once / --json
   app.rs          selection, sort, toggles, sparkline histories
-  ui.rs           header gauges, table, detail pane, help
+  ui.rs           header gauges, table, detail pane (tree | trace), help
   format.rs       tokens/bytes/age/cost formatting, plain table
 ```
 
@@ -35,6 +35,7 @@ flowchart LR
 1. **Scan.** `ProcessScanner` refreshes the process table, CPU and memory. `classify_agent` marks harness roots; `build_forest` folds children under them and labels each child `subagent`, `mcp`, `shell` or `tool`. MCP-looking processes with no agent ancestor become **orphans**.
 2. **Attribute.** For each root, find its transcript. Claude Code: the registry file keyed by pid (exact), then a `--resume <id>` argument, then the transcript in the cwd's project directory created closest after process start. Codex: the newest rollout whose `session_meta.cwd` matches the process cwd, else the newest rollout started after the process.
 3. **Tail.** A `SessionTracker` per transcript reads only the bytes appended since last tick (up to 8 MB per tick) and folds them into a `SessionSummary`: usage, cost, turns, tool calls, model, last activity, and whether the agent is mid-turn.
+3a. **Pair.** Within that same pass, each adapter feeds a `SpanLog`: a "call started" record opens a span keyed by the harness's own call id, the matching "call finished" record closes it with the elapsed wall time. The log keeps the newest `MAX_SPANS` (128) and tolerates calls that overlap, arrive out of order, or never come back — an agent runs tools in parallel, and a session can end mid-call. This costs one extra field lookup per line and no extra I/O, because the bytes are already in hand.
 4. **State.** Registry status if present, else transcript activity, else CPU and mtime.
 5. **Stopped sessions.** Transcripts modified inside the window (default 30 min) that no process owns are shown as `stopped`.
 

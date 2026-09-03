@@ -42,6 +42,19 @@ pub fn age(secs: u64) -> String {
     }
 }
 
+/// A tool call's duration, at the precision a human reads at a glance.
+pub fn duration_ms(ms: u64) -> String {
+    if ms < 1_000 {
+        format!("{ms}ms")
+    } else if ms < 60_000 {
+        format!("{:.1}s", ms as f64 / 1000.0)
+    } else if ms < 3_600_000 {
+        format!("{}m{:02}s", ms / 60_000, (ms % 60_000) / 1000)
+    } else {
+        format!("{}h{:02}m", ms / 3_600_000, (ms % 3_600_000) / 60_000)
+    }
+}
+
 pub fn cost(a: &Agent) -> String {
     if a.unpriced_tokens > 0 && a.cost_usd == 0.0 {
         "n/a".to_string()

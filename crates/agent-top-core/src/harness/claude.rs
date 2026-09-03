@@ -9,6 +9,10 @@
 //!   `ephemeral_5m_input_tokens` split cache writes by TTL, which have
 //!   different prices.
 //! * `isSidechain: true` marks subagent turns.
+//! * A `tool_use` block in an assistant message and the `tool_result` block
+//!   that answers it carry the same id in `id` / `tool_use_id`, and their
+//!   lines carry the timestamps that bracket the call. That pairing is the
+//!   trace: verified 240/240 on a real session.
 //! * The registry file has `status: "busy" | "idle"`, which is the harness's
 //!   own opinion of its state and beats any transcript heuristic.
 
@@ -133,8 +137,10 @@ pub fn guess_transcript(cwd: &Path, proc_start: SystemTime) -> Option<PathBuf> {
         if p.extension().and_then(|x| x.to_str()) != Some("jsonl") {
             continue;
         }
-        let md = f.metadata().ok()?;
-        let created = md.created().or_else(|_| md.modified()).ok()?;
+        // A file we cannot stat is skipped, not fatal: one unreadable
+        // transcript must not abandon attribution for the whole directory.
+        let Ok(md) = f.metadata() else { continue };
+        let Ok(created) = md.created().or_else(|_| md.modified()) else { continue };
         if created + slack < proc_start {
             continue;
         }
@@ -195,17 +201,33 @@ impl ClaudeTranscript {
         }
         let sidechain = v.get("isSidechain").and_then(Value::as_bool).unwrap_or(false);
         let is_meta = v.get("isMeta").and_then(Value::as_bool).unwrap_or(false);
+        let ts = v.get("timestamp").and_then(Value::as_str).and_then(parse_rfc3339_utc);
         match kind {
-            "assistant" => self.ingest_assistant(&v, sidechain),
+            "assistant" => self.ingest_assistant(&v, sidechain, ts),
             "user" if !is_meta => {
                 // Either a prompt or a tool_result: in both cases the model owes a response.
                 self.summary.activity = Activity::Working;
+                if let Some(ts) = ts {
+                    self.close_spans(&v, ts);
+                }
             }
             _ => {}
         }
     }
 
-    fn ingest_assistant(&mut self, v: &Value, sidechain: bool) {
+    /// A user line answering tool calls: every `tool_result` block closes a span.
+    fn close_spans(&mut self, v: &Value, ts: SystemTime) {
+        let Some(content) = v.pointer("/message/content").and_then(Value::as_array) else { return };
+        for b in content {
+            if b.get("type").and_then(Value::as_str) != Some("tool_result") {
+                continue;
+            }
+            let Some(id) = b.get("tool_use_id").and_then(Value::as_str) else { continue };
+            self.summary.spans.close(id, ts, b.get("is_error").and_then(Value::as_bool).unwrap_or(false));
+        }
+    }
+
+    fn ingest_assistant(&mut self, v: &Value, sidechain: bool, ts: Option<SystemTime>) {
         let Some(msg) = v.get("message") else { return };
         let id = msg.get("id").and_then(Value::as_str).map(str::to_string);
         let model = msg.get("model").and_then(Value::as_str).unwrap_or("");
@@ -213,8 +235,14 @@ impl ClaudeTranscript {
             self.summary.model = Some(model.to_string());
         }
         if let Some(content) = msg.get("content").and_then(Value::as_array) {
-            let calls = content.iter().filter(|b| b.get("type").and_then(Value::as_str) == Some("tool_use")).count() as u64;
-            self.summary.tool_calls += calls;
+            let calls = content.iter().filter(|b| b.get("type").and_then(Value::as_str) == Some("tool_use"));
+            for b in calls {
+                self.summary.tool_calls += 1;
+                if let (Some(ts), Some(id)) = (ts, b.get("id").and_then(Value::as_str)) {
+                    let name = b.get("name").and_then(Value::as_str).unwrap_or("tool");
+                    self.summary.spans.open(id.to_string(), name.to_string(), ts, sidechain);
+                }
+            }
         }
         match msg.get("stop_reason").and_then(Value::as_str) {
             Some("end_turn") | Some("stop_sequence") | Some("max_tokens") | Some("refusal") => {
@@ -326,6 +354,33 @@ mod tests {
         t.refresh().unwrap();
         assert_eq!(t.summary().turns, 2);
         assert_eq!(t.summary().activity, Activity::Waiting);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn builds_spans_from_tool_use_and_tool_result() {
+        let dir = std::env::temp_dir().join(format!("agent-top-claude-spans-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("s.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:00.000Z","message":{{"id":"m1","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{{"type":"tool_use","id":"toolu_a","name":"Bash"}},{{"type":"tool_use","id":"toolu_b","name":"Read"}}],"usage":{{"input_tokens":1}}}}}}"#).unwrap();
+        // Results arrive on one line, in the other order, one of them failed.
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-03T07:00:02.500Z","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"toolu_b","is_error":true}},{{"type":"tool_result","tool_use_id":"toolu_a","is_error":false}}]}},"toolUseResult":{{}}}}"#).unwrap();
+        // A subagent call that has not come back yet.
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:03.000Z","isSidechain":true,"message":{{"id":"m2","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{{"type":"tool_use","id":"toolu_c","name":"Grep"}}],"usage":{{"input_tokens":1}}}}}}"#).unwrap();
+        let mut t = ClaudeTranscript::new(&path);
+        t.refresh().unwrap();
+        let spans = t.summary().spans.to_vec();
+        assert_eq!(spans.len(), 3);
+        assert_eq!(spans[0].name, "Bash");
+        assert_eq!(spans[0].duration_ms, Some(2_500));
+        assert!(!spans[0].error);
+        assert_eq!(spans[1].name, "Read");
+        assert_eq!(spans[1].duration_ms, Some(2_500));
+        assert!(spans[1].error);
+        assert!(spans[2].is_open());
+        assert!(spans[2].sidechain);
+        assert_eq!(t.summary().tool_calls, 3);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
