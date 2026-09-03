@@ -408,9 +408,17 @@ mod tests {
     use super::*;
     use std::fs;
 
-    fn touch(dir: &Path, name: &str) -> PathBuf {
+    /// Write a rollout with an explicit modification time.
+    ///
+    /// Ordering must not be left to how finely the filesystem happens to
+    /// timestamp three writes microseconds apart: Linux gave all three the
+    /// same mtime, the stable sort preserved insertion order, and the test
+    /// failed there while passing on macOS.
+    fn rollout(dir: &Path, name: &str, written: SystemTime) -> PathBuf {
         let p = dir.join(name);
         fs::write(&p, b"x").unwrap();
+        let f = fs::File::options().write(true).open(&p).unwrap();
+        f.set_times(fs::FileTimes::new().set_accessed(written).set_modified(written)).unwrap();
         p
     }
 
@@ -426,10 +434,11 @@ mod tests {
         let started = now - Duration::from_secs(600);
         let opts = CollectorOptions::default();
 
-        // Written in this order, so the last one is the freshest on disk.
-        let a = touch(&dir, "a.jsonl");
-        let b = touch(&dir, "b.jsonl");
-        let c = touch(&dir, "c.jsonl");
+        // Distinct write times, oldest first, so "newest first" has a single
+        // correct answer.
+        let a = rollout(&dir, "a.jsonl", now - Duration::from_secs(300));
+        let b = rollout(&dir, "b.jsonl", now - Duration::from_secs(200));
+        let c = rollout(&dir, "c.jsonl", now - Duration::from_secs(100));
         let recent: Vec<(PathBuf, PathBuf, SystemTime)> =
             [&a, &b, &c].iter().map(|p| ((*p).clone(), PathBuf::from("/Users/dev/code/one"), started)).collect();
 

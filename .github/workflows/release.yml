@@ -54,8 +54,31 @@ jobs:
             echo "CARGO_REGISTRY_TOKEN is set"
           fi
 
+  # A tag must not publish what CI would have rejected. Without this the
+  # release workflow only built and smoke-ran the binary, so v0.2.0 went to
+  # crates.io and the Homebrew tap while a test was failing on Linux.
+  test:
+    name: test (${{ matrix.os }})
+    if: github.event_name == 'push'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install development toolchain
+        uses: jdx/mise-action@v4.2.3
+        with:
+          version: 2026.8.2
+          cache: true
+      - uses: Swatinem/rust-cache@v2.9.2
+      - name: Run repository checks (fmt, clippy, tests)
+        run: mise run check
+
   build:
     name: build (${{ matrix.target }})
+    needs: test
     if: github.event_name == 'push'
     runs-on: ${{ matrix.os }}
     strategy:

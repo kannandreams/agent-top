@@ -68,6 +68,11 @@ git tag v0.2.0
 git push && git push --tags
 ```
 
+The release workflow runs the full check suite on macOS and Linux first, and
+builds nothing if it fails, so a tag cannot publish what CI would have
+rejected. That gate was added after v0.2.0 shipped to crates.io and the tap
+while a Linux-only test failure sat on `main`.
+
 Then watch `gh run watch`, and verify the result on a clean machine:
 
 ```sh
