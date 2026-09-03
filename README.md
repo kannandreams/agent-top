@@ -8,26 +8,9 @@
 
 You have three Claude Code sessions, a Codex thread in VS Code, and a Gemini CLI you forgot about. Which one is burning tokens right now? Which one is waiting on you? Which MCP server is still alive after the agent that started it died? `agent-top` answers that in one terminal view, the way `htop` answers it for processes and `btop` answers it for the whole machine.
 
-```
-┌ agent-top @ atlas-mbp ──────────────────────────────────────────────────────────┐
-│ cpu  23.4% (12 cores) ▉▉▉▉▉▏▏▏▏▏▏▏▏▏▏   agents 4   2 running  1 idle  1 stopped │
-│ mem  61.0% 19.5G/32.0G ▉▉▉▉▉▉▉▉▉▉▏▏▏▏   tokens 68k   cost $2.10                 │
-│ tokens/s ▁▂▃▅▂▁▁▃▇▂▁                    procs 9   mcp 2   orphaned mcp 1        │
-├ agents (4) ─────────────────────────────────────────────────────────────────────┤
-│  AGENT         HARNESS STATE    PID    MODEL       TOKENS  COST   CPU%  MEM  MCP AGE│
-│▶ tuff-25       claude  running  6980   fable-5-1   41k     $1.42  6.6   452M 1   18m│
-│  reviewer      claude  running  7161   sonnet-5    8k      $0.21  1.0   409M 0    3m│
-│  codex:secchi  codex   idle     57429  gpt-5-codex 13k     n/a    0.7    29M 1    7m│
-│  claude:glyf   claude  stopped  -      opus-5      6k      $0.12  -     -    -    2m│
-├ tuff-25 · claude · running  [tree] ─────────────────────────────────────────────┤
-│ session   a29e19c3-…   process tree   4 procs · 1 mcp · cpu 7.3% · rss 490M     │
-│ model     claude-fable-5-1   [agent]  6980  6.6% 452M 18m  claude --resume a29e…│
-│ tokens    input 2 · cache rd 22k · ├─ [shell] 57276 0.0% 2.6M 19s /bin/zsh -c … │
-│           cache wr 9.9k · out 250  │  └─ [tool] 57278 0.7% 37M 19s python3 -    │
-│ cost      $1.42                    └─ [mcp]   58102 0.1% 61M 18m npx -y @model…│
-└─────────────────────────────────────────────────────────────────────────────────┘
- ↑↓/jk select  s sort  r reverse  t detail  Tab trace  x hide stopped  p pause  ? help  q quit
-```
+![agent-top](https://raw.githubusercontent.com/kannandreams/agent-top/main/docs/demo.gif)
+
+<sub>Recorded from a synthetic snapshot (`docs/demo-snapshot.json`, replayed with `--replay`) rather than a live machine, because a recording of real sessions would publish real project names, working directories and session ids. Regenerate with `vhs docs/demo.tape`.</sub>
 
 ## What it shows
 
@@ -78,7 +61,12 @@ agent-top --once             # print the table once and exit
 agent-top --json             # one snapshot as JSON, for scripts and bug reports
 agent-top --interval-ms 500  # faster refresh
 agent-top --stopped-window-min 120
+agent-top --replay snap.json # render someone else's --json, keys and all
 ```
+
+`--replay` renders a saved snapshot in the full interactive UI without reading
+anything on the local machine, so a bug report can be inspected exactly as the
+reporter saw it.
 
 Keys: `j`/`k` move, `s` cycle sort, `r` reverse, `t` toggle the detail pane,
 `Tab` switch that pane between the process tree and the tool trace, `x` hide

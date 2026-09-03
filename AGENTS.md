@@ -14,6 +14,14 @@
 - **Edition 2024, no `unsafe`, no async.** One refresh per tick is cheap enough; keep it simple until measurements say otherwise.
 - Commit subjects follow Conventional Commits. No AI attribution trailers.
 
+## The README demo
+
+`docs/demo.gif` is recorded by `vhs docs/demo.tape` from `docs/demo-snapshot.json`,
+a hand-authored snapshot replayed through `--replay`. Never re-record it against
+a live machine: the frame would carry real project names, working directories
+and session ids into a public README. Edit the JSON to change what the demo
+shows.
+
 ## Checks
 
 ```sh

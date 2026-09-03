@@ -1,11 +1,11 @@
 //! The data model shared by discovery, the TUI and the JSON output.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::SystemTime;
 
 /// Which agent harness a process or transcript belongs to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 #[serde(rename_all = "kebab-case")]
 pub enum Harness {
     Claude,
@@ -38,7 +38,7 @@ impl Harness {
 /// `Running` means the agent is mid-turn (inference or tool execution),
 /// `Idle` means the process is alive but waiting for a human, `Stopped` means
 /// the transcript exists and was recently active but no process owns it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentState {
     Running,
@@ -57,7 +57,7 @@ impl AgentState {
 }
 
 /// What the transcript says the agent was last doing. Harness-neutral.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum Activity {
     /// Mid-turn: a prompt or tool result was just submitted, or a tool call is pending.
@@ -69,7 +69,7 @@ pub enum Activity {
 }
 
 /// Token counts, split the way the Anthropic and OpenAI usage objects split them.
-#[derive(Debug, Clone, Copy, Default, Serialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 pub struct TokenUsage {
     pub input: u64,
     pub cache_write_5m: u64,
@@ -112,7 +112,7 @@ impl TokenUsage {
 /// `function_call` with a `function_call_output` by `call_id` — and both stamp
 /// each line with a timestamp. That is a span: a name, a start and a duration.
 /// Only the call's metadata is kept; arguments and output are never read.
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ToolSpan {
     /// The harness's own call id, so a span survives across refreshes.
     pub id: String,
@@ -146,7 +146,7 @@ impl ToolSpan {
 }
 
 /// Role of a process inside an agent's tree.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProcKind {
     /// The agent's root process (the harness itself).
@@ -174,7 +174,7 @@ impl ProcKind {
 }
 
 /// One process, with its descendants.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcNode {
     pub pid: u32,
     pub ppid: Option<u32>,
@@ -215,7 +215,7 @@ impl ProcNode {
 }
 
 /// A single row in the agent table.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Agent {
     /// Stable identity across refreshes: `pid:<n>` for live agents, `session:<id>` for stopped ones.
     pub id: String,
@@ -253,7 +253,7 @@ pub struct Agent {
     pub attribution: Attribution,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Attribution {
     /// The harness told us (Claude's `~/.claude/sessions/<pid>.json`).
@@ -268,7 +268,7 @@ pub enum Attribution {
     TranscriptOnly,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct HostStats {
     pub hostname: Option<String>,
     pub cpu_percent: f32,
@@ -277,7 +277,7 @@ pub struct HostStats {
     pub mem_total_bytes: u64,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Totals {
     pub agents: usize,
     pub running: usize,
@@ -298,7 +298,7 @@ pub struct Totals {
 pub const SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 
 /// Everything the UI needs for one frame.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Snapshot {
     pub schema_version: u32,
     pub taken_at: SystemTime,

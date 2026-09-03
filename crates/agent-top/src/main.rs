@@ -4,10 +4,11 @@ mod app;
 mod format;
 mod ui;
 
-use agent_top_core::{Collector, CollectorOptions};
-use anyhow::Result;
+use agent_top_core::{Collector, CollectorOptions, Snapshot};
+use anyhow::{Context, Result};
 use clap::Parser;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 #[derive(Parser, Debug)]
@@ -25,37 +26,72 @@ struct Cli {
     /// Keep showing stopped sessions for this many minutes after their last write.
     #[arg(long, default_value_t = 30)]
     stopped_window_min: u64,
+    /// Render a snapshot saved by `--json` instead of scanning this machine.
+    /// Every key still works, so a bug report can be inspected as the reporter
+    /// saw it. Nothing on the local machine is read.
+    #[arg(long, value_name = "FILE")]
+    replay: Option<PathBuf>,
+}
+
+/// Where frames come from: this machine, or a snapshot someone saved earlier.
+enum Source {
+    Live(Box<Collector>),
+    Replay(Box<Snapshot>),
+}
+
+impl Source {
+    fn collect(&mut self) -> Snapshot {
+        match self {
+            Source::Live(c) => c.collect(),
+            // A replayed snapshot is one moment in time: re-serving it keeps
+            // ages, durations and the trace axis stable while keys are pressed.
+            Source::Replay(s) => (**s).clone(),
+        }
+    }
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let opts = CollectorOptions { stopped_window: Duration::from_secs(cli.stopped_window_min * 60), ..Default::default() };
-    let mut collector = Collector::new(opts);
+    let mut source = match &cli.replay {
+        Some(path) => {
+            let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+            let snap: Snapshot =
+                serde_json::from_str(&text).with_context(|| format!("{} is not an agent-top --json snapshot", path.display()))?;
+            Source::Replay(Box::new(snap))
+        }
+        None => {
+            let opts = CollectorOptions { stopped_window: Duration::from_secs(cli.stopped_window_min * 60), ..Default::default() };
+            Source::Live(Box::new(Collector::new(opts)))
+        }
+    };
+
+    // A live first pass is thrown away so per-process CPU has an interval to
+    // measure over; a replay has nothing to settle.
+    let mut settled = || {
+        if let Source::Live(_) = source {
+            let _ = source.collect();
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        source.collect()
+    };
 
     if cli.json {
-        // Two passes so per-process CPU has an interval to measure over.
-        let _ = collector.collect();
-        std::thread::sleep(Duration::from_millis(250));
-        let snap = collector.collect();
-        println!("{}", serde_json::to_string_pretty(&snap)?);
+        println!("{}", serde_json::to_string_pretty(&settled())?);
         return Ok(());
     }
     if cli.once {
-        let _ = collector.collect();
-        std::thread::sleep(Duration::from_millis(250));
-        let snap = collector.collect();
-        print!("{}", format::plain_table(&snap));
+        print!("{}", format::plain_table(&settled()));
         return Ok(());
     }
 
     let mut terminal = ratatui::init();
-    let result = run(&mut terminal, &mut collector, Duration::from_millis(cli.interval_ms.max(100)));
+    let result = run(&mut terminal, &mut source, Duration::from_millis(cli.interval_ms.max(100)));
     ratatui::restore();
     result
 }
 
-fn run(terminal: &mut ratatui::DefaultTerminal, collector: &mut Collector, interval: Duration) -> Result<()> {
-    let mut app = app::App::new(collector.collect());
+fn run(terminal: &mut ratatui::DefaultTerminal, source: &mut Source, interval: Duration) -> Result<()> {
+    let mut app = app::App::new(source.collect());
     let mut last_tick = Instant::now();
     loop {
         terminal.draw(|f| ui::draw(f, &mut app))?;
@@ -81,7 +117,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, collector: &mut Collector, inter
         }
         if last_tick.elapsed() >= interval {
             if !app.paused {
-                app.update(collector.collect());
+                app.update(source.collect());
             }
             last_tick = Instant::now();
         }

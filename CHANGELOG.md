@@ -17,5 +17,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `schema_version` in the `--json` document, so scripts can tell when the shape changes.
 - **btop-style meters.** Bars are drawn in the seven-eighths block, which most terminal fonts render with a one-pixel gap, and sit in a visible near-black track. Colour is a three-stop ramp: host CPU and memory ramp along the meter's own length, while a trace bar's colour is its call's duration on a log scale from 50 ms to a minute — width is the call's share of the window, so at a typical zoom, where nearly every bar is one cell wide, colour carries the magnitude that width cannot. Subagent, in-flight and failed calls each get their own hue family plus a marker (`↳`, `…`, `!`). True colour where the terminal advertises it, nearest xterm-256 entry otherwise.
 
+- `--replay <file>` renders a snapshot saved by `--json` in the full interactive UI without reading anything on the local machine, so a bug report can be inspected exactly as the reporter saw it. It is also what records the README demo, from `docs/demo-snapshot.json` rather than from real sessions.
+
 ### Fixed
 - `guess_transcript` returned no transcript at all when any single file in a project directory could not be stat'd, silently dropping fallback attribution for every agent in that directory.
