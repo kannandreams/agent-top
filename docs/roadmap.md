@@ -18,7 +18,8 @@ Dates are targets, not promises. Each phase ships on its own.
 - Gemini CLI and OpenCode transcript adapters.
 - Per-agent history sparkline (tokens per minute) and cost rate ($/hour).
 - Linux `/proc` verification against a real Linux desktop, not only CI.
-- Golden transcript fixtures per harness version, so a format change breaks a test rather than a user's numbers.
+- Golden transcript fixtures: small real transcripts per harness version, checked in with the exact numbers they should produce. These catch regressions in our own parsing. They cannot catch an upstream format change, because a fixture recorded at version X keeps passing forever after the harness moves to version Y.
+- Drift detection, which is the half that does catch it. Every field read from a transcript falls back to zero when it is missing, so a renamed field shows a user 0 tokens and $0.00 rather than an error. A session with assistant messages, a usage object, and no recognised fields in it is not a quiet session, it is a broken parser, and the UI should say so by name: "usage fields not recognised for claude 2.4.x". Probably an `agent-top doctor` that reports the same thing against the newest local transcript.
 
 ## v0.3 — the tree (Q1 2027)
 

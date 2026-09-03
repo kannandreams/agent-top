@@ -1,13 +1,18 @@
 # agent-top-core
 
-The engine behind [`agent-top`](https://crates.io/crates/agent-top), *htop for
-local coding agents*. **If you want the tool, install `agent-top` instead** —
-this crate is its library half, published because a crate on crates.io cannot
-depend on an unpublished one.
+This is the library behind [`agent-top`](https://crates.io/crates/agent-top), a
+terminal tool that shows which coding agents are running on your machine, what
+they are doing, and what they have spent.
 
-It answers one question, with no terminal dependency at all: *which coding
-agents are on this machine right now, what are they doing, and what have they
-spent?*
+**If you want the tool, install `agent-top` instead.** This crate is on
+crates.io because Cargo requires it: `agent-top` depends on it, and a published
+crate cannot depend on an unpublished one.
+
+Use this crate directly only if you want the discovery and accounting logic
+without a terminal interface, for example in a script, a status bar, or a UI of
+your own.
+
+## Usage
 
 ```rust
 use agent_top_core::{Collector, CollectorOptions};
@@ -20,33 +25,46 @@ for agent in &snapshot.agents {
 }
 ```
 
-A `Snapshot` is exactly what `agent-top --json` prints, and it serialises and
-deserialises, so it can be stored, shipped in a bug report and replayed.
+Call `collect()` on a timer to refresh. It reads only the bytes appended to each
+transcript since the previous call, so polling once a second is cheap even when
+a session has grown to tens of megabytes.
+
+A `Snapshot` is exactly what `agent-top --json` prints. It both serialises and
+deserialises, so you can store one, attach it to a bug report, and replay it
+later.
 
 ## What it does
 
-- **Discovery.** Walks the process table with `sysinfo`, marks Claude Code,
-  Codex, Gemini CLI, OpenCode, Aider, Copilot CLI and cursor-agent roots, folds
-  their children into a tree labelled `subagent` / `mcp` / `shell` / `tool`, and
-  flags MCP servers whose agent has died as orphans.
-- **Attribution.** Joins each process to its transcript — exactly where the
-  harness publishes a registry, by heuristic otherwise, and the result says
-  which it was so a caller never has to guess how much to trust a row.
-- **Accounting.** Tails transcripts incrementally, counting tokens, cost, turns
-  and tool calls from the harness's own usage records. Tokens are counted, never
-  estimated; a model with no known price is reported as unpriced rather than
-  guessed at.
-- **Tracing.** Pairs each tool call with its result to produce `ToolSpan`s with
-  real durations, from harnesses that log no telemetry of their own.
+**Discovery.** Walks the process table with `sysinfo` and identifies Claude
+Code, Codex, Gemini CLI, OpenCode, Aider, Copilot CLI and cursor-agent
+processes. Child processes are folded into a tree and labelled as subagents, MCP
+servers, shells or tools. An MCP server whose agent has exited is reported as an
+orphan, which is a common way for these tools to leak memory.
 
-Everything is read-only and local: no network calls, no signalling of agents,
-no reading of prompt or tool content — metadata fields only.
+**Attribution.** Matches each process to its transcript file. Where a harness
+publishes a registry of its own sessions, that is used and the result is exact.
+Otherwise the match is made on working directory and start time. Every agent
+records which method was used, so a caller never has to guess how much to trust
+a row.
+
+**Accounting.** Tails transcripts incrementally and counts tokens, cost, turns
+and tool calls from the usage records the harness writes. Tokens are counted
+rather than estimated. A model with no known price is reported as unpriced
+instead of being guessed at, so a cost is never quietly invented.
+
+**Tracing.** Pairs each tool call with its result to produce spans with real
+durations. This works for harnesses that emit no telemetry of their own, and it
+works retroactively on sessions that have already finished.
+
+Everything is read only and stays on the machine. The library makes no network
+calls, never signals or writes to an agent, and reads metadata fields only,
+never the content of prompts or tool output.
 
 ## Stability
 
-Pre-1.0, and the version moves in lockstep with `agent-top`. The `harness`
-module in particular will change as the adapter trait lands. Pin an exact
-version if you build on it.
+This crate is pre-1.0 and its version tracks `agent-top` exactly. The `harness`
+module will change when the adapter trait lands. Pin an exact version if you
+build on it.
 
-MIT. Source, roadmap and the tool itself:
-<https://github.com/kannandreams/agent-top>
+Licensed under MIT. Source, roadmap and the tool itself are at
+<https://github.com/kannandreams/agent-top>.
