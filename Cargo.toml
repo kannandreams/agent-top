@@ -3,7 +3,7 @@ members = ["crates/agent-top-core", "crates/agent-top"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 license = "MIT"
 authors = ["Kannan Kalidasan"]
@@ -14,7 +14,7 @@ description = "htop for local coding agents: processes, subagents, MCP servers, 
 readme = "README.md"
 
 [workspace.dependencies]
-agent-top-core = { path = "crates/agent-top-core", version = "0.1.5" }
+agent-top-core = { path = "crates/agent-top-core", version = "0.1.6" }
 anyhow = "1.0"
 clap = { version = "4.6", features = ["derive"] }
 crossterm = "0.29"

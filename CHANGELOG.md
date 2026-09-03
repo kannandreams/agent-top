@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.6] - 2026-09-03
+
+Documentation only; no change to the binary's behaviour.
+
+### Fixed
+- Two README claims had gone stale with 0.1.5 and were telling users something untrue: that prices came from a static table, and that Codex output was unpriced until a user price table existed. It exists.
+
+### Changed
+- The Codex bug reports cited as evidence for orphaned-MCP detection are a table with links and state rather than four bare issue numbers. Checked against the GitHub API: three are still open, and the pull request that closed one path merged in April 2026.
+- "How it works" is now "Where the numbers come from", and answers what a reader of the README actually needs to decide: which numbers are counted rather than estimated, which attribution is exact and which is a heuristic, that only metadata is read, and that nothing is written or sent anywhere. The mechanism it described duplicated `docs/architecture.md`, which it now links to.
+
 ## [0.1.5] - 2026-09-03
 
 ### Added
