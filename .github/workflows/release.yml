@@ -142,6 +142,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Formula/agent-top.rb
+          # Re-running publish for a tag that was already bumped stages nothing,
+          # and `git commit` treats that as an error. Nothing to do is success.
+          if git diff --cached --quiet; then
+            echo "::notice::the tap already has agent-top ${VERSION}; nothing to push"
+            exit 0
+          fi
           git commit -m "agent-top ${VERSION}"
           git push
 
