@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-09-03
+
+### Added
+- **Drift detection.** Every transcript field falls back to zero when it is missing, so a harness renaming one showed 0 tokens and `$0.00` with no error: numbers wrong in the direction that looks like good news, and therefore never reported. A session that produced model responses while accounting for no tokens is now reported as a parser that has fallen behind the format, named by harness and version, and the row prints `?` instead of a believable zero. Both shapes are caught: the usage record renamed or moved, and the fields inside an intact record renamed. A partial rename, where some fields still read and the total is merely too low, is not detected, and there is a test asserting that gap rather than leaving it to be assumed.
+- **Shell completions** for bash, zsh, fish, elvish and powershell via `--completions <shell>`, generated from the CLI definition so they cannot drift from the flags they describe. Homebrew builds them at install time.
+
+### Changed
+- **One row per Codex conversation, not per process.** A VS Code app-server hosts many conversations over its life, and attributing a single rollout to it collapsed them into one row carrying whichever was newest. Each live conversation now gets its own row with its own working directory, model and tokens. CPU, memory and the process tree stay on the row that owns the process, so a machine's totals are not multiplied by the number of conversations; the other rows show `·` rather than `0.0%`, which would read as an idle agent. A conversation already attributed to another process is skipped, and one that has not been written to within the activity window is treated as finished rather than as a live thread.
+
 ## [0.1.6] - 2026-09-03
 
 Documentation only; no change to the binary's behaviour.
