@@ -251,6 +251,14 @@ pub struct Agent {
     pub tree: Option<ProcNode>,
     /// How the session was attributed to the process, for debugging attribution.
     pub attribution: Attribution,
+    /// True when another row shares this pid and carries its CPU, memory and
+    /// process counts. One Codex app-server hosts many conversations, so its
+    /// threads each get a row while the process is only counted once.
+    pub shares_process: bool,
+    /// Set when the transcript parsed but its usage records did not, which
+    /// means this row's tokens and cost are not to be believed. Almost always a
+    /// harness that changed its format under us.
+    pub parse_warning: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

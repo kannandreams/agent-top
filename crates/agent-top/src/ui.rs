@@ -2,7 +2,7 @@
 //! table, optional detail pane (process tree + token breakdown), key bar.
 
 use crate::app::{App, DetailView};
-use crate::format::{age, bytes, cost, duration_ms, short_cmd, short_model, tokens, truncate};
+use crate::format::{age, bytes, cost, cpu_cell, duration_ms, mem_cell, short_cmd, short_model, tokens, tokens_cell, truncate};
 use agent_top_core::{Agent, AgentState, Attribution, ProcKind, ProcNode, ToolSpan};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -293,8 +293,8 @@ fn draw_table(f: &mut Frame, app: &App, area: Rect) {
     .bottom_margin(0);
 
     let rows = app.rows.iter().map(|a| {
-        let mem = if a.rss_bytes > 0 { bytes(a.rss_bytes) } else { "-".into() };
-        let cpu = if a.pid.is_some() { format!("{:.1}", a.cpu_percent) } else { "-".into() };
+        let mem = mem_cell(a);
+        let cpu = cpu_cell(a);
         let mcp_style = if a.mcp_count > 0 { Style::default().fg(Color::Magenta) } else { Style::default() };
         Row::new(vec![
             Cell::from(truncate(&a.name, 26)).style(Style::default().bold()),
@@ -302,12 +302,18 @@ fn draw_table(f: &mut Frame, app: &App, area: Rect) {
             Cell::from(a.state.label()).style(state_style(a.state)),
             Cell::from(a.pid.map(|p| p.to_string()).unwrap_or_else(|| "-".into())),
             Cell::from(short_model(a.model.as_deref())),
-            Cell::from(tokens(a.usage.total())),
+            Cell::from(tokens_cell(a)),
             Cell::from(cost(a)).style(Style::default().fg(Color::Magenta)),
             Cell::from(cpu),
             Cell::from(mem),
             Cell::from(a.tool_calls.to_string()),
-            Cell::from(if a.pid.is_some() { a.process_count.to_string() } else { "-".into() }),
+            Cell::from(if a.shares_process {
+                "·".to_string()
+            } else if a.pid.is_some() {
+                a.process_count.to_string()
+            } else {
+                "-".to_string()
+            }),
             Cell::from(a.mcp_count.to_string()).style(mcp_style),
             Cell::from(age(a.age_secs)),
         ])
@@ -383,7 +389,12 @@ fn agent_facts(a: &Agent) -> Text<'static> {
     };
     let home = std::env::var("HOME").unwrap_or_default();
     let tilde = |p: &std::path::Path| p.to_string_lossy().replacen(&home, "~", 1);
-    let mut lines = vec![
+    let mut lines = Vec::new();
+    if let Some(w) = &a.parse_warning {
+        lines.push(Line::from(vec![Span::styled(format!("⚠ {w}"), Style::default().fg(Color::Red).bold())]));
+        lines.push(Line::raw(""));
+    }
+    lines.extend(vec![
         kv("session", a.session_id.clone().unwrap_or_else(|| "-".into())),
         kv("cwd", a.cwd.as_deref().map(tilde).unwrap_or_else(|| "-".into())),
         kv("model", a.model.clone().unwrap_or_else(|| "-".into())),
@@ -407,7 +418,7 @@ fn agent_facts(a: &Agent) -> Text<'static> {
         ),
         kv("turns", format!("{} ({} subagent)", a.turns, a.subagent_turns)),
         kv("tool calls", a.tool_calls.to_string()),
-    ];
+    ]);
     if let Some(p) = &a.session_path {
         lines.push(kv("transcript", tilde(p)));
     }
@@ -569,6 +580,9 @@ fn process_tree(a: &Agent, orphans: &[ProcNode], width: usize) -> Text<'static> 
         ),
     ])];
     match &a.tree {
+        None if a.shares_process => {
+            lines.push(Line::styled("  shares its process with another conversation; see the row that owns it", Style::default().fg(DIM)))
+        }
         None => lines.push(Line::styled("  (no live process)", Style::default().fg(DIM))),
         Some(root) => render_node(root, "", true, true, width, &mut lines),
     }
@@ -733,6 +747,8 @@ mod tests {
             mcp_count: 1,
             tree: None,
             attribution: Attribution::HarnessRegistry,
+            shares_process: false,
+            parse_warning: None,
         }
     }
 

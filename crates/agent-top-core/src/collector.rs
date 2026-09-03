@@ -89,61 +89,119 @@ impl Collector {
             let proc_start = raw.map(|p| UNIX_EPOCH + Duration::from_secs(p.start_time)).unwrap_or(now);
             let cwd = root.cwd.clone().or_else(|| registry.get(&root.pid).map(|r| r.cwd.clone()));
 
-            let (path, attribution) = match harness {
-                Harness::Claude => attribute_claude(&root, raw, cwd.as_deref(), proc_start, &registry),
-                Harness::Codex => attribute_codex(cwd.as_deref(), proc_start, &self.recent_codex),
-                _ => (None, Attribution::None),
+            // One process can host several conversations. Claude Code runs one
+            // per process; the Codex app-server runs many.
+            let (paths, attribution) = match harness {
+                Harness::Claude => {
+                    let (p, a) = attribute_claude(&root, raw, cwd.as_deref(), proc_start, &registry);
+                    (p.into_iter().collect::<Vec<_>>(), a)
+                }
+                Harness::Codex => attribute_codex(cwd.as_deref(), proc_start, &self.recent_codex, &attached, now, &self.opts),
+                _ => (Vec::new(), Attribution::None),
             };
 
-            let mut summary = SessionSummary::default();
-            if let Some(p) = &path {
-                let tr = self.tracker_for(p, harness);
-                let _ = tr.refresh();
-                summary = tr.summary().clone();
-                attached.insert(p.clone());
-            }
-            if let Some(reg) = registry.get(&root.pid) {
-                if summary.session_id.is_none() {
-                    summary.session_id = Some(reg.session_id.clone());
-                }
-                if summary.harness_version.is_none() {
-                    summary.harness_version = reg.version.clone();
-                }
-            }
-
             let (cpu, rss, count, mcp) = root.totals();
-            let idle_secs = summary.last_activity.and_then(|t| now.duration_since(t).ok()).map(|d| d.as_secs());
-            let state = live_state(registry.get(&root.pid), summary.activity, idle_secs, cpu, &self.opts);
-            let name = registry.get(&root.pid).and_then(|r| r.name.clone()).unwrap_or_else(|| display_name(harness, cwd.as_deref()));
+            let reg = registry.get(&root.pid);
 
-            agents.push(Agent {
-                id: format!("pid:{}", root.pid),
-                name,
-                harness,
-                state,
-                activity: summary.activity,
-                pid: Some(root.pid),
-                session_id: summary.session_id.clone(),
-                session_path: path,
-                cwd: summary.cwd.clone().or(cwd),
-                model: summary.model.clone(),
-                harness_version: summary.harness_version.clone(),
-                usage: summary.usage,
-                cost_usd: summary.cost_usd,
-                unpriced_tokens: summary.unpriced_tokens,
-                turns: summary.turns,
-                subagent_turns: summary.subagent_turns,
-                tool_calls: summary.tool_calls,
-                spans: summary.spans.to_vec(),
-                age_secs: root.age_secs,
-                idle_secs,
-                cpu_percent: cpu,
-                rss_bytes: rss,
-                process_count: count,
-                mcp_count: mcp,
-                tree: Some(root),
-                attribution,
-            });
+            // No transcript: the process still deserves a row.
+            if paths.is_empty() {
+                let summary = SessionSummary::default();
+                let state = live_state(reg, summary.activity, None, cpu, &self.opts);
+                agents.push(Agent {
+                    id: format!("pid:{}", root.pid),
+                    name: reg.and_then(|r| r.name.clone()).unwrap_or_else(|| display_name(harness, cwd.as_deref())),
+                    harness,
+                    state,
+                    activity: summary.activity,
+                    pid: Some(root.pid),
+                    session_id: reg.map(|r| r.session_id.clone()),
+                    session_path: None,
+                    cwd,
+                    model: None,
+                    harness_version: reg.and_then(|r| r.version.clone()),
+                    usage: summary.usage,
+                    cost_usd: 0.0,
+                    unpriced_tokens: 0,
+                    turns: 0,
+                    subagent_turns: 0,
+                    tool_calls: 0,
+                    spans: Vec::new(),
+                    age_secs: root.age_secs,
+                    idle_secs: None,
+                    cpu_percent: cpu,
+                    rss_bytes: rss,
+                    process_count: count,
+                    mcp_count: mcp,
+                    tree: Some(root),
+                    attribution,
+                    shares_process: false,
+                    parse_warning: None,
+                });
+                continue;
+            }
+
+            for (i, path) in paths.iter().enumerate() {
+                // Only the first row carries the process, so that a machine's
+                // totals are not multiplied by the number of conversations.
+                let owns_process = i == 0;
+                let tr = self.tracker_for(path, harness);
+                let _ = tr.refresh();
+                let mut summary = tr.summary().clone();
+                attached.insert(path.clone());
+
+                if let Some(reg) = reg {
+                    if summary.session_id.is_none() {
+                        summary.session_id = Some(reg.session_id.clone());
+                    }
+                    if summary.harness_version.is_none() {
+                        summary.harness_version = reg.version.clone();
+                    }
+                }
+
+                let idle_secs = summary.last_activity.and_then(|t| now.duration_since(t).ok()).map(|d| d.as_secs());
+                let state = live_state(reg, summary.activity, idle_secs, cpu, &self.opts);
+                // A thread names itself after its own working directory, which
+                // is the only thing distinguishing two rows on one app-server.
+                let name = match (reg.and_then(|r| r.name.clone()), paths.len()) {
+                    (Some(n), 1) => n,
+                    _ => display_name(harness, summary.cwd.as_deref().or(cwd.as_deref())),
+                };
+                let id = match summary.session_id.as_deref() {
+                    Some(sid) => format!("pid:{}:{}", root.pid, sid),
+                    None => format!("pid:{}:{}", root.pid, path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()),
+                };
+
+                agents.push(Agent {
+                    id,
+                    name,
+                    harness,
+                    state,
+                    activity: summary.activity,
+                    pid: Some(root.pid),
+                    session_id: summary.session_id.clone(),
+                    session_path: Some(path.clone()),
+                    cwd: summary.cwd.clone().or_else(|| cwd.clone()),
+                    model: summary.model.clone(),
+                    harness_version: summary.harness_version.clone(),
+                    usage: summary.usage,
+                    cost_usd: summary.cost_usd,
+                    unpriced_tokens: summary.unpriced_tokens,
+                    turns: summary.turns,
+                    subagent_turns: summary.subagent_turns,
+                    tool_calls: summary.tool_calls,
+                    spans: summary.spans.to_vec(),
+                    age_secs: root.age_secs,
+                    idle_secs,
+                    cpu_percent: if owns_process { cpu } else { 0.0 },
+                    rss_bytes: if owns_process { rss } else { 0 },
+                    process_count: if owns_process { count } else { 0 },
+                    mcp_count: if owns_process { mcp } else { 0 },
+                    tree: if owns_process { Some(root.clone()) } else { None },
+                    attribution,
+                    shares_process: !owns_process,
+                    parse_warning: parse_warning(&summary, harness),
+                });
+            }
         }
 
         // Stopped agents: recently written transcripts nobody owns.
@@ -194,6 +252,8 @@ impl Collector {
                 mcp_count: 0,
                 tree: None,
                 attribution: Attribution::TranscriptOnly,
+                shares_process: false,
+                parse_warning: parse_warning(&s, harness),
             });
         }
 
@@ -206,6 +266,21 @@ impl Collector {
         snap.compute_totals();
         snap
     }
+}
+
+/// A transcript that parsed while its usage records did not is a format change,
+/// not a quiet session. Naming the harness version makes the report actionable:
+/// it is the first thing anyone will ask for.
+fn parse_warning(s: &SessionSummary, harness: Harness) -> Option<String> {
+    if !s.health.fields_unrecognised() {
+        return None;
+    }
+    let version = s.harness_version.as_deref().unwrap_or("unknown version");
+    Some(format!(
+        "usage fields not recognised in {} {}: tokens and cost are unreliable, agent-top may need updating",
+        harness.label(),
+        version
+    ))
 }
 
 fn attribute_claude(
@@ -235,24 +310,57 @@ fn attribute_claude(
     (None, Attribution::None)
 }
 
+/// Codex conversations belonging to one process, newest activity first.
+///
+/// A `codex` CLI runs one conversation from the directory it was started in, so
+/// a cwd match finds it. The VS Code app-server is a different shape: one
+/// long-lived process, running from `/`, hosting any number of conversations
+/// over its life. Returning a single rollout for it collapses every one of
+/// those into one row and attributes whichever happened to be newest, so this
+/// returns all of them that are currently live and lets the caller give each
+/// its own row.
+///
+/// A rollout already claimed by another process is skipped, so two Codex
+/// processes cannot both show the same conversation.
 fn attribute_codex(
     cwd: Option<&Path>,
     proc_start: SystemTime,
     recent: &[(PathBuf, PathBuf, SystemTime)],
-) -> (Option<PathBuf>, Attribution) {
+    taken: &HashSet<PathBuf>,
+    now: SystemTime,
+    opts: &CollectorOptions,
+) -> (Vec<PathBuf>, Attribution) {
     let slack = Duration::from_secs(60);
     let started_after = |ts: &SystemTime| *ts + slack >= proc_start;
-    // Prefer a rollout whose cwd matches the process. The VS Code app-server
-    // runs from an unrelated directory and hosts many threads, so fall back to
-    // the newest rollout started after the process did. Both are heuristics.
-    let best = cwd
-        .and_then(|cwd| recent.iter().filter(|(_, c, ts)| c == cwd && started_after(ts)).max_by_key(|(_, _, ts)| *ts))
-        .or_else(|| recent.iter().filter(|(_, _, ts)| started_after(ts)).max_by_key(|(_, _, ts)| *ts))
-        .map(|(p, _, _)| p.clone());
-    match best {
-        Some(p) => (Some(p), Attribution::CwdHeuristic),
-        None => (None, Attribution::None),
+    let candidates = || recent.iter().filter(|(p, _, ts)| started_after(ts) && !taken.contains(p));
+
+    // The CLI case: the conversation runs where the process runs.
+    if let Some(cwd) = cwd {
+        let mut matched: Vec<&(PathBuf, PathBuf, SystemTime)> = candidates().filter(|(_, c, _)| c == cwd).collect();
+        if !matched.is_empty() {
+            matched.sort_by_key(|(p, _, _)| std::cmp::Reverse(written_at(p)));
+            return (matched.into_iter().map(|(p, _, _)| p.clone()).collect(), Attribution::CwdHeuristic);
+        }
     }
+
+    // The app-server case: no cwd to match on, so take the conversations that
+    // are actually being written to. A rollout nobody has touched in a while is
+    // a finished conversation, not a thread of this process.
+    let mut live: Vec<&(PathBuf, PathBuf, SystemTime)> = candidates()
+        .filter(|(p, _, _)| written_at(p).map(|w| now.duration_since(w).unwrap_or_default() <= opts.activity_timeout).unwrap_or(false))
+        .collect();
+    live.sort_by_key(|(p, _, _)| std::cmp::Reverse(written_at(p)));
+    live.truncate(MAX_CODEX_THREADS);
+    let attribution = if live.is_empty() { Attribution::None } else { Attribution::CwdHeuristic };
+    (live.into_iter().map(|(p, _, _)| p.clone()).collect(), attribution)
+}
+
+/// One process is not plausibly running more conversations than this at once,
+/// and an unbounded fan-out would let a stale directory fill the table.
+const MAX_CODEX_THREADS: usize = 12;
+
+fn written_at(p: &Path) -> Option<SystemTime> {
+    std::fs::metadata(p).and_then(|m| m.modified()).ok()
 }
 
 /// Claude Code stores subagent transcripts as `agent-<id>.jsonl` next to the
@@ -292,5 +400,68 @@ fn display_name(harness: Harness, cwd: Option<&Path>) -> String {
     match cwd.and_then(|c| c.file_name()).map(|f| f.to_string_lossy().into_owned()) {
         Some(dir) => format!("{}:{}", harness.label(), dir),
         None => harness.label().to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn touch(dir: &Path, name: &str) -> PathBuf {
+        let p = dir.join(name);
+        fs::write(&p, b"x").unwrap();
+        p
+    }
+
+    /// One app-server, several conversations. Every live one must get a row:
+    /// returning only the newest is what collapsed them into a single
+    /// mis-attributed row.
+    #[test]
+    fn every_live_codex_thread_is_returned_newest_first() {
+        let dir = std::env::temp_dir().join(format!("agent-top-threads-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let now = SystemTime::now();
+        let started = now - Duration::from_secs(600);
+        let opts = CollectorOptions::default();
+
+        // Written in this order, so the last one is the freshest on disk.
+        let a = touch(&dir, "a.jsonl");
+        let b = touch(&dir, "b.jsonl");
+        let c = touch(&dir, "c.jsonl");
+        let recent: Vec<(PathBuf, PathBuf, SystemTime)> =
+            [&a, &b, &c].iter().map(|p| ((*p).clone(), PathBuf::from("/Users/dev/code/one"), started)).collect();
+
+        // The app-server case: the process cwd matches no conversation.
+        let (paths, attribution) = attribute_codex(Some(Path::new("/")), started, &recent, &HashSet::new(), now, &opts);
+        assert_eq!(paths.len(), 3, "all three conversations get a row");
+        assert_eq!(paths[0], c, "newest activity first");
+        assert_eq!(attribution, Attribution::CwdHeuristic, "still a heuristic, and still labelled one");
+
+        // A conversation already claimed by another process is not shown twice.
+        let taken: HashSet<PathBuf> = [c.clone()].into_iter().collect();
+        let (paths, _) = attribute_codex(Some(Path::new("/")), started, &recent, &taken, now, &opts);
+        assert_eq!(paths.len(), 2);
+        assert!(!paths.contains(&c));
+
+        // A conversation nobody has written to for longer than the activity
+        // window has finished; it belongs in the stopped list, not on this
+        // process.
+        let stale = now + opts.activity_timeout + Duration::from_secs(60);
+        let (paths, attribution) = attribute_codex(Some(Path::new("/")), started, &recent, &HashSet::new(), stale, &opts);
+        assert!(paths.is_empty());
+        assert_eq!(attribution, Attribution::None);
+
+        // The CLI case: one conversation, in the directory the process runs in.
+        let (paths, _) = attribute_codex(Some(Path::new("/Users/dev/code/one")), started, &recent, &HashSet::new(), now, &opts);
+        assert_eq!(paths.len(), 3, "a cwd match takes every conversation in that directory");
+        assert_eq!(paths[0], c);
+
+        // A rollout that predates the process is not this process's.
+        let (paths, _) = attribute_codex(Some(Path::new("/")), now + Duration::from_secs(3600), &recent, &HashSet::new(), now, &opts);
+        assert!(paths.is_empty());
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

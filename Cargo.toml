@@ -17,6 +17,7 @@ readme = "README.md"
 agent-top-core = { path = "crates/agent-top-core", version = "0.1.6" }
 anyhow = "1.0"
 clap = { version = "4.6", features = ["derive"] }
+clap_complete = "4.6"
 crossterm = "0.29"
 ratatui = "0.30"
 serde = { version = "1.0", features = ["derive"] }

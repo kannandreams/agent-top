@@ -260,7 +260,22 @@ impl ClaudeTranscript {
             _ => self.summary.activity = Activity::Working,
         }
 
-        let usage = msg.get("usage").map(parse_usage).unwrap_or_default();
+        // Health is judged on the record being present but unreadable, which is
+        // what a renamed field looks like from in here.
+        if !same_message_id(id.as_deref(), self.last_msg_id.as_deref()) {
+            self.summary.health.billable_messages += 1;
+        }
+        let usage = match msg.get("usage") {
+            Some(u) => {
+                let parsed = parse_usage(u);
+                self.summary.health.usage_records += 1;
+                if parsed.total() == 0 {
+                    self.summary.health.empty_usage_records += 1;
+                }
+                parsed
+            }
+            None => TokenUsage::default(),
+        };
         let price = self.prices.lookup(model);
         let cost = price.map(|p| p.cost(&usage)).unwrap_or(0.0);
         let unpriced = if price.is_none() { usage.total() } else { 0 };
@@ -284,6 +299,10 @@ impl ClaudeTranscript {
         self.last_msg_id = id;
         self.last_contrib = (usage, cost, unpriced);
     }
+}
+
+fn same_message_id(a: Option<&str>, b: Option<&str>) -> bool {
+    matches!((a, b), (Some(x), Some(y)) if x == y)
 }
 
 fn parse_usage(u: &Value) -> TokenUsage {

@@ -11,6 +11,42 @@ use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+/// Evidence that the parser still understands the file it is reading.
+///
+/// Every field is read with a fallback to zero, which is the right behaviour
+/// for a genuinely absent field and the wrong behaviour for a renamed one: a
+/// harness that renames `usage` next week would show a user 0 tokens and $0.00
+/// with no error at all. So count the usage records seen and how many of them
+/// yielded nothing. Records present and all of them empty is not a quiet
+/// session, it is a parser that has fallen behind the format.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ParseHealth {
+    /// Model responses seen. Each of these should account for some tokens.
+    pub billable_messages: u64,
+    /// Usage records found on them. Zero of these, with messages present, means
+    /// the record itself moved or was renamed.
+    pub usage_records: u64,
+    /// Records found but yielding nothing, which is what a renamed field inside
+    /// an intact record looks like.
+    pub empty_usage_records: u64,
+}
+
+impl ParseHealth {
+    /// Enough responses to accuse the parser rather than the session. A couple
+    /// of odd messages must not raise the alarm.
+    const MIN_EVIDENCE: u64 = 3;
+
+    /// The session did work that must have cost tokens, and we read none.
+    ///
+    /// Covers both ways a format change reaches us: the usage record moving or
+    /// being renamed, so we never find one, and the fields inside it being
+    /// renamed, so we find records that read as empty. Neither raises an error
+    /// on its own, because every field falls back to zero.
+    pub fn fields_unrecognised(&self) -> bool {
+        self.billable_messages >= Self::MIN_EVIDENCE && self.usage_records == self.empty_usage_records
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct SessionSummary {
     pub harness: Option<Harness>,
@@ -25,6 +61,7 @@ pub struct SessionSummary {
     pub subagent_turns: u64,
     pub tool_calls: u64,
     pub spans: SpanLog,
+    pub health: ParseHealth,
     pub activity: Activity,
     pub started_at: Option<SystemTime>,
     pub last_activity: Option<SystemTime>,
@@ -186,6 +223,28 @@ mod tests {
         let last = log.to_vec().pop().unwrap();
         assert!(last.is_open());
         assert_eq!(last.elapsed_ms(at(503)), 3_000);
+    }
+
+    #[test]
+    fn accuses_the_parser_only_with_enough_evidence() {
+        // Healthy: records found on the messages, tokens read from them.
+        let h = ParseHealth { billable_messages: 40, usage_records: 40, empty_usage_records: 0 };
+        assert!(!h.fields_unrecognised());
+        // One odd message among many is a message, not a format change.
+        let h = ParseHealth { billable_messages: 40, usage_records: 40, empty_usage_records: 39 };
+        assert!(!h.fields_unrecognised());
+        // Fields inside the record renamed: records found, all of them empty.
+        let h = ParseHealth { billable_messages: 40, usage_records: 40, empty_usage_records: 40 };
+        assert!(h.fields_unrecognised());
+        // The record itself renamed or moved: messages, but no records at all.
+        // This is the case a naive check misses, because there is nothing to count.
+        let h = ParseHealth { billable_messages: 40, usage_records: 0, empty_usage_records: 0 };
+        assert!(h.fields_unrecognised());
+        // Too early to tell: a session that has barely started.
+        let h = ParseHealth { billable_messages: 2, usage_records: 0, empty_usage_records: 0 };
+        assert!(!h.fields_unrecognised());
+        // Nothing parsed at all is silence, not evidence.
+        assert!(!ParseHealth::default().fields_unrecognised());
     }
 
     #[test]

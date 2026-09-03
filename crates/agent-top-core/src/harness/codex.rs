@@ -123,6 +123,10 @@ impl CodexTranscript {
                 "token_count" => {
                     if let Some(total) = payload.and_then(|p| p.pointer("/info/total_token_usage")) {
                         let g = |k: &str| total.get(k).and_then(Value::as_u64).unwrap_or(0);
+                        self.summary.health.usage_records += 1;
+                        if g("input_tokens") + g("output_tokens") + g("cached_input_tokens") == 0 {
+                            self.summary.health.empty_usage_records += 1;
+                        }
                         let cached = g("cached_input_tokens");
                         let usage = TokenUsage {
                             input: g("input_tokens").saturating_sub(cached),
@@ -167,6 +171,7 @@ impl CodexTranscript {
                 }
                 "message" if payload.and_then(|p| p.get("role")).and_then(Value::as_str) == Some("assistant") => {
                     self.summary.turns += 1;
+                    self.summary.health.billable_messages += 1;
                 }
                 _ => {}
             },

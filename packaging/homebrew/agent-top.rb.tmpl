@@ -30,6 +30,9 @@ class AgentTop < Formula
 
   def install
     bin.install "agent-top"
+    # Tab completion for every flag, generated from the binary itself so it can
+    # never drift from the CLI it describes.
+    generate_completions_from_executable(bin/"agent-top", "--completions", shells: [:bash, :zsh, :fish])
   end
 
   test do

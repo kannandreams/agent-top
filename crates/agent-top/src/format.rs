@@ -3,6 +3,34 @@
 use agent_top_core::pricing::{Origin, Table};
 use agent_top_core::{Agent, ProcNode, Snapshot};
 
+/// CPU and memory belong to the process, and several conversations can share
+/// one. Showing 0.0% on the rows that do not own it would read as an idle
+/// agent rather than as "counted on the row above".
+pub fn cpu_cell(a: &Agent) -> String {
+    if a.shares_process {
+        "·".to_string()
+    } else if a.pid.is_some() {
+        format!("{:.1}", a.cpu_percent)
+    } else {
+        "-".to_string()
+    }
+}
+
+pub fn mem_cell(a: &Agent) -> String {
+    if a.shares_process {
+        "·".to_string()
+    } else if a.rss_bytes > 0 {
+        bytes(a.rss_bytes)
+    } else {
+        "-".to_string()
+    }
+}
+
+/// The TOKENS cell: `?` when the parse is not to be trusted.
+pub fn tokens_cell(a: &Agent) -> String {
+    if a.parse_warning.is_some() { "?".to_string() } else { tokens(a.usage.total()) }
+}
+
 pub fn tokens(n: u64) -> String {
     if n >= 1_000_000_000 {
         format!("{:.1}B", n as f64 / 1e9)
@@ -57,7 +85,11 @@ pub fn duration_ms(ms: u64) -> String {
 }
 
 pub fn cost(a: &Agent) -> String {
-    if a.unpriced_tokens > 0 && a.cost_usd == 0.0 {
+    // Never print a number for a row we know is wrong: "$0.00" reads as a cheap
+    // session, which is exactly the wrong conclusion.
+    if a.parse_warning.is_some() {
+        "?".to_string()
+    } else if a.unpriced_tokens > 0 && a.cost_usd == 0.0 {
         "n/a".to_string()
     } else if a.unpriced_tokens > 0 {
         format!("≥${:.2}", a.cost_usd)
@@ -100,21 +132,28 @@ pub fn plain_table(snap: &Snapshot) -> String {
     ));
     for a in &snap.agents {
         out.push_str(&format!(
-            "{:<24} {:<8} {:<8} {:>7} {:<14} {:>8} {:>8} {:>6.1} {:>7} {:>5} {:>5} {:>4} {:>7}\n",
+            "{:<24} {:<8} {:<8} {:>7} {:<14} {:>8} {:>8} {:>6} {:>7} {:>5} {:>5} {:>4} {:>7}\n",
             truncate(&a.name, 24),
             a.harness.label(),
             a.state.label(),
             a.pid.map(|p| p.to_string()).unwrap_or_else(|| "-".into()),
             short_model(a.model.as_deref()),
-            tokens(a.usage.total()),
+            tokens_cell(a),
             cost(a),
-            a.cpu_percent,
-            bytes(a.rss_bytes),
+            cpu_cell(a),
+            mem_cell(a),
             a.tool_calls,
-            a.process_count,
+            if a.shares_process { "·".into() } else { a.process_count.to_string() },
             a.mcp_count,
             age(a.age_secs),
         ));
+    }
+    let warned: Vec<&Agent> = snap.agents.iter().filter(|a| a.parse_warning.is_some()).collect();
+    if !warned.is_empty() {
+        out.push_str("\nWARNING\n");
+        for a in warned {
+            out.push_str(&format!("  {}: {}\n", a.name, a.parse_warning.as_deref().unwrap_or_default()));
+        }
     }
     if !snap.orphans.is_empty() {
         out.push_str("\nORPHANED MCP PROCESSES (no live agent ancestor)\n");

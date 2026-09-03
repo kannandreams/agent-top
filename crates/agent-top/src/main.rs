@@ -6,7 +6,8 @@ mod ui;
 
 use agent_top_core::{Collector, CollectorOptions, Snapshot};
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{CommandFactory, Parser};
+use clap_complete::Shell;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -30,6 +31,10 @@ struct Cli {
     /// overrode, and exit.
     #[arg(long)]
     prices: bool,
+    /// Print a shell completion script and exit. Homebrew installs these for
+    /// you; otherwise source the output from your shell's startup file.
+    #[arg(long, value_name = "SHELL")]
+    completions: Option<Shell>,
     /// Render a snapshot saved by `--json` instead of scanning this machine.
     /// Every key still works, so a bug report can be inspected as the reporter
     /// saw it. Nothing on the local machine is read.
@@ -56,6 +61,12 @@ impl Source {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Some(shell) = cli.completions {
+        let mut cmd = Cli::command();
+        let name = cmd.get_name().to_string();
+        clap_complete::generate(shell, &mut cmd, name, &mut std::io::stdout());
+        return Ok(());
+    }
     if cli.prices {
         print!("{}", format::price_table(agent_top_core::pricing::table()));
         return Ok(());

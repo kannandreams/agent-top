@@ -16,6 +16,7 @@ path = "src/main.rs"
 agent-top-core.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+clap_complete.workspace = true
 ratatui.workspace = true
 serde_json.workspace = true
 

@@ -85,6 +85,10 @@ agent-top --replay snap.json # render someone else's --json, keys and all
 agent-top --prices           # the effective price table, and where each row came from
 ```
 
+Homebrew installs shell completions for you. Otherwise, generate them with
+`agent-top --completions zsh` (or `bash`, `fish`, `elvish`, `powershell`) and
+source the output from wherever your shell keeps them.
+
 `--replay` renders a saved snapshot in the full interactive UI without reading
 anything on the local machine, so a bug report can be inspected exactly as the
 reporter saw it.
