@@ -10,16 +10,16 @@ You have three Claude Code sessions, a Codex thread in VS Code, and a Gemini CLI
 
 ```
 ┌ agent-top @ atlas-mbp ──────────────────────────────────────────────────────────┐
-│ cpu  23.4%  (12 cores) ████████░░░░░░░░   agents 4   2 running  1 idle  1 stopped│
-│ mem  61.0%  19.5G / 32.0G ██████████░░░░   tokens 68k   cost $2.10               │
-│ tokens/s ▁▂▃▅▂▁▁▃▇▂▁                       procs 9   mcp 2   orphaned mcp 1      │
+│ cpu  23.4% (12 cores) ▉▉▉▉▉▏▏▏▏▏▏▏▏▏▏   agents 4   2 running  1 idle  1 stopped │
+│ mem  61.0% 19.5G/32.0G ▉▉▉▉▉▉▉▉▉▉▏▏▏▏   tokens 68k   cost $2.10                 │
+│ tokens/s ▁▂▃▅▂▁▁▃▇▂▁                    procs 9   mcp 2   orphaned mcp 1        │
 ├ agents (4) ─────────────────────────────────────────────────────────────────────┤
 │  AGENT         HARNESS STATE    PID    MODEL       TOKENS  COST   CPU%  MEM  MCP AGE│
 │▶ tuff-25       claude  running  6980   fable-5-1   41k     $1.42  6.6   452M 1   18m│
 │  reviewer      claude  running  7161   sonnet-5    8k      $0.21  1.0   409M 0    3m│
 │  codex:secchi  codex   idle     57429  gpt-5-codex 13k     n/a    0.7    29M 1    7m│
 │  claude:glyf   claude  stopped  -      opus-5      6k      $0.12  -     -    -    2m│
-├ tuff-25 · claude · running ─────────────────────────────────────────────────────┤
+├ tuff-25 · claude · running  [tree] ─────────────────────────────────────────────┤
 │ session   a29e19c3-…   process tree   4 procs · 1 mcp · cpu 7.3% · rss 490M     │
 │ model     claude-fable-5-1   [agent]  6980  6.6% 452M 18m  claude --resume a29e…│
 │ tokens    input 2 · cache rd 22k · ├─ [shell] 57276 0.0% 2.6M 19s /bin/zsh -c … │
@@ -90,20 +90,24 @@ stopped sessions, `p` pause, `?` help, `q` quit.
 tool calls, on a shared time axis:
 
 ```
- tool trace   10 of 37 calls · window 3m21s
-   in tools 14%  slowest Bash 6.7s  1 in flight
- Bash              3.3s █
- Bash              4.5s        ██
- Bash              3.1s           █
- Bash              6.7s             ██
- ↳Grep            12.0s                  ████████
- Edit            300ms!                           █
- Bash             20.0s…                                    █████████████
+ tool trace   5 of 71 calls · window 1m00s
+   in tools 58%  slowest Bash 20.0s  1 in flight  1 failed
+ Bash             2.5s  ▉▉▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏
+ Read             40ms  ▏▏▉▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏
+ ↳Grep           12.0s  ▏▏▉▉▉▉▉▉▉▉▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏
+ Edit            300ms! ▏▏▏▏▏▏▏▏▏▏▏▏▉▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏
+ Bash            20.0s… ▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▉▉▉▉▉▉▉▉▉▉▉▉▸
 ```
 
-Cyan is a finished call, blue is a subagent's call (`↳`), yellow with `…` is
-still running, red with `!` came back an error. **in tools** is the share of
-the window covered by at least one call — the rest is the model thinking, which
+Width is the call's share of the window; **colour is how long it took**, on a
+log scale from green under a second, through amber, to red approaching a
+minute. Those are two channels on purpose: at a typical zoom most calls are one
+cell wide, so width alone would say nothing about a 40 ms read next to a 30 s
+test run. `↳` and blue mark a subagent's call, `…` and amber a call still
+running, `!` and red one the harness reported as failed.
+
+**in tools** is the share of the window covered by at least one call
+(overlapping calls merged, not summed) — the rest is the model thinking, which
 is usually the answer to "why has this agent been busy for eight minutes".
 
 No configuration and no telemetry opt-in: the spans are reconstructed from the

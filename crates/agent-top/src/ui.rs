@@ -8,7 +8,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Cell, Clear, Gauge, Paragraph, Row, Sparkline, Table, TableState, Wrap};
+use ratatui::widgets::{Block, Cell, Clear, Paragraph, Row, Sparkline, Table, TableState, Wrap};
 use std::time::{Duration, SystemTime};
 
 const ACCENT: Color = Color::Cyan;
@@ -22,14 +22,128 @@ fn state_style(s: AgentState) -> Style {
     }
 }
 
-fn level_color(pct: f64) -> Color {
-    if pct >= 85.0 {
-        Color::Red
-    } else if pct >= 60.0 {
-        Color::Yellow
-    } else {
-        Color::Green
+// ── meters ──────────────────────────────────────────────────────────────────
+//
+// btop's meters read as magnitude before you read the number, because colour
+// is interpolated along the meter's own length: a bar that gets longer gets
+// hotter. The texture comes from the seven-eighths block, which most terminal
+// fonts render with a one-pixel gap at the cell's right edge, so a run of them
+// looks like segments rather than one slab. Unfilled cells keep the same
+// texture in near-black, which is what makes the track visible as a channel.
+
+/// Filled cell of a meter.
+const METER_FULL: &str = "▉";
+/// The tip of a bar that is still growing.
+const METER_TIP: &str = "▸";
+/// Unfilled cell.
+const METER_TRACK: &str = "▏";
+
+// The same three glyphs as `char`, for tests and for scanning rendered rows.
+#[cfg(test)]
+const METER_FULL_CH: char = '▉';
+#[cfg(test)]
+const METER_TIP_CH: char = '▸';
+
+/// A three-stop colour ramp, interpolated across a meter's length.
+struct Ramp([(u8, u8, u8); 3]);
+
+/// Duration of a finished tool call: cool when short, hot when it eats the window.
+const RAMP_OK: Ramp = Ramp([(0x4c, 0xc3, 0x8a), (0xd8, 0xc0, 0x4a), (0xe0, 0x7b, 0x39)]);
+/// A subagent's call. A different hue family so a sidechain is obvious at a
+/// glance, still ramped by duration.
+const RAMP_SUBAGENT: Ramp = Ramp([(0x4a, 0x8f, 0xe0), (0x5a, 0xc8, 0xd8), (0xb0, 0x6a, 0xe0)]);
+/// A call that has not come back yet.
+const RAMP_OPEN: Ramp = Ramp([(0xb0, 0x8a, 0x2a), (0xe0, 0xc0, 0x40), (0xf5, 0xe8, 0x8a)]);
+/// A call the harness reported as failed. Red family, so it reads as wrong and
+/// not merely slow.
+const RAMP_ERROR: Ramp = Ramp([(0x9c, 0x2b, 0x4e), (0xdc, 0x3c, 0x50), (0xff, 0x77, 0x94)]);
+/// Host CPU and memory, btop's classic green-amber-red.
+const RAMP_LOAD: Ramp = Ramp([(0x4c, 0xc3, 0x8a), (0xd8, 0xc0, 0x4a), (0xe0, 0x45, 0x45)]);
+
+const TRACK_RGB: (u8, u8, u8) = (0x3a, 0x3a, 0x3a);
+
+impl Ramp {
+    /// Colour at `t` in 0..=1, linear between the three stops.
+    fn rgb_at(&self, t: f64) -> (u8, u8, u8) {
+        let t = t.clamp(0.0, 1.0);
+        let (a, b, local) = if t < 0.5 { (self.0[0], self.0[1], t * 2.0) } else { (self.0[1], self.0[2], (t - 0.5) * 2.0) };
+        let mix = |x: u8, y: u8| (x as f64 + (y as f64 - x as f64) * local).round() as u8;
+        (mix(a.0, b.0), mix(a.1, b.1), mix(a.2, b.2))
     }
+
+    fn at(&self, t: f64) -> Color {
+        term_color(self.rgb_at(t))
+    }
+}
+
+/// True colour where the terminal advertises it, the closest xterm-256 cube
+/// entry everywhere else. Without the fallback a 256-colour terminal renders
+/// the whole ramp as one flat approximation and the gradient disappears.
+fn truecolor() -> bool {
+    use std::sync::OnceLock;
+    static TRUECOLOR: OnceLock<bool> = OnceLock::new();
+    *TRUECOLOR.get_or_init(|| std::env::var("COLORTERM").map(|v| v.contains("truecolor") || v.contains("24bit")).unwrap_or(false))
+}
+
+fn term_color(rgb: (u8, u8, u8)) -> Color {
+    if truecolor() { Color::Rgb(rgb.0, rgb.1, rgb.2) } else { Color::Indexed(xterm256(rgb)) }
+}
+
+/// Nearest entry in the xterm-256 palette: the 24-step grey ramp for colours
+/// that are near-grey, the 6x6x6 cube otherwise.
+fn xterm256((r, g, b): (u8, u8, u8)) -> u8 {
+    if r.abs_diff(g) < 12 && g.abs_diff(b) < 12 && r.abs_diff(b) < 12 {
+        let level = (r as u16 + g as u16 + b as u16) / 3;
+        return 232 + (level * 23 / 255) as u8;
+    }
+    let axis = |v: u8| (v as u16 * 5 / 255) as u8;
+    16 + 36 * axis(r) + 6 * axis(g) + axis(b)
+}
+
+/// `len` textured cells whose colour sweeps `ramp` from `t0` to `t1`. `tip`
+/// draws the last cell as an arrow, for a bar that is still growing.
+fn textured(len: usize, ramp: &Ramp, t0: f64, t1: f64, tip: bool) -> Vec<Span<'static>> {
+    (0..len)
+        .map(|i| {
+            let t = t0 + (t1 - t0) * (i + 1) as f64 / len as f64;
+            let symbol = if tip && i + 1 == len { METER_TIP } else { METER_FULL };
+            Span::styled(symbol, Style::default().fg(ramp.at(t)))
+        })
+        .collect()
+}
+
+/// A meter anchored at zero: `filled` of `width`, colour ramped along the
+/// meter's own length, so a fuller meter is a hotter meter.
+fn meter_spans(filled: usize, width: usize, ramp: &Ramp) -> Vec<Span<'static>> {
+    let filled = filled.min(width);
+    let mut spans = textured(filled, ramp, 0.0, filled as f64 / width as f64, false);
+    if filled < width {
+        spans.push(Span::styled(METER_TRACK.repeat(width - filled), Style::default().fg(term_color(TRACK_RGB))));
+    }
+    spans
+}
+
+/// Where a call's duration sits on its ramp: log-scaled between 50 ms and a
+/// minute. Absolute, not relative to the window on screen — in a busy session
+/// most calls are one cell wide, so colour has to carry the magnitude that
+/// width cannot. A 40 ms read and a 30 s test run are then obviously different
+/// even when both are a single cell.
+fn heat(ms: u64) -> f64 {
+    const FLOOR_MS: f64 = 50.0;
+    const CEIL_MS: f64 = 60_000.0;
+    let ms = (ms as f64).clamp(FLOOR_MS, CEIL_MS);
+    (ms.log10() - FLOOR_MS.log10()) / (CEIL_MS.log10() - FLOOR_MS.log10())
+}
+
+/// A labelled host meter: `cpu  25.1%  (12 cores) ▉▉▉▉▏▏▏▏▏`.
+fn meter_line(label: String, ratio: f64, width: usize) -> Line<'static> {
+    let label_w = label.chars().count();
+    let bar_w = width.saturating_sub(label_w + 1);
+    let mut spans = vec![Span::styled(label, Style::default().fg(Color::White)), Span::raw(" ")];
+    if bar_w >= 4 {
+        spans.extend(meter_spans((ratio.clamp(0.0, 1.0) * bar_w as f64).round() as usize, bar_w, &RAMP_LOAD));
+    }
+    Line::from(spans)
 }
 
 fn block(title: &str) -> Block<'_> {
@@ -73,19 +187,16 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
         Layout::vertical([Constraint::Length(1), Constraint::Length(1), Constraint::Length(1), Constraint::Min(0)]).areas(left);
 
     let cpu = host.cpu_percent as f64;
-    f.render_widget(
-        Gauge::default()
-            .gauge_style(Style::default().fg(level_color(cpu)).bg(Color::Black))
-            .ratio((cpu / 100.0).clamp(0.0, 1.0))
-            .label(format!("cpu {cpu:>5.1}%  ({} cores)", host.cpu_count)),
-        cpu_row,
-    );
+    // Leave a gutter so the meter never runs into the totals column.
+    let w = (cpu_row.width as usize).saturating_sub(3);
+    f.render_widget(Paragraph::new(meter_line(format!("cpu {cpu:>5.1}% ({:>2} cores)", host.cpu_count), cpu / 100.0, w)), cpu_row);
     let mem_pct = if host.mem_total_bytes > 0 { host.mem_used_bytes as f64 * 100.0 / host.mem_total_bytes as f64 } else { 0.0 };
     f.render_widget(
-        Gauge::default()
-            .gauge_style(Style::default().fg(level_color(mem_pct)).bg(Color::Black))
-            .ratio((mem_pct / 100.0).clamp(0.0, 1.0))
-            .label(format!("mem {:>5.1}%  {} / {}", mem_pct, bytes(host.mem_used_bytes), bytes(host.mem_total_bytes))),
+        Paragraph::new(meter_line(
+            format!("mem {:>5.1}% {:>5}/{:>5}", mem_pct, bytes(host.mem_used_bytes), bytes(host.mem_total_bytes)),
+            mem_pct / 100.0,
+            w,
+        )),
         mem_row,
     );
     let [spark_label, spark] = Layout::horizontal([Constraint::Length(11), Constraint::Min(4)]).areas(spark_row);
@@ -332,26 +443,49 @@ fn tool_trace(a: &Agent, now: SystemTime, width: usize, height: usize) -> Text<'
         )]),
         Line::from(trace_summary(&shown, now, window_ms)),
     ];
+    let track = Style::default().fg(term_color(TRACK_RGB));
     for s in &shown {
         let elapsed = s.elapsed_ms(now);
         let start = cell(s.started_at).min(bar_w.saturating_sub(1));
         let end = cell(s.ended_at(now)).clamp(start + 1, bar_w);
-        let (bar_style, dur_text) = if s.error {
-            (Style::default().fg(Color::Red), format!("{}!", duration_ms(elapsed)))
+        // The ramp says how long the call took; the marker and the name colour
+        // say what kind of call it was. Keeping those on separate channels
+        // means a slow call and a failed call never compete for one colour.
+        let (ramp, mark) = if s.error {
+            (&RAMP_ERROR, "!")
         } else if s.is_open() {
-            (Style::default().fg(Color::Yellow), format!("{}…", duration_ms(elapsed)))
+            (&RAMP_OPEN, "…")
         } else if s.sidechain {
-            (Style::default().fg(Color::Blue), duration_ms(elapsed))
+            (&RAMP_SUBAGENT, " ")
         } else {
-            (Style::default().fg(ACCENT), duration_ms(elapsed))
+            (&RAMP_OK, " ")
+        };
+        let name_style = match (s.error, s.is_open(), s.sidechain) {
+            (true, _, _) => Style::default().fg(RAMP_ERROR.at(1.0)),
+            (_, true, _) => Style::default().fg(RAMP_OPEN.at(0.8)),
+            (_, _, true) => Style::default().fg(RAMP_SUBAGENT.at(0.0)),
+            _ => Style::default().fg(Color::White),
         };
         let name = format!("{}{}", if s.sidechain { "↳" } else { "" }, s.name);
-        lines.push(Line::from(vec![
-            Span::styled(format!("{:<NAME_W$}", truncate(&name, NAME_W)), Style::default().fg(Color::White)),
-            Span::styled(format!("{dur_text:>DUR_W$} "), Style::default().fg(DIM)),
-            Span::raw(" ".repeat(start)),
-            Span::styled("█".repeat(end - start), bar_style),
-        ]));
+        let mut row = vec![
+            Span::styled(format!("{:<NAME_W$}", truncate(&name, NAME_W)), name_style),
+            Span::styled(format!("{:>DUR_W$}", format!("{}{mark}", duration_ms(elapsed))), Style::default().fg(DIM)),
+            Span::raw(" "),
+        ];
+        // The bar sits in a full-width track, so an empty stretch reads as
+        // "nothing was running then" rather than as the panel ending early.
+        if start > 0 {
+            row.push(Span::styled(METER_TRACK.repeat(start), track));
+        }
+        // Width is the call's share of the window; colour is how long it took.
+        // Two channels rather than one, because at this zoom most bars are a
+        // single cell and width alone would say nothing.
+        let h = heat(elapsed);
+        row.extend(textured(end - start, ramp, h * 0.7, h, s.is_open()));
+        if end < bar_w {
+            row.push(Span::styled(METER_TRACK.repeat(bar_w - end), track));
+        }
+        lines.push(Line::from(row));
     }
     Text::from(lines)
 }
@@ -361,7 +495,11 @@ fn trace_summary(shown: &[&ToolSpan], now: SystemTime, window_ms: u64) -> Vec<Sp
     let slowest = shown.iter().max_by_key(|s| s.elapsed_ms(now));
     let errors = shown.iter().filter(|s| s.error).count();
     let open = shown.iter().filter(|s| s.is_open()).count();
-    let mut spans = vec![Span::styled(format!("  in tools {}%", busy_ms(shown, now) * 100 / window_ms), Style::default().fg(Color::Green))];
+    let share = busy_ms(shown, now) * 100 / window_ms;
+    let mut spans = vec![
+        Span::styled("  in tools ", Style::default().fg(DIM)),
+        Span::styled(format!("{share}%"), Style::default().fg(RAMP_OK.at(share as f64 / 100.0)).bold()),
+    ];
     if let Some(s) = slowest {
         spans.push(Span::styled(
             format!("  slowest {} {}", truncate(&s.name, 14), duration_ms(s.elapsed_ms(now))),
@@ -487,7 +625,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
 
 fn draw_help(f: &mut Frame, area: Rect) {
     let w = 62.min(area.width.saturating_sub(2));
-    let h = 25.min(area.height.saturating_sub(2));
+    let h = 30.min(area.height.saturating_sub(2));
     let popup = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };
     f.render_widget(Clear, popup);
     let text = Text::from(vec![
@@ -508,8 +646,14 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::raw("  AGE     process age, or time since last write when stopped"),
         Line::raw(""),
         Line::from(vec![Span::styled("tool trace", Style::default().fg(ACCENT).bold())]),
-        Line::raw("  Each tool call the harness logged, on a shared time axis:"),
-        Line::raw("  cyan = done, blue = subagent, yellow = in flight, red = failed."),
+        Line::raw("  Every tool call the harness logged, on a shared time axis."),
+        Line::raw("  Width  = the call's share of the window on screen."),
+        Line::raw("  Colour = how long it took: green under a second, amber a"),
+        Line::raw("           few seconds, red approaching a minute."),
+        Line::raw("  ↳ blue = a subagent's call,  … amber = still running,"),
+        Line::raw("  ! red  = the harness reported the call as failed."),
+        Line::raw("  in tools = share of the window covered by at least one call;"),
+        Line::raw("           the rest of it is the model thinking."),
         Line::raw(""),
         Line::from(vec![
             Span::styled("orphaned mcp", Style::default().fg(Color::Red).bold()),
@@ -626,14 +770,18 @@ mod tests {
         assert!(out.contains("300ms!"), "failed calls are flagged");
         assert!(out.contains("1 in flight"), "summary counts open calls");
         assert!(out.contains("1 failed"), "summary counts failures");
+        assert!(out.contains(METER_TRACK), "bars sit in a visible track");
+        assert!(out.contains(METER_TIP), "the in-flight call is tipped");
         // 100..115 and 118..118.3 and 140..160 covered out of a 60s window.
         assert!(out.contains("in tools 58%"), "busy share merges overlapping calls: {out}");
         // The waterfall is monotonic: each row starts no earlier than the one
-        // above. (Filtered by tool name so the header's CPU gauge is excluded.)
+        // above. (Filtered by tool name so the header's CPU meter is excluded.)
+        let bar_start = |l: &str| l.chars().position(|c| c == METER_FULL_CH || c == METER_TIP_CH);
         let bars: Vec<usize> = out
             .lines()
-            .filter(|l| l.contains('█') && ["Bash", "Read", "Grep", "Edit"].iter().any(|n| l.contains(n)))
-            .map(|l| l.find('█').unwrap())
+            // The summary line names the slowest tool too, but has no bar.
+            .filter(|l| ["Bash", "Read", "Grep", "Edit"].iter().any(|n| l.contains(n)) && bar_start(l).is_some())
+            .map(|l| bar_start(l).unwrap())
             .collect();
         assert_eq!(bars.len(), 5);
         assert!(bars.windows(2).all(|w| w[0] <= w[1]), "spans are ordered along the axis: {bars:?}");
@@ -645,6 +793,103 @@ mod tests {
         app.detail = DetailView::Trace;
         let out = render(&mut app, 120, 26);
         assert!(out.contains("calls happened before agent-top started reading"), "{out}");
+    }
+
+    #[test]
+    fn the_ramp_runs_cool_to_hot() {
+        // Ends are the stops themselves, the middle is the middle stop.
+        assert_eq!(RAMP_OK.rgb_at(0.0), (0x4c, 0xc3, 0x8a));
+        assert_eq!(RAMP_OK.rgb_at(0.5), (0xd8, 0xc0, 0x4a));
+        assert_eq!(RAMP_OK.rgb_at(1.0), (0xe0, 0x7b, 0x39));
+        // Out-of-range input is clamped, not wrapped: a bar cannot go cold
+        // again by being longer than the meter.
+        assert_eq!(RAMP_OK.rgb_at(4.0), RAMP_OK.rgb_at(1.0));
+        assert_eq!(RAMP_OK.rgb_at(-1.0), RAMP_OK.rgb_at(0.0));
+        // Green channel falls and red rises as a call takes longer.
+        let (r0, g0, _) = RAMP_OK.rgb_at(0.1);
+        let (r1, g1, _) = RAMP_OK.rgb_at(0.9);
+        assert!(r1 > r0 && g1 < g0, "{r0},{g0} -> {r1},{g1}");
+        // The error ramp stays in the red family at every point, so a failure
+        // never reads as a merely slow call.
+        for i in 0..=10 {
+            let (r, g, b) = RAMP_ERROR.rgb_at(i as f64 / 10.0);
+            assert!(r > g && r > b, "error ramp went off-hue at {i}: {r},{g},{b}");
+        }
+    }
+
+    #[test]
+    fn falls_back_to_the_256_colour_palette() {
+        // Cube entries: index 16 is black, 231 is white.
+        assert_eq!(xterm256((0, 0, 0)), 232, "near-black lands on the grey ramp");
+        assert_eq!(xterm256((255, 0, 0)), 16 + 36 * 5, "pure red");
+        assert_eq!(xterm256((0, 255, 0)), 16 + 6 * 5, "pure green");
+        assert_eq!(xterm256((0x3a, 0x3a, 0x3a)), 232 + (0x3a_u16 * 23 / 255) as u8, "the track is a grey");
+        // Every ramp position must map into the palette's valid range.
+        for ramp in [&RAMP_OK, &RAMP_SUBAGENT, &RAMP_OPEN, &RAMP_ERROR, &RAMP_LOAD] {
+            for i in 0..=20 {
+                let idx = xterm256(ramp.rgb_at(i as f64 / 20.0));
+                assert!(idx >= 16, "index {idx} collides with the terminal's own ANSI colours");
+            }
+        }
+    }
+
+    #[test]
+    fn heat_is_log_scaled_and_bounded() {
+        assert_eq!(heat(0), 0.0, "anything under the floor is the coolest colour");
+        assert_eq!(heat(50), 0.0);
+        assert_eq!(heat(60_000), 1.0);
+        assert_eq!(heat(600_000), 1.0, "past the ceiling it saturates, it does not wrap");
+        // Log scaling: each decade covers the same slice of the ramp, so the
+        // interesting range (tens of ms to tens of seconds) is spread out
+        // instead of being crushed against one end.
+        let decade = heat(500) - heat(50);
+        assert!((heat(5_000) - heat(500) - decade).abs() < 1e-9);
+        assert!(heat(2_500) > heat(40), "a 2.5s call outranks a 40ms one");
+    }
+
+    /// The point of colouring by duration rather than by width: at a typical
+    /// zoom almost every call is one cell wide, and two one-cell calls that
+    /// took 40ms and 30s must not look identical.
+    #[test]
+    fn one_cell_calls_still_show_their_duration() {
+        let spans = vec![span("Quick", 100, Some(40), false, false), span("Slow", 130, Some(30_000), false, false)];
+        let mut app = App::new(snapshot(vec![agent("tuff-25", spans)]));
+        app.detail = DetailView::Trace;
+        let mut term = Terminal::new(TestBackend::new(120, 26)).unwrap();
+        term.draw(|f| draw(f, &mut app)).unwrap();
+        let buf = term.backend().buffer().clone();
+        let colors: Vec<Color> = (0..buf.area.height)
+            .filter_map(|y| {
+                let row: String = (0..buf.area.width).map(|x| buf[(x, y)].symbol()).collect();
+                if !row.contains("Quick") && !row.contains("Slow") {
+                    return None;
+                }
+                (0..buf.area.width).find(|x| buf[(*x, y)].symbol() == METER_FULL).map(|x| buf[(x, y)].fg)
+            })
+            .collect();
+        assert_eq!(colors.len(), 2, "both rows drew a bar");
+        assert_ne!(colors[0], colors[1], "a 40ms call and a 30s call must not share a colour");
+    }
+
+    #[test]
+    fn a_longer_bar_is_a_hotter_bar() {
+        // Two calls of very different length, same start, so only length differs.
+        let spans = vec![span("Short", 100, Some(500), false, false), span("Long", 100, Some(59_000), false, false)];
+        let mut app = App::new(snapshot(vec![agent("tuff-25", spans)]));
+        app.detail = DetailView::Trace;
+        let mut term = Terminal::new(TestBackend::new(120, 26)).unwrap();
+        term.draw(|f| draw(f, &mut app)).unwrap();
+        let buf = term.backend().buffer().clone();
+
+        let tip_of = |needle: &str| -> Color {
+            let row = |y: u16| (0..buf.area.width).map(|x| buf[(x, y)].symbol()).collect::<String>();
+            // The summary line names the slowest tool as well; the row we want
+            // is the one that also has a bar on it.
+            let y = (0..buf.area.height).find(|y| row(*y).contains(needle) && row(*y).contains(METER_FULL)).expect("row is on screen");
+            // The colour of the bar's last filled cell is its ramp position.
+            (0..buf.area.width).rev().find(|x| buf[(*x, y)].symbol() == METER_FULL).map(|x| buf[(x, y)].fg).expect("row has a bar")
+        };
+        assert_ne!(tip_of("Short"), tip_of("Long"), "length must change the colour, not just the width");
     }
 
     /// The panel must not panic or overflow at the sizes people actually use.
