@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-09-03
+
+Documentation only; no change to the binary's behaviour.
+
+### Changed
+- `agent-top-core` has its own README on crates.io. Both crates inherited the workspace one, so the library's page rendered the tool's page and the two listings read as duplicates of each other. It now says what the library is, that anyone wanting the tool should install `agent-top` instead, and what its pre-1.0 stability amounts to.
+- The README's install section lists every route — Homebrew, `cargo binstall`, `cargo install`, a clone, and the release tarballs — recommends `--locked`, and says how to upgrade.
+
 ## [0.1.2] - 2026-09-03
 
 First release published to crates.io. No functional change from 0.1.1: the
