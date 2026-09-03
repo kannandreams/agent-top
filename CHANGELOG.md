@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-09-03
+
+### Added
+- Golden fixtures: two real transcripts, one per harness, reduced to the fields the parser reads and checked in with the exact numbers they should produce. The inline unit tests only prove the parser agrees with its author's description of the format; these pin the parse of a whole real session, cost included. A one-digit price typo that all twelve unit tests wave through fails here.
+
+### Changed
+- `agent-top-core` has a plainer README, and `docs/roadmap.md` no longer claims golden fixtures catch an upstream format change. They cannot: a fixture recorded at one harness version keeps passing after the harness moves on. Detecting a renamed field is a separate job, now listed separately, and it matters because every field falls back to zero when missing, so a rename shows a user 0 tokens rather than an error.
+- `SpanLog::iter` is double-ended, so callers can take the newest spans without collecting the log.
+
 ## [0.1.3] - 2026-09-03
 
 Documentation only; no change to the binary's behaviour.
