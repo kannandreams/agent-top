@@ -4,7 +4,7 @@ min_version = "2025.12.12"
 lockfile = true
 
 [tools]
-rust = "1.96.0"
+rust = { version = "1.96.0", components = ["rustfmt", "clippy"] }
 
 [tasks.build]
 description = "Build the workspace"

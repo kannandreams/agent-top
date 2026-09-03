@@ -3,3 +3,6 @@
 [[tools.rust]]
 version = "1.96.0"
 backend = "core:rust"
+
+[tools.rust.options]
+components = "clippy,rustfmt"
