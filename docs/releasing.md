@@ -35,6 +35,18 @@ These three things are not automated because each is a deliberate, public act.
    Both are optional. If a secret is missing the workflow logs a warning and
    skips that step; the GitHub release and its binaries still happen.
 
+## Checking the credentials before you tag
+
+```sh
+gh workflow run release.yml && gh run watch
+```
+
+A manual run of the release workflow publishes nothing. It only checks that
+`HOMEBREW_TAP_TOKEN` exists and can actually write to the tap, and reports
+whether `CARGO_REGISTRY_TOKEN` is set. Worth doing after rotating a token,
+because the alternative is finding out from a red job on a tag whose binaries
+are already in front of users.
+
 ## Cutting a release
 
 ```sh

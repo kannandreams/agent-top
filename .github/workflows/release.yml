@@ -6,6 +6,10 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Preflight. Publishes nothing: it only proves the credentials a release
+  # needs are present and carry the right permissions, which is otherwise not
+  # discovered until a tag has already put binaries in front of users.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,8 +18,45 @@ env:
   MISE_LOCKED: "1"
 
 jobs:
+  credentials:
+    name: check release credentials
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Homebrew tap token
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "${TAP_TOKEN}" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN is not set; releases will skip the tap bump."
+            exit 1
+          fi
+          # `permissions.push` is what the token can do to that repository, so
+          # this catches a read-only or wrong-repository token here rather than
+          # at `git push`, after the release is already public.
+          perms="$(GH_TOKEN="$TAP_TOKEN" gh api repos/kannandreams/homebrew-tap --jq '.permissions.push // "none"' 2>&1)" || {
+            echo "::error::the token cannot read kannandreams/homebrew-tap: $perms"
+            exit 1
+          }
+          if [ "$perms" != "true" ]; then
+            echo "::error::the token can read the tap but not write to it (permissions.push=$perms). It needs Contents: read and write."
+            exit 1
+          fi
+          echo "HOMEBREW_TAP_TOKEN can write to kannandreams/homebrew-tap"
+
+      - name: crates.io token
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "${CARGO_REGISTRY_TOKEN}" ]; then
+            echo "::warning::CARGO_REGISTRY_TOKEN is not set; releases will skip crates.io. This is optional."
+          else
+            echo "CARGO_REGISTRY_TOKEN is set"
+          fi
+
   build:
     name: build (${{ matrix.target }})
+    if: github.event_name == 'push'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -97,6 +138,7 @@ jobs:
   publish:
     name: publish
     needs: build
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
