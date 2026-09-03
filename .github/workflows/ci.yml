@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS is the verified platform; Linux runs the same checks so that
+        # /proc-specific breakage in process discovery is caught here rather
+        # than by a user (debt register #10 in the internal handbook).
+        os: [macos-latest, ubuntu-latest]
+    env:
+      MISE_LOCKED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install development toolchain
+        uses: jdx/mise-action@v4.2.3
+        with:
+          version: 2026.8.2
+          cache: true
+
+      # mise-action caches mise's tool installs, not cargo's target directory.
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2.9.2
+
+      - name: Run repository checks (fmt, clippy, tests)
+        run: mise run check
+
+      - name: Smoke-run discovery
+        run: cargo run --release -- --json > snapshot.json && head -c 400 snapshot.json
