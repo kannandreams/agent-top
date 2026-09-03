@@ -8,13 +8,13 @@ Dates are targets, not promises. Each phase ships on its own.
 - Claude Code exact attribution; Codex heuristic attribution.
 - Process tree and orphaned MCP detection.
 - Tool trace: per-call spans from both harnesses, as a waterfall in the detail pane and as JSON.
+- Prices as data: a `prices.toml` compiled into the binary, with `~/.config/agent-top/prices.toml` merged over it, so any model can be priced and a stale price corrected without a release.
 - `--once`, `--json`.
 - Prebuilt macOS and Linux binaries, a Homebrew tap and `cargo binstall` support, cut by tag (see [releasing.md](releasing.md)).
 
 ## v0.2 — trust the numbers (Q4 2026)
 
 - Exact Codex attribution (per-thread rows for the app-server, matched through the rollout's `originator` and pid where Codex exposes it).
-- User-supplied price table (`~/.config/agent-top/prices.toml`) so OpenAI, Google and self-hosted models can be priced.
 - Gemini CLI and OpenCode transcript adapters.
 - Per-agent history sparkline (tokens per minute) and cost rate ($/hour).
 - Linux `/proc` verification against a real Linux desktop, not only CI.

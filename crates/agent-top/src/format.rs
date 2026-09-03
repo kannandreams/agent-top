@@ -1,5 +1,6 @@
 //! Number and text formatting shared by the TUI and `--once`.
 
+use agent_top_core::pricing::{Origin, Table};
 use agent_top_core::{Agent, ProcNode, Snapshot};
 
 pub fn tokens(n: u64) -> String {
@@ -140,4 +141,44 @@ pub fn plain_table(snap: &Snapshot) -> String {
 
 pub fn truncate(s: &str, n: usize) -> String {
     if s.chars().count() <= n { s.to_string() } else { s.chars().take(n.saturating_sub(1)).collect::<String>() + "…" }
+}
+
+/// `--prices`: the effective table, longest prefix first, so a user can see at
+/// a glance which of their overrides took effect and what is still unpriced.
+pub fn price_table(t: &Table) -> String {
+    let mut out = String::new();
+    out.push_str("USD per million tokens\n\n");
+    out.push_str(&format!(
+        "{:<22} {:>8} {:>8} {:>10} {:>10} {:>10}  {}\n",
+        "MODEL PREFIX", "INPUT", "OUTPUT", "CACHE RD", "CACHE 5m", "CACHE 1h", "SOURCE"
+    ));
+    let mut entries: Vec<_> = t.entries.iter().collect();
+    entries.sort_by(|a, b| b.prefix.len().cmp(&a.prefix.len()).then_with(|| a.prefix.cmp(&b.prefix)));
+    for e in entries {
+        let p = &e.price;
+        out.push_str(&format!(
+            "{:<22} {:>8.2} {:>8.2} {:>10.3} {:>10.3} {:>10.3}  {}\n",
+            e.prefix,
+            p.input,
+            p.output,
+            p.cache_read,
+            p.cache_write_5m,
+            p.cache_write_1h,
+            match e.origin {
+                Origin::Builtin => "built-in",
+                Origin::User => "your file",
+            }
+        ));
+    }
+    out.push_str(&format!("\nbuilt-in table checked {}\n", t.updated.as_deref().unwrap_or("(undated)")));
+    match &t.user_path {
+        Some(p) if t.warnings.is_empty() => out.push_str(&format!("overrides from {}\n", p.display())),
+        Some(p) => out.push_str(&format!("no overrides applied from {}\n", p.display())),
+        None => out.push_str("no user price file; set one at ~/.config/agent-top/prices.toml\n"),
+    }
+    for w in &t.warnings {
+        out.push_str(&format!("warning: {w}\n"));
+    }
+    out.push_str("\nA model with no entry here is counted but reported as unpriced, never guessed at.\n");
+    out
 }

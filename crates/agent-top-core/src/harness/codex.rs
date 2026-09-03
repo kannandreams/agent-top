@@ -18,7 +18,7 @@
 use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, parse_rfc3339_utc};
 use crate::jsonl::TailReader;
 use crate::model::{Activity, Harness, TokenUsage};
-use crate::pricing::price_for;
+use crate::pricing::{self, Table};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -75,12 +75,23 @@ pub fn read_meta(path: &Path) -> Option<(PathBuf, SystemTime)> {
 
 pub struct CodexTranscript {
     reader: TailReader,
+    prices: &'static Table,
     summary: SessionSummary,
 }
 
 impl CodexTranscript {
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        CodexTranscript { reader: TailReader::new(path), summary: SessionSummary { harness: Some(Harness::Codex), ..Default::default() } }
+        CodexTranscript {
+            reader: TailReader::new(path),
+            prices: pricing::table(),
+            summary: SessionSummary { harness: Some(Harness::Codex), ..Default::default() },
+        }
+    }
+
+    /// See `ClaudeTranscript::with_prices`.
+    pub fn with_prices(mut self, prices: &'static Table) -> Self {
+        self.prices = prices;
+        self
     }
 
     fn ingest(&mut self, line: &str) {
@@ -120,7 +131,7 @@ impl CodexTranscript {
                             ..Default::default()
                         };
                         self.summary.usage = usage;
-                        let price = self.summary.model.as_deref().and_then(price_for);
+                        let price = self.summary.model.as_deref().and_then(|m| self.prices.lookup(m));
                         match price {
                             Some(p) => {
                                 self.summary.cost_usd = p.cost(&usage);

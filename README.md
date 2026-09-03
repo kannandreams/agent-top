@@ -19,7 +19,7 @@ You have three Claude Code sessions, a Codex thread in VS Code, and a Gemini CLI
 |---|---|
 | **STATE** | `running` = mid-turn (inference or tool execution), `idle` = alive and waiting for you, `stopped` = transcript with no live process (kept for 30 minutes) |
 | **TOKENS** | input + cache read + cache write + output, from the harness's own transcript |
-| **COST** | USD at list price. `+` or `≥` means some tokens had no known price and the number is a floor |
+| **COST** | USD at list price, from [your price table](#prices). `+` or `≥` means some tokens had no known price and the number is a floor; `n/a` means none of them did |
 | **CPU% / MEM** | summed over the agent's whole process tree |
 | **TOOLS** | tool calls in the session |
 | **PROCS / MCP** | processes in the tree, and how many of them look like Model Context Protocol servers |
@@ -67,6 +67,7 @@ agent-top --json             # one snapshot as JSON, for scripts and bug reports
 agent-top --interval-ms 500  # faster refresh
 agent-top --stopped-window-min 120
 agent-top --replay snap.json # render someone else's --json, keys and all
+agent-top --prices           # the effective price table, and where each row came from
 ```
 
 `--replay` renders a saved snapshot in the full interactive UI without reading
@@ -110,6 +111,39 @@ transcript the harness already writes, by pairing each call with its result
 them. Only the call's name, id and timing are read, never its arguments or
 output. The spans are in `--json` as well, so they can be fed to a real tracing
 tool.
+
+## Prices
+
+Prices are data, not code. The table shipped in the binary lives in
+[`crates/agent-top-core/prices.toml`](crates/agent-top-core/prices.toml), and a
+file of your own is merged over it at startup:
+
+```toml
+# ~/.config/agent-top/prices.toml   (USD per million tokens)
+
+[[model]]
+prefix = "gpt-5-codex"
+input = 1.25
+output = 10.0
+cache_read = 0.125
+```
+
+An entry whose `prefix` matches a built-in one replaces it, so a price that has
+gone stale can be corrected without waiting for a release. A new prefix is
+added, which is how the models this project does not ship prices for get costed
+at all. Cache writes default to Anthropic's multipliers of the input price
+(1.25x for the 5 minute TTL, 2x for the hour) and can be set explicitly with
+`cache_write_5m` and `cache_write_1h`.
+
+The longest matching prefix wins, so `claude-fable-5-1` beats `claude-fable-5`,
+and a date-suffixed id like `claude-sonnet-4-6-20251114` resolves to its base
+model. `agent-top --prices` prints the effective table with the source of every
+row, which is the quickest way to find out why something is showing `n/a`. A
+price file that cannot be parsed is reported on stderr and ignored; the
+built-in prices still apply.
+
+A model with no entry anywhere is never guessed at. Its tokens are counted and
+reported as unpriced, and any total containing them is shown as a floor.
 
 ## How it works
 

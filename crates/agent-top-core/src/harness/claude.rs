@@ -19,7 +19,7 @@
 use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, parse_rfc3339_utc};
 use crate::jsonl::TailReader;
 use crate::model::{Activity, Harness, TokenUsage};
-use crate::pricing::price_for;
+use crate::pricing::{self, Table};
 use serde::Deserialize;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -154,6 +154,7 @@ pub fn guess_transcript(cwd: &Path, proc_start: SystemTime) -> Option<PathBuf> {
 
 pub struct ClaudeTranscript {
     reader: TailReader,
+    prices: &'static Table,
     summary: SessionSummary,
     /// Dedupe state: the last API message id seen and what it contributed.
     last_msg_id: Option<String>,
@@ -164,10 +165,18 @@ impl ClaudeTranscript {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         ClaudeTranscript {
             reader: TailReader::new(path),
+            prices: pricing::table(),
             summary: SessionSummary { harness: Some(Harness::Claude), ..Default::default() },
             last_msg_id: None,
             last_contrib: (TokenUsage::default(), 0.0, 0),
         }
+    }
+
+    /// Price with this table instead of the process-wide one. Lets a test
+    /// assert a cost without the developer's own price file changing it.
+    pub fn with_prices(mut self, prices: &'static Table) -> Self {
+        self.prices = prices;
+        self
     }
 
     pub fn set_registry_hints(&mut self, ps: &PidSession) {
@@ -252,7 +261,7 @@ impl ClaudeTranscript {
         }
 
         let usage = msg.get("usage").map(parse_usage).unwrap_or_default();
-        let price = price_for(model);
+        let price = self.prices.lookup(model);
         let cost = price.map(|p| p.cost(&usage)).unwrap_or(0.0);
         let unpriced = if price.is_none() { usage.total() } else { 0 };
 

@@ -16,6 +16,7 @@
 use agent_top_core::harness::claude::ClaudeTranscript;
 use agent_top_core::harness::codex::CodexTranscript;
 use agent_top_core::harness::{SessionSummary, SessionTracker};
+use agent_top_core::pricing;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -107,14 +108,17 @@ fn check(fixture: &str, mut tracker: Box<dyn SessionTracker>) {
     }
 }
 
+// Both price with the built-in table only. Reading the developer's own
+// ~/.config/agent-top/prices.toml here would make the golden costs depend on
+// whose machine the suite runs on.
 #[test]
 fn claude_2_1_226() {
     let p = fixtures().join("claude-2.1.226.jsonl");
-    check("claude-2.1.226", Box::new(ClaudeTranscript::new(p)));
+    check("claude-2.1.226", Box::new(ClaudeTranscript::new(p).with_prices(pricing::builtin_table())));
 }
 
 #[test]
 fn codex_0_130() {
     let p = fixtures().join("codex-0.130.jsonl");
-    check("codex-0.130", Box::new(CodexTranscript::new(p)));
+    check("codex-0.130", Box::new(CodexTranscript::new(p).with_prices(pricing::builtin_table())));
 }

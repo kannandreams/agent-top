@@ -26,6 +26,10 @@ struct Cli {
     /// Keep showing stopped sessions for this many minutes after their last write.
     #[arg(long, default_value_t = 30)]
     stopped_window_min: u64,
+    /// Print the effective price table, showing which entries a user file
+    /// overrode, and exit.
+    #[arg(long)]
+    prices: bool,
     /// Render a snapshot saved by `--json` instead of scanning this machine.
     /// Every key still works, so a bug report can be inspected as the reporter
     /// saw it. Nothing on the local machine is read.
@@ -52,6 +56,15 @@ impl Source {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    if cli.prices {
+        print!("{}", format::price_table(agent_top_core::pricing::table()));
+        return Ok(());
+    }
+    // A user's price file that could not be read is the difference between a
+    // real cost and a wrong one, so say so rather than quietly using defaults.
+    for w in &agent_top_core::pricing::table().warnings {
+        eprintln!("agent-top: {w}");
+    }
     let mut source = match &cli.replay {
         Some(path) => {
             let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;

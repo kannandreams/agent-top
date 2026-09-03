@@ -1,0 +1,89 @@
+# Model prices, in US dollars per million tokens.
+#
+# This file is compiled into agent-top, and a file at
+# ~/.config/agent-top/prices.toml (or $XDG_CONFIG_HOME/agent-top/prices.toml)
+# is merged over it at startup: an entry with the same prefix replaces the one
+# here, and a new prefix is added. So a stale price can be corrected, and an
+# unpriced model can be priced, without waiting for a release.
+#
+# `prefix` is matched against the start of the model id, after lowercasing and
+# stripping an `anthropic.` or `us.anthropic.` vendor prefix. The longest
+# matching prefix wins, so `claude-fable-5-1` beats `claude-fable-5` and a
+# date-suffixed id like `claude-sonnet-4-6-20251114` resolves to its base
+# model. Order in this file does not matter.
+#
+# Cache write prices default to Anthropic's multipliers of the input price:
+# 1.25x for the 5 minute TTL and 2x for the 1 hour TTL. Set `cache_write_5m`
+# or `cache_write_1h` explicitly for a vendor that prices them differently.
+#
+# A model with no entry is not guessed at. Its tokens are counted and reported
+# as unpriced, and any total containing them is shown as a floor.
+
+updated = "2026-06-24"
+source = "https://www.anthropic.com/pricing"
+
+[[model]]
+prefix = "claude-fable-5-1"
+input = 10.0
+output = 50.0
+cache_read = 0.25
+
+[[model]]
+prefix = "claude-mythos-5-1"
+input = 10.0
+output = 50.0
+cache_read = 0.25
+
+[[model]]
+prefix = "claude-fable-5"
+input = 10.0
+output = 50.0
+cache_read = 1.0
+
+[[model]]
+prefix = "claude-mythos-5"
+input = 10.0
+output = 50.0
+cache_read = 1.0
+
+[[model]]
+prefix = "claude-opus-5"
+input = 5.0
+output = 25.0
+cache_read = 0.5
+
+[[model]]
+prefix = "claude-opus-4-8"
+input = 5.0
+output = 25.0
+cache_read = 0.5
+
+[[model]]
+prefix = "claude-opus-4-7"
+input = 5.0
+output = 25.0
+cache_read = 0.5
+
+[[model]]
+prefix = "claude-opus-4-6"
+input = 5.0
+output = 25.0
+cache_read = 0.5
+
+[[model]]
+prefix = "claude-sonnet-5"
+input = 2.0
+output = 10.0
+cache_read = 0.2
+
+[[model]]
+prefix = "claude-sonnet-4-6"
+input = 3.0
+output = 15.0
+cache_read = 0.3
+
+[[model]]
+prefix = "claude-haiku-4-5"
+input = 1.0
+output = 5.0
+cache_read = 0.1
