@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-09-04
+
+No change to the binary's behaviour. This release exists so that a published
+version corresponds to a green build.
+
+### Fixed
+- A test asserted that three rollout files written microseconds apart would carry distinct modification times. Linux gave all three the same mtime, the stable sort preserved insertion order, and the test failed there while passing on macOS. The files now carry explicit modification times, so the expected ordering does not depend on filesystem timestamp resolution.
+- The release workflow ran no tests. It built the binaries and smoke-ran one, which is how 0.2.0 reached crates.io, the Homebrew tap and the releases page while a test was failing on `main`. The build matrix now depends on a job that runs the full checks on macOS and Linux, so a tag cannot publish what CI would have rejected.
+
 ## [0.2.0] - 2026-09-03
 
 ### Added
