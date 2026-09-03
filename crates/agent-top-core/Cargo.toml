@@ -5,7 +5,10 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-readme.workspace = true
+# Its own, not the workspace README: on crates.io the library and the tool
+# are two listings, and showing the tool's page for both makes the library
+# look like a duplicate of it.
+readme = "README.md"
 description = "Discovery, accounting and process-tree model for agent-top (no terminal dependencies)."
 
 [dependencies]
