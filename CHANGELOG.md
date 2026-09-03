@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-09-03
+
+First release published to crates.io. No functional change from 0.1.1: the
+version exists because a registry release needs one and 0.1.1 was already
+tagged.
+
+### Added
+- Published on crates.io, so `cargo install agent-top` and `cargo binstall agent-top` work without a clone.
+
+### Fixed
+- Both crates were packaged without a README. The file lives at the workspace root, outside either package directory, so crates.io would have shown an empty page; it is now inherited through `[workspace.package]` and verified present in each package.
+- The crates.io publish step skips a version already on the registry instead of failing on it, so a release job retried after a partial publish completes rather than dying on the half that succeeded.
+
 ## [0.1.1] - 2026-09-03
 
 ### Added
