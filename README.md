@@ -3,6 +3,7 @@
 **htop for local coding agents.**
 
 [![CI](https://github.com/kannandreams/agent-top/actions/workflows/ci.yml/badge.svg)](https://github.com/kannandreams/agent-top/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/agent-top.svg)](https://crates.io/crates/agent-top)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust 2024](https://img.shields.io/badge/rust-edition%202024-orange.svg)](Cargo.toml)
 
@@ -40,18 +41,22 @@ The detail pane shows the process tree (`agent`, `subagent`, `mcp`, `shell`, `to
 brew install kannandreams/tap/agent-top
 ```
 
-Or, without Homebrew:
+Every route ends at the same single binary — no Python, no Node, no daemon,
+nothing to configure:
 
-```sh
-cargo binstall agent-top          # prebuilt binary, no compiler needed
-cargo install agent-top           # build from crates.io
-cargo install --path crates/agent-top   # build from a clone
-```
+| | | |
+|---|---|---|
+| **Homebrew** | `brew install kannandreams/tap/agent-top` | macOS and Linux, prebuilt |
+| **Cargo, prebuilt** | `cargo binstall agent-top` | downloads the release binary, no compiler needed |
+| **Cargo, from source** | `cargo install --locked agent-top` | builds from crates.io |
+| **From a clone** | `cargo install --locked --path crates/agent-top` | for working on it |
+| **By hand** | [the releases page](https://github.com/kannandreams/agent-top/releases) | tarballs and `sha256` for macOS and Linux, x86\_64 and arm64 |
 
-Prebuilt binaries for macOS and Linux (x86_64 and arm64) are attached to every
-[release](https://github.com/kannandreams/agent-top/releases) with checksums.
-Building from source needs Rust 1.85+ (edition 2024). Either way: one static
-binary, no Python, no Node, no daemon.
+`--locked` builds against the dependency versions the release was tested with;
+drop it if you would rather cargo picked newer ones. Building from source needs
+Rust 1.85 or newer (edition 2024).
+
+To upgrade: `brew upgrade agent-top`, or re-run the `cargo install` command.
 
 ## Usage
 
@@ -128,7 +133,13 @@ cargo run -- --once
 cargo clippy --all-targets
 ```
 
-`crates/agent-top-core` is discovery and accounting with no terminal dependency; `crates/agent-top` is the ratatui front end. The internal engineering handbook (PRD, RFCs, ADRs, decisions) lives in the sibling `agent-top-internal-docs` repository.
+Two crates, split by dependency rather than by size: `crates/agent-top-core`
+is discovery, transcript parsing, pricing and the process model, with no
+terminal dependency, so all of it is testable without a TTY and it is exactly
+what `--json` prints; `crates/agent-top` is the ratatui front end and the CLI.
+Both are published, because a crate on crates.io cannot depend on an
+unpublished one — `agent-top-core` exists on the registry so that `agent-top`
+can. The internal engineering handbook (PRD, RFCs, ADRs, decisions) lives in the sibling `agent-top-internal-docs` repository.
 
 ## License
 
