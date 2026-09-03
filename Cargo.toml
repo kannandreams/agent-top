@@ -9,6 +9,9 @@ license = "MIT"
 authors = ["Kannan Kalidasan"]
 repository = "https://github.com/kannandreams/agent-top"
 description = "htop for local coding agents: processes, subagents, MCP servers, tokens and cost in one terminal view."
+# Resolved relative to the workspace root and copied into each published
+# package, so crates.io shows the real README instead of an empty page.
+readme = "README.md"
 
 [workspace.dependencies]
 agent-top-core = { path = "crates/agent-top-core", version = "0.1.1" }

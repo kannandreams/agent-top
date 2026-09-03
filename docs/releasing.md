@@ -30,7 +30,7 @@ These three things are not automated because each is a deliberate, public act.
    | Secret | Needed for | Scope |
    |---|---|---|
    | `HOMEBREW_TAP_TOKEN` | pushing the formula to the tap | a fine-grained PAT with **Contents: read and write** on `kannandreams/homebrew-tap` only |
-   | `CARGO_REGISTRY_TOKEN` | `cargo install agent-top` from crates.io | a crates.io API token with publish scope |
+   | `CARGO_REGISTRY_TOKEN` | `cargo install agent-top` from crates.io | a crates.io API token scoped to `publish-new` + `publish-update`, crates `agent-top*` |
 
    Both are optional. If a secret is missing the workflow logs a warning and
    skips that step; the GitHub release and its binaries still happen.
@@ -102,6 +102,28 @@ rather than the newest image: a binary built against a newer glibc refuses to
 start on older distributions. That sets the floor at Ubuntu 22.04, Debian 12
 and Fedora 36. A musl build would remove the floor entirely and is the right
 answer if anyone reports it.
+
+## crates.io
+
+The token wants exactly two endpoint scopes and nothing else:
+
+| Scope | Why |
+|---|---|
+| `publish-new` | the first release of each crate name; `agent-top` and `agent-top-core` do not exist on crates.io yet |
+| `publish-update` | every release after that |
+
+Leave `yank` and `change-owners` unticked: the workflow never needs them, and
+a leaked token that can only add versions is far less damaging than one that
+can remove them or hand the crate to someone else. Under **Crates**, scope the
+token to the pattern `agent-top*` so it covers both crates and any future
+workspace member but nothing else you own.
+
+Once both crates exist, a replacement token needs only `publish-update`.
+
+Publishing is irreversible — a version can be yanked but never deleted, and
+the name is reserved for good. The workflow publishes `agent-top-core` first
+because `agent-top` depends on it by version, and skips any version already on
+crates.io so a retried job does not fail on what already landed.
 
 ## Homebrew core
 

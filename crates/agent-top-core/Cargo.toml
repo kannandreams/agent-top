@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+readme.workspace = true
 description = "Discovery, accounting and process-tree model for agent-top (no terminal dependencies)."
 
 [dependencies]

@@ -202,5 +202,14 @@ jobs:
             exit 0
           fi
           # The core crate first: agent-top depends on it by version.
-          cargo publish --locked -p agent-top-core
-          cargo publish --locked -p agent-top
+          # A version already on crates.io is not an error to re-run into --
+          # publishing is irreversible, so a retried job must skip what landed
+          # rather than fail on it.
+          for crate in agent-top-core agent-top; do
+            if curl -sf -H "User-Agent: agent-top-release" \
+                 "https://crates.io/api/v1/crates/${crate}/${VERSION}" > /dev/null; then
+              echo "::notice::${crate} ${VERSION} is already on crates.io"
+              continue
+            fi
+            cargo publish --locked -p "$crate"
+          done
