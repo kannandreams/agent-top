@@ -14,6 +14,22 @@
 - **Edition 2024, no `unsafe`, no async.** One refresh per tick is cheap enough; keep it simple until measurements say otherwise.
 - Commit subjects follow Conventional Commits. No AI attribution trailers.
 
+## Golden fixtures
+
+`crates/agent-top-core/tests/fixtures` holds real transcripts, reduced to the
+fields the parser reads, with the exact numbers each should produce. They cover
+what the inline unit tests cannot: a whole real session, at scale, including
+cost. A price-table edit that the unit tests wave through will fail here.
+
+When a golden test fails, decide which it is. If you meant to change the parse,
+re-record with `UPDATE_GOLDEN=1 cargo test -p agent-top-core --test golden` and
+review the diff, because that diff is the change to every user's numbers. If you
+did not, the parse drifted.
+
+Adding a fixture means sanitising it first: drop every field the parser does not
+read rather than masking it, then audit the result for real paths, prompts and
+tool output before committing. See the README in that directory.
+
 ## The README demo
 
 `docs/demo.gif` is recorded by `vhs docs/demo.tape` from `docs/demo-snapshot.json`,

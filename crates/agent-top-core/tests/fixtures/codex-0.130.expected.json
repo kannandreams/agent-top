@@ -1,0 +1,69 @@
+{
+  "activity": "Working",
+  "cost_usd_micros": 0,
+  "cwd": "/Users/dev/code/example",
+  "harness_version": "0.130.0",
+  "last_activity_ms": 1778795294964,
+  "model": "gpt-5.4-mini",
+  "session_id": "01000000-0000-7000-0000-000000000000",
+  "spans": {
+    "count": 16,
+    "errors": 0,
+    "first": [
+      {
+        "duration_ms": 172,
+        "error": false,
+        "name": "exec_command",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 171,
+        "error": false,
+        "name": "exec_command",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 54,
+        "error": false,
+        "name": "exec_command",
+        "sidechain": false
+      }
+    ],
+    "last": [
+      {
+        "duration_ms": 45,
+        "error": false,
+        "name": "exec_command",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 49,
+        "error": false,
+        "name": "exec_command",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 53,
+        "error": false,
+        "name": "exec_command",
+        "sidechain": false
+      }
+    ],
+    "open": 0,
+    "sidechain": 0,
+    "total_duration_ms": 2578
+  },
+  "started_at_ms": 1778794670533,
+  "subagent_turns": 0,
+  "tool_calls": 16,
+  "turns": 11,
+  "unpriced_tokens": 202284,
+  "usage": {
+    "cache_read": 177408,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "input": 15835,
+    "output": 9041,
+    "total": 202284
+  }
+}

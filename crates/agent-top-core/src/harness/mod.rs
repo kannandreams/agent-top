@@ -75,8 +75,9 @@ impl SpanLog {
         self.spans.is_empty()
     }
 
-    /// Oldest first.
-    pub fn iter(&self) -> impl Iterator<Item = &ToolSpan> {
+    /// Oldest first. Double-ended so callers can take the newest spans without
+    /// collecting the whole log first, which the UI and the golden tests both do.
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &ToolSpan> + ExactSizeIterator {
         self.spans.iter()
     }
 

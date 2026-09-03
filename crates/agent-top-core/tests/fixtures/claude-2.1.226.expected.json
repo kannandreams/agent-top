@@ -1,0 +1,69 @@
+{
+  "activity": "Working",
+  "cost_usd_micros": 3554320,
+  "cwd": "/Users/dev/code/example",
+  "harness_version": "2.1.226",
+  "last_activity_ms": 1786283224243,
+  "model": "claude-fable-5",
+  "session_id": "00000000-1111-2222-3333-444444444444",
+  "spans": {
+    "count": 25,
+    "errors": 1,
+    "first": [
+      {
+        "duration_ms": 251,
+        "error": false,
+        "name": "Bash",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 42,
+        "error": false,
+        "name": "Bash",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 9,
+        "error": false,
+        "name": "Read",
+        "sidechain": false
+      }
+    ],
+    "last": [
+      {
+        "duration_ms": 31323,
+        "error": false,
+        "name": "Write",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 20,
+        "error": false,
+        "name": "TaskUpdate",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 28073,
+        "error": false,
+        "name": "Write",
+        "sidechain": false
+      }
+    ],
+    "open": 0,
+    "sidechain": 0,
+    "total_duration_ms": 105035
+  },
+  "started_at_ms": 1786279493374,
+  "subagent_turns": 0,
+  "tool_calls": 25,
+  "turns": 17,
+  "unpriced_tokens": 0,
+  "usage": {
+    "cache_read": 1005090,
+    "cache_write_1h": 80800,
+    "cache_write_5m": 0,
+    "input": 33,
+    "output": 18658,
+    "total": 1104581
+  }
+}
