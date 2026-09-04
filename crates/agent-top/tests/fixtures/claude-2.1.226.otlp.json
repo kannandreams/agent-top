@@ -1,0 +1,1881 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "claude-code-session"
+            }
+          },
+          {
+            "key": "agent_top.harness",
+            "value": {
+              "stringValue": "claude"
+            }
+          },
+          {
+            "key": "agent_top.session_id",
+            "value": {
+              "stringValue": "00000000-1111-2222-3333-444444444444"
+            }
+          },
+          {
+            "key": "agent_top.harness_version",
+            "value": {
+              "stringValue": "2.1.226"
+            }
+          },
+          {
+            "key": "agent_top.model",
+            "value": {
+              "stringValue": "claude-fable-5"
+            }
+          },
+          {
+            "key": "agent_top.cwd",
+            "value": {
+              "stringValue": "/Users/dev/code/example"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "agent-top"
+          },
+          "spans": [
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:1"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279591530000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "2f319a6ca3c2d896",
+              "startTimeUnixNano": "1786279493374000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:1"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279499040000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "1259ffed64b793f4",
+              "startTimeUnixNano": "1786279493374000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01AXMV4Ts139C3WEM4yNM8Ro"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279499291000000",
+              "kind": 1,
+              "name": "Bash",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "7268ec1972bc45ea",
+              "startTimeUnixNano": "1786279499040000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:2"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279507586000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "125a02ed64b7990d",
+              "startTimeUnixNano": "1786279499291000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_012HVwo7GX77wTQihHKUYepY"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279507628000000",
+              "kind": 1,
+              "name": "Bash",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "7b48fc03a2b23e98",
+              "startTimeUnixNano": "1786279507586000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:3"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279508305000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "125a01ed64b7975a",
+              "startTimeUnixNano": "1786279507628000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01JUDAy3trzUb6u8ufoo9nmL"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279508310000000",
+              "kind": 1,
+              "name": "Read",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "26a31f5c3354de19",
+              "startTimeUnixNano": "1786279508301000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01LyCUKn7rumd6eYSCbcjxds"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279508310000000",
+              "kind": 1,
+              "name": "Read",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "f34562fd08cb2981",
+              "startTimeUnixNano": "1786279508305000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:5"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279508741000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "1259fbed64b78d28",
+              "startTimeUnixNano": "1786279508310000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_012z7j6CQ8AMaoYsmcrnDxgZ"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279508752000000",
+              "kind": 1,
+              "name": "Read",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "59075e665abd989e",
+              "startTimeUnixNano": "1786279508741000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:6"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279538109000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "1259feed64b79241",
+              "startTimeUnixNano": "1786279508752000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_015GJzcrXQckCtWmMQKNnMPD"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279538125000000",
+              "kind": 1,
+              "name": "Agent",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "8169d66aaa165e4f",
+              "startTimeUnixNano": "1786279538109000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:7"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279544539000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "1259fded64b7908e",
+              "startTimeUnixNano": "1786279538125000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01Wh9SfawxVtFJCTxGmkd1pW"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279544541000000",
+              "kind": 1,
+              "name": "Agent",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "ee7eea93e4b0728d",
+              "startTimeUnixNano": "1786279544539000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:8"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279556600000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "1259f8ed64b7880f",
+              "startTimeUnixNano": "1786279544541000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_0133gG2dYd18wzFKvWB3GUss"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279556604000000",
+              "kind": 1,
+              "name": "Agent",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "e95c542cac642818",
+              "startTimeUnixNano": "1786279556600000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:9"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279557300000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "1259f7ed64b7865c",
+              "startTimeUnixNano": "1786279556604000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01PY3SnjrTy3dTBsbQwhcANq"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279557307000000",
+              "kind": 1,
+              "name": "Read",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "4716338f21d61279",
+              "startTimeUnixNano": "1786279557300000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:10"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279557729000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "e681a46223f0160c",
+              "startTimeUnixNano": "1786279557307000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01BPSbBtYPqhEt5Pm2q8qNAq"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279557736000000",
+              "kind": 1,
+              "name": "Read",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "8cb13905a647f2a0",
+              "startTimeUnixNano": "1786279557729000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:11"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279569237000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "e681a56223f017bf",
+              "startTimeUnixNano": "1786279557736000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_018tN5V7XxY5YgqvvhfG45GB"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279569274000000",
+              "kind": 1,
+              "name": "Bash",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "cb637df4c2b441be",
+              "startTimeUnixNano": "1786279569237000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:12"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279569762000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "e681a66223f01972",
+              "startTimeUnixNano": "1786279569274000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01F87xHXmVYkM1VbX6b4TpxF"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279569767000000",
+              "kind": 1,
+              "name": "ToolSearch",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "d7a20ad502fcca24",
+              "startTimeUnixNano": "1786279569762000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:13"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279575793000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "e681a76223f01b25",
+              "startTimeUnixNano": "1786279569767000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01MutBUBjo5N6YCJBCYSz2Y6"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279575804000000",
+              "kind": 1,
+              "name": "TaskCreate",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "593abb0a9c022f69",
+              "startTimeUnixNano": "1786279575793000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:14"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279578087000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "e681a06223f00f40",
+              "startTimeUnixNano": "1786279575804000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01VjVaMma5sSNQJ9XsSJTUbG"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279578098000000",
+              "kind": 1,
+              "name": "TaskCreate",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "50d50809836bcea5",
+              "startTimeUnixNano": "1786279578087000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:15"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279580012000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "e681a16223f010f3",
+              "startTimeUnixNano": "1786279578098000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01V1q2zynL32XQ8dRKTmFnSq"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279580022000000",
+              "kind": 1,
+              "name": "TaskCreate",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "c88d2b25bf175555",
+              "startTimeUnixNano": "1786279580012000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:16"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279581083000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "e681a26223f012a6",
+              "startTimeUnixNano": "1786279580022000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01QsDZCuMvL7ZnAUj2UYBSco"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279581165000000",
+              "kind": 1,
+              "name": "TaskCreate",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "e6485d57f8c805b7",
+              "startTimeUnixNano": "1786279581083000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:17"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279589505000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "e681a36223f01459",
+              "startTimeUnixNano": "1786279581165000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_015xn1EtmnYYGj5D9imJdQrf"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279589514000000",
+              "kind": 1,
+              "name": "TaskUpdate",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "79bc6969aed5aed8",
+              "startTimeUnixNano": "1786279589505000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:18"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786279591530000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319a6ca3c2d896",
+              "spanId": "e681ac6223f023a4",
+              "startTimeUnixNano": "1786279589514000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:2"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786282930327000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "2f31996ca3c2d6e3",
+              "startTimeUnixNano": "1786282910589000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:19"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786282916956000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f31996ca3c2d6e3",
+              "spanId": "e681ad6223f02557",
+              "startTimeUnixNano": "1786282910589000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_012NWQAJHPFKo94C9GBEPw8p"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786282930327000000",
+              "kind": 1,
+              "name": "Bash",
+              "parentSpanId": "2f31996ca3c2d6e3",
+              "spanId": "aa38aa855c78253b",
+              "startTimeUnixNano": "1786282916956000000",
+              "status": {
+                "code": 2,
+                "message": "the harness reported an error"
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:3"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786282930328000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "2f31986ca3c2d530",
+              "startTimeUnixNano": "1786282930328000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:4"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786282958616000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "2f319f6ca3c2e115",
+              "startTimeUnixNano": "1786282934726000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:22"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786282938934000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319f6ca3c2e115",
+              "spanId": "e68c386223f9660d",
+              "startTimeUnixNano": "1786282934726000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_015RZErPwfsshk2fs2Q66XBQ"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786282944493000000",
+              "kind": 1,
+              "name": "Bash",
+              "parentSpanId": "2f319f6ca3c2e115",
+              "spanId": "4ffb301a2c1bc871",
+              "startTimeUnixNano": "1786282938934000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:23"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786282947960000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319f6ca3c2e115",
+              "spanId": "e68c376223f9645a",
+              "startTimeUnixNano": "1786282944493000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01RjAJLXjz29Ywxrt8HaTUcX"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786282948023000000",
+              "kind": 1,
+              "name": "Bash",
+              "parentSpanId": "2f319f6ca3c2e115",
+              "spanId": "8b964fca2a4ed9b5",
+              "startTimeUnixNano": "1786282947960000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:24"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786282958616000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319f6ca3c2e115",
+              "spanId": "e68c326223f95bdb",
+              "startTimeUnixNano": "1786282948023000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:5"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                },
+                {
+                  "key": "agent_top.open",
+                  "value": {
+                    "boolValue": true
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786283003300000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "2f319e6ca3c2df62",
+              "startTimeUnixNano": "1786283003300000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:25"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786283019415000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319e6ca3c2df62",
+              "spanId": "e68c316223f95a28",
+              "startTimeUnixNano": "1786283003300000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_0153ign1Kq8jwT8wwuFP1v8M"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786283019422000000",
+              "kind": 1,
+              "name": "TaskUpdate",
+              "parentSpanId": "2f319e6ca3c2df62",
+              "spanId": "21ca82268d08e451",
+              "startTimeUnixNano": "1786283019415000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:26"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786283048911000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319e6ca3c2df62",
+              "spanId": "e68c346223f95f41",
+              "startTimeUnixNano": "1786283019422000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01FZmeKYKsguS71dtocJRjBA"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786283075011000000",
+              "kind": 1,
+              "name": "Write",
+              "parentSpanId": "2f319e6ca3c2df62",
+              "spanId": "be30f190c83eee18",
+              "startTimeUnixNano": "1786283048911000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:27"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786283107723000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319e6ca3c2df62",
+              "spanId": "e68c336223f95d8e",
+              "startTimeUnixNano": "1786283075011000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_014wSfE7BhCitt97wc4tjSCJ"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786283135796000000",
+              "kind": 1,
+              "name": "Write",
+              "parentSpanId": "2f319e6ca3c2df62",
+              "spanId": "51eafcb44bef4070",
+              "startTimeUnixNano": "1786283107723000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:28"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786283147958000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319e6ca3c2df62",
+              "spanId": "e68c2e6223f9550f",
+              "startTimeUnixNano": "1786283135796000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_01XDVc7brkzVAvNkUhePH8pX"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786283147978000000",
+              "kind": 1,
+              "name": "TaskUpdate",
+              "parentSpanId": "2f319e6ca3c2df62",
+              "spanId": "c470335d9c625343",
+              "startTimeUnixNano": "1786283147958000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:29"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786283186052000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319e6ca3c2df62",
+              "spanId": "e68c2d6223f9535c",
+              "startTimeUnixNano": "1786283147978000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "toolu_017k8B9eptdJQBiFWNQJfMVk"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786283217375000000",
+              "kind": 1,
+              "name": "Write",
+              "parentSpanId": "2f319e6ca3c2df62",
+              "spanId": "59b505064bfafa32",
+              "startTimeUnixNano": "1786283186052000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:30"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1786283224243000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "2f319e6ca3c2df62",
+              "spanId": "e688b06223f6491e",
+              "startTimeUnixNano": "1786283217375000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "0049d83479edcf69ed3eef8918c04e20"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

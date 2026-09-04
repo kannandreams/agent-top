@@ -13,7 +13,7 @@ crates/agent-top-core          no terminal dependency; what --json prints
 
 crates/agent-top               ratatui front end
   main.rs         clap flags, event loop, --once / --json, trace subcommand
-  trace.rs        session lookup and the Chrome trace event writer
+  trace.rs        session lookup, the Chrome trace event writer and the OTLP/JSON writer
   app.rs          selection, sort, toggles, sparkline histories
   ui.rs           header gauges, table, detail pane (tree | trace), help
   format.rs       tokens/bytes/age/cost formatting, plain table

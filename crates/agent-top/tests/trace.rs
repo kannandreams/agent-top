@@ -46,14 +46,23 @@ fn export(fixture: &str, extra: &[&str]) -> (Value, String) {
         String::from_utf8(out.stdout).unwrap()
     };
     let mut doc: Value = serde_json::from_str(&text).expect("output is JSON");
-    let transcript_field = doc["otherData"].as_object_mut().unwrap().remove("transcript").expect("transcript is recorded");
-    assert!(transcript_field.as_str().unwrap().ends_with(&format!("{fixture}.jsonl")));
+    // The Chrome document records the transcript path, which depends on
+    // where the checkout lives; the OTLP one carries no path.
+    if let Some(other) = doc.get_mut("otherData").and_then(Value::as_object_mut) {
+        let transcript_field = other.remove("transcript").expect("transcript is recorded");
+        assert!(transcript_field.as_str().unwrap().ends_with(&format!("{fixture}.jsonl")));
+    }
     (doc, stderr)
 }
 
 fn check(fixture: &str) {
-    let (got, _) = export(fixture, &["--format", "chrome"]);
-    let golden = goldens().join(format!("{fixture}.chrome.json"));
+    check_format(fixture, "chrome");
+    check_format(fixture, "otlp");
+}
+
+fn check_format(fixture: &str, format: &str) {
+    let (got, _) = export(fixture, &["--format", format]);
+    let golden = goldens().join(format!("{fixture}.{format}.json"));
     if std::env::var_os("UPDATE_GOLDEN").is_some() {
         std::fs::write(&golden, serde_json::to_string_pretty(&got).unwrap() + "\n").unwrap();
         return;
@@ -63,15 +72,17 @@ fn check(fixture: &str) {
     )
     .expect("golden file is valid JSON");
     if got != want {
-        let (g, w) = (got["traceEvents"].as_array().unwrap(), want["traceEvents"].as_array().unwrap());
-        let first_diff = g.iter().zip(w).position(|(a, b)| a != b);
+        let list = |d: &Value| match format {
+            "chrome" => d["traceEvents"].as_array().cloned().unwrap_or_default(),
+            _ => d["resourceSpans"][0]["scopeSpans"][0]["spans"].as_array().cloned().unwrap_or_default(),
+        };
+        let (g, w) = (list(&got), list(&want));
+        let first_diff = g.iter().zip(&w).position(|(a, b)| a != b);
         panic!(
-            "{fixture} exports differently than its golden.\n  otherData golden: {}\n  otherData now:    {}\n  \
-             events: {} golden, {} now, first difference at index {:?}\n\n\
+            "{fixture} ({format}) exports differently than its golden.\n  \
+             entries: {} golden, {} now, first difference at index {:?}\n\n\
              If this change was intended, re-record and review the diff:\n  \
              UPDATE_GOLDEN=1 cargo test -p agent-top --test trace\n",
-            want["otherData"],
-            got["otherData"],
             w.len(),
             g.len(),
             first_diff
@@ -136,6 +147,50 @@ fn chrome_document_is_well_formed() {
             }
         }
     }
+}
+
+/// The OTLP document is what a collector expects: hex ids of the right
+/// length, every parent present and a turn, every span inside its parent.
+#[test]
+fn otlp_document_is_well_formed() {
+    let (doc, _) = export("claude-2.1.226", &["--format", "otlp"]);
+    let rs = &doc["resourceSpans"][0];
+    let names: Vec<&str> = rs["resource"]["attributes"].as_array().unwrap().iter().map(|a| a["key"].as_str().unwrap()).collect();
+    assert!(names.contains(&"service.name") && names.contains(&"agent_top.session_id"));
+    let spans = rs["scopeSpans"][0]["spans"].as_array().unwrap();
+    assert_eq!(spans.len() as u64, doc_count(&export("claude-2.1.226", &["--format", "chrome"]).0));
+    let by_id: std::collections::HashMap<&str, &Value> = spans.iter().map(|s| (s["spanId"].as_str().unwrap(), s)).collect();
+    assert_eq!(by_id.len(), spans.len(), "span ids are distinct");
+    let trace_id = spans[0]["traceId"].as_str().unwrap();
+    assert_eq!(trace_id.len(), 32);
+    let kind_of = |s: &Value| {
+        s["attributes"].as_array().unwrap().iter().find(|a| a["key"] == "agent_top.kind").unwrap()["value"]["stringValue"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    let mut parented = 0;
+    for s in spans {
+        assert_eq!(s["traceId"], trace_id);
+        assert_eq!(s["spanId"].as_str().unwrap().len(), 16);
+        let start: u64 = s["startTimeUnixNano"].as_str().unwrap().parse().unwrap();
+        let end: u64 = s["endTimeUnixNano"].as_str().unwrap().parse().unwrap();
+        assert!(end >= start);
+        if let Some(p) = s.get("parentSpanId") {
+            parented += 1;
+            let parent = by_id[p.as_str().unwrap()];
+            assert_eq!(kind_of(parent), "turn");
+            let ps: u64 = parent["startTimeUnixNano"].as_str().unwrap().parse().unwrap();
+            assert!(ps <= start, "a child starts after its parent");
+        } else {
+            assert_eq!(kind_of(s), "turn", "only turns are roots");
+        }
+    }
+    assert!(parented > 0);
+}
+
+fn doc_count(chrome: &Value) -> u64 {
+    chrome["otherData"]["spans"].as_u64().unwrap()
 }
 
 #[test]

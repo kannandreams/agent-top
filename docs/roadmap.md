@@ -16,6 +16,7 @@ Dates are targets, not promises. Each phase ships on its own.
 - Trace export: `agent-top trace --session <id> --format chrome`, every tool call in a session as a file Perfetto opens. Reads the whole transcript rather than the live tracker's bounded window, so it is retroactive and harness-neutral.
 - Turn and inference spans, so the gaps in the waterfall are labelled and the export nests tool calls under the turn that issued them.
 - Server-side web searches priced per search, the one per-call charge Anthropic adds on top of tokens.
+- `--format otlp` for the trace export, with deterministic trace and span ids and tool calls parented to their turn. Any direct push to a collector stays opt-in behind an explicit `--endpoint`, because a network call contradicts the default posture in [vision.md](vision.md), and none is built.
 - Prebuilt macOS and Linux binaries, a Homebrew tap and `cargo binstall` support, cut by tag (see [releasing.md](releasing.md)).
 
 ## v0.2 — trust the numbers (Q4 2026)
@@ -30,7 +31,6 @@ Dates are targets, not promises. Each phase ships on its own.
 - Logical subagent tree from transcripts (Claude `isSidechain` and `agent-*.jsonl`, Codex `close_agent` events), merged with the process tree.
 - Per-MCP-server rows: which agent started it, how many tool calls went through it, idle time.
 - Orphan lifecycle: first-seen time, parent-of-record, one-key copy of the `kill` command. Still no signalling from agent-top.
-- `--format otlp` for the trace export, so the file can be fed to Jaeger and any OpenTelemetry backend. Trace and span ids derived from the session and call ids, so re-exporting is idempotent. Any direct push to a collector stays opt-in behind an explicit `--endpoint`, because a network call contradicts the default posture in [vision.md](vision.md).
 
 ## v0.4 — signals (Q2 2027)
 

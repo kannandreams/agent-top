@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **`--format otlp` for the trace export.** Writes the OpenTelemetry trace request as JSON, which Jaeger, Tempo and any OTLP collector accept with one `curl`. Each tool call and inference is parented to the turn it happened in, so backends that draw trees draw the right one. The trace id is derived from the session id and each span id from the session and call ids, so exporting the same session twice produces the same trace rather than a duplicate. A span still open when the transcript ended gets an end equal to its start and an `agent_top.open` attribute rather than an invented duration. agent-top still never contacts a collector; posting the file is the user's command.
+- A "From transcript to trace" diagram in the README.
+
 ## [0.3.1] - 2026-09-04
 
 ### Added

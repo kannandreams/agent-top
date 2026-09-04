@@ -93,18 +93,52 @@ reply, reading only names, ids and timestamps.
 ### Exporting a trace
 
 ```sh
-agent-top trace --session 662cda1f -o trace.json
+agent-top trace --session 662cda1f -o trace.json                 # Chrome trace format, for Perfetto
+agent-top trace --session 662cda1f --format otlp -o trace.otlp.json   # OTLP, for Jaeger and OpenTelemetry
 ```
 
-writes the whole session, every tool call, inference and turn, as a [Chrome
-trace event
-file](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview)
-that [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing` open
-directly. Turns, tool calls and model time sit on separate tracks, main agent
-and subagents apart, so a turn shows as a bar with its calls beneath it.
-`--session` takes a session id, a unique prefix of one, or a path to a
-transcript file, and works on sessions that ended long ago. It writes a file
-and never contacts a collector.
+Both write the whole session, every tool call, inference and turn, and both
+work on sessions that ended long ago. `--session` takes a session id, a unique
+prefix of one, or a path to a transcript file. agent-top writes a file and
+never contacts a collector; sending it anywhere is your command, not its.
+
+**Chrome trace format** opens directly at [ui.perfetto.dev](https://ui.perfetto.dev)
+or in `chrome://tracing`. Turns, tool calls and model time sit on separate
+tracks, main agent and subagents apart, so a turn shows as a bar with its calls
+beneath it.
+
+**OTLP** is the OpenTelemetry trace request as JSON. Each tool call and
+inference is parented to the turn it happened in, so a backend that draws trees
+draws the right one. Trace and span ids are derived from the session and call
+ids, so exporting the same session twice gives the same trace rather than a
+duplicate. To load one into a local Jaeger:
+
+```sh
+docker run --rm -p 16686:16686 -p 4318:4318 jaegertracing/jaeger:2.4.0
+curl -X POST http://localhost:4318/v1/traces -H 'Content-Type: application/json' --data-binary @trace.otlp.json
+open http://localhost:16686
+```
+
+## From transcript to trace
+
+Nothing has to be switched on in the agent. The harness already writes a
+transcript; agent-top reads it, live for the table and again in full for an
+export.
+
+```mermaid
+flowchart LR
+    H["Claude Code / Codex<br/>writes transcript.jsonl<br/>as the session runs"] --> T["agent-top<br/>tails the file<br/>once a second"]
+    T --> UI["terminal table<br/>and waterfall"]
+    T --> J["--json snapshot"]
+    H --> X["agent-top trace<br/>reads the whole file<br/>pairs calls, results,<br/>prompts and replies"]
+    X -->|"--format chrome"| P["trace.json"]
+    X -->|"--format otlp"| O["trace.otlp.json"]
+    P --> PF["ui.perfetto.dev<br/>chrome://tracing"]
+    O --> JG["Jaeger, Tempo,<br/>any OTel collector"]
+```
+
+The left half is what runs on your machine and reads only local files. The
+right half is where you take the file, by hand.
 
 ## Prices
 
@@ -172,7 +206,7 @@ agent-top                        # interactive, refreshes every second
 agent-top --interval-ms 500      # faster refresh
 agent-top --stopped-window-min 120   # keep stopped sessions visible for two hours
 agent-top --replay snap.json     # render a saved --json snapshot, keys and all, reading nothing local
-agent-top trace --session <id|prefix|path> [--format chrome] [-o FILE]
+agent-top trace --session <id|prefix|path> [--format chrome|otlp] [-o FILE]
 ```
 
 `--replay` is for bug reports: attach a `--json` snapshot and the reader can
@@ -223,7 +257,7 @@ on each tick.
 
 ## Roadmap
 
-See [docs/roadmap.md](docs/roadmap.md). Next: OTLP export, a Gemini CLI adapter, and per-MCP-server rows. [docs/releasing.md](docs/releasing.md) is the release runbook.
+See [docs/roadmap.md](docs/roadmap.md). Next: a Gemini CLI adapter and per-MCP-server rows. [docs/releasing.md](docs/releasing.md) is the release runbook.
 
 ## Development
 

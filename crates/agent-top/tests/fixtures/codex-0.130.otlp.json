@@ -1,0 +1,1018 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "codex-code-session"
+            }
+          },
+          {
+            "key": "agent_top.harness",
+            "value": {
+              "stringValue": "codex"
+            }
+          },
+          {
+            "key": "agent_top.session_id",
+            "value": {
+              "stringValue": "01000000-0000-7000-0000-000000000000"
+            }
+          },
+          {
+            "key": "agent_top.harness_version",
+            "value": {
+              "stringValue": "0.130.0"
+            }
+          },
+          {
+            "key": "agent_top.model",
+            "value": {
+              "stringValue": "gpt-5.4-mini"
+            }
+          },
+          {
+            "key": "agent_top.cwd",
+            "value": {
+              "stringValue": "/Users/dev/code/example"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "agent-top"
+          },
+          "spans": [
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:1"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794708987000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "136a8a855380d38e",
+              "startTimeUnixNano": "1778794670534000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:1"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794673460000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "e667943f35e8620c",
+              "startTimeUnixNano": "1778794670534000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_vFH8PriHf4icdNRpeerp42RE"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794673633000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "751d3df137c2e91a",
+              "startTimeUnixNano": "1778794673461000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_M0KgHWI2NPaJZpSugOQk3q0S"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794673633000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "1d4ed261b19d8d61",
+              "startTimeUnixNano": "1778794673462000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:2"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794675343000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "e667973f35e86725",
+              "startTimeUnixNano": "1778794673633000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_Q3o5L1qI2XrMu5YnQj3ElZpy"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794675397000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "f2ae3488e31a589d",
+              "startTimeUnixNano": "1778794675343000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_dQiB17mEK7xCByiDs9DwBv6u"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794675415000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "8af47f767908ab15",
+              "startTimeUnixNano": "1778794675364000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:3"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794679953000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "e667963f35e86572",
+              "startTimeUnixNano": "1778794675397000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_Ioh6BdGlw2pCVZ5GUHDaH7PA"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794702097000000",
+              "kind": 1,
+              "name": "apply_patch",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "438ef62f05eb341b",
+              "startTimeUnixNano": "1778794700964000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:4"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794704592000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "e667913f35e85cf3",
+              "startTimeUnixNano": "1778794702097000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_mlsWx2PoRkOI4QLTqChWoeu8"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794704647000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "a00d05d10c499be8",
+              "startTimeUnixNano": "1778794704594000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_tbhvgF0LPU76g4k2cBO7744N"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794704648000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "a7df56f343bbaf6b",
+              "startTimeUnixNano": "1778794704594000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_ZYZSknuIrDej5Jxrk6vrZuPv"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794704648000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "7fe176a09898222f",
+              "startTimeUnixNano": "1778794704594000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:5"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778794708969000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "136a8a855380d38e",
+              "spanId": "e667903f35e85b40",
+              "startTimeUnixNano": "1778794704647000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:2"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795246398000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "136a89855380d1db",
+              "startTimeUnixNano": "1778795240994000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:6"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795242943000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "136a89855380d1db",
+              "spanId": "e667933f35e86059",
+              "startTimeUnixNano": "1778795240995000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_N0N1Tgep0JX6Bg3ysN5B9y2X"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795244184000000",
+              "kind": 1,
+              "name": "apply_patch",
+              "parentSpanId": "136a89855380d1db",
+              "spanId": "0a58718686b438e2",
+              "startTimeUnixNano": "1778795244123000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:7"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795246377000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "136a89855380d1db",
+              "spanId": "e667923f35e85ea6",
+              "startTimeUnixNano": "1778795244184000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:3"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                },
+                {
+                  "key": "agent_top.open",
+                  "value": {
+                    "boolValue": true
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795267806000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "136a88855380d028",
+              "startTimeUnixNano": "1778795267806000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:8"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795270739000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "136a88855380d028",
+              "spanId": "e6679d3f35e87157",
+              "startTimeUnixNano": "1778795267807000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_9b1wKlO3NAmhZRCx0v5ELjCu"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795270792000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a88855380d028",
+              "spanId": "aea9a13045de95cf",
+              "startTimeUnixNano": "1778795270739000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_NaOKpUauONQWLCVtDW5sgMWL"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795270792000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a88855380d028",
+              "spanId": "3986072f9e9048a2",
+              "startTimeUnixNano": "1778795270739000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_fNxgsyK4tPHDJhWMIjoAlImW"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795270793000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a88855380d028",
+              "spanId": "bf580b2d94594d54",
+              "startTimeUnixNano": "1778795270742000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:9"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795275878000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "136a88855380d028",
+              "spanId": "e6679c3f35e86fa4",
+              "startTimeUnixNano": "1778795270792000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_vVsncptGzoOERh5rJwrLVaH0"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795287463000000",
+              "kind": 1,
+              "name": "apply_patch",
+              "parentSpanId": "136a88855380d028",
+              "spanId": "e4a01b7e2538fc25",
+              "startTimeUnixNano": "1778795286992000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:10"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795290611000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "136a88855380d028",
+              "spanId": "6a63236899deebf4",
+              "startTimeUnixNano": "1778795287463000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_kKZGNWe3yEqOTV0dTFCFX1aI"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795290664000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a88855380d028",
+              "spanId": "a4adace73940b20c",
+              "startTimeUnixNano": "1778795290611000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_ZfktRXHXCO8hDm1ZUFM7zHbt"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795290670000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a88855380d028",
+              "spanId": "a0ca674e39300718",
+              "startTimeUnixNano": "1778795290621000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call_9BDM8IEzPNoyZFJDvQVgd5BP"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795290676000000",
+              "kind": 1,
+              "name": "exec_command",
+              "parentSpanId": "136a88855380d028",
+              "spanId": "2ae0f2c5c2ce9e13",
+              "startTimeUnixNano": "1778795290631000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:11"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1778795294964000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "136a88855380d028",
+              "spanId": "6a63246899deeda7",
+              "startTimeUnixNano": "1778795290664000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "1924c22396ad7511d04764603f85f564"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

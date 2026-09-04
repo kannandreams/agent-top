@@ -10,7 +10,10 @@
 //!
 //! Chrome trace event format (the JSON object form, `{"traceEvents": [...]}`)
 //! is the first target because it needs no dependency and no setup:
-//! `ui.perfetto.dev` and `chrome://tracing` both open it directly.
+//! `ui.perfetto.dev` and `chrome://tracing` both open it directly. OTLP JSON
+//! (an `ExportTraceServiceRequest`) is the second, for Jaeger and anything
+//! else that speaks OpenTelemetry; the user posts the file to a collector
+//! themselves, agent-top never does.
 
 use agent_top_core::Harness;
 use agent_top_core::harness::{self, SessionSummary, SpanRetention};
@@ -24,6 +27,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub enum Format {
     /// Chrome trace event format, for Perfetto and chrome://tracing.
     Chrome,
+    /// OTLP/JSON, the OpenTelemetry trace request body, for Jaeger and any
+    /// OpenTelemetry collector.
+    Otlp,
 }
 
 /// A transcript on disk and the harness that wrote it.
@@ -99,7 +105,123 @@ pub fn read(src: &Source) -> Result<SessionSummary> {
 pub fn render(src: &Source, summary: &SessionSummary, format: Format) -> Value {
     match format {
         Format::Chrome => chrome(src, summary),
+        Format::Otlp => otlp(src, summary),
     }
+}
+
+/// OTLP/JSON: one resource (the session), one scope (agent-top), one span
+/// per span. Ids are derived, not random: the trace id from the session id
+/// and each span id from the session id and the span's own id, so exporting
+/// twice produces the same trace instead of a duplicate, and two exports of
+/// the same session can be diffed. A tool call or inference is parented to
+/// the turn that was open when it started, so a backend that draws trees
+/// draws the right one. OTLP requires an end time, so a span still open when
+/// the transcript ended gets an end equal to its start and an
+/// `agent_top.open` attribute, rather than an invented duration.
+fn otlp(src: &Source, s: &SessionSummary) -> Value {
+    let session = s.session_id.clone().unwrap_or_else(|| stem(&src.path));
+    let trace_id = hex(&fnv1a(session.as_bytes(), 0xcbf2_9ce4_8422_2325), &fnv1a(session.as_bytes(), 0x84222325_cbf29ce4));
+    let span_id = |sp: &ToolSpan| hex_one(&fnv1a(format!("{session}:{}:{}", sp.kind.label(), sp.id).as_bytes(), 0xcbf2_9ce4_8422_2325));
+    let spans: Vec<&ToolSpan> = s.spans.iter().collect();
+    let out: Vec<Value> = spans
+        .iter()
+        .enumerate()
+        .map(|(i, sp)| {
+            let parent = parent_turn(&spans, i).map(span_id);
+            let start = nanos(sp.started_at);
+            let end = sp.duration_ms.map(|ms| start + ms * 1_000_000).unwrap_or(start);
+            let mut attrs = vec![
+                attr("agent_top.kind", json!({"stringValue": sp.kind.label()})),
+                attr("agent_top.call_id", json!({"stringValue": sp.id})),
+                attr("agent_top.sidechain", json!({"boolValue": sp.sidechain})),
+            ];
+            if sp.is_open() {
+                attrs.push(attr("agent_top.open", json!({"boolValue": true})));
+            }
+            let mut span = json!({
+                "traceId": trace_id,
+                "spanId": span_id(sp),
+                "name": sp.name,
+                "kind": 1,
+                "startTimeUnixNano": start.to_string(),
+                "endTimeUnixNano": end.to_string(),
+                "attributes": attrs,
+                "status": if sp.error { json!({"code": 2, "message": "the harness reported an error"}) } else { json!({"code": 0}) },
+            });
+            if let Some(p) = parent {
+                span["parentSpanId"] = json!(p);
+            }
+            span
+        })
+        .collect();
+    let mut resource = vec![
+        attr("service.name", json!({"stringValue": format!("{}-code-session", src.harness.label())})),
+        attr("agent_top.harness", json!({"stringValue": src.harness.label()})),
+        attr("agent_top.session_id", json!({"stringValue": session})),
+    ];
+    if let Some(v) = &s.harness_version {
+        resource.push(attr("agent_top.harness_version", json!({"stringValue": v})));
+    }
+    if let Some(m) = &s.model {
+        resource.push(attr("agent_top.model", json!({"stringValue": m})));
+    }
+    if let Some(cwd) = &s.cwd {
+        resource.push(attr("agent_top.cwd", json!({"stringValue": cwd.to_string_lossy()})));
+    }
+    json!({
+        "resourceSpans": [{
+            "resource": {"attributes": resource},
+            "scopeSpans": [{
+                "scope": {"name": "agent-top"},
+                "spans": out,
+            }],
+        }],
+    })
+}
+
+/// The turn a span belongs to: the newest turn that started at or before it
+/// and had not ended when it started. Subagent spans prefer the subagent's
+/// own turn, which their transcript carries, and fall back to the main
+/// agent's. A turn has no parent.
+fn parent_turn<'a>(spans: &[&'a ToolSpan], i: usize) -> Option<&'a ToolSpan> {
+    let sp = spans[i];
+    if sp.kind == SpanKind::Turn {
+        return None;
+    }
+    let contains = |t: &ToolSpan| {
+        t.kind == SpanKind::Turn
+            && t.started_at <= sp.started_at
+            && t.duration_ms.map(|ms| t.started_at + std::time::Duration::from_millis(ms) >= sp.started_at).unwrap_or(true)
+    };
+    let own = spans[..i].iter().rev().find(|t| t.sidechain == sp.sidechain && contains(t));
+    own.or_else(|| spans[..i].iter().rev().find(|t| !t.sidechain && contains(t))).copied()
+}
+
+fn attr(key: &str, value: Value) -> Value {
+    json!({"key": key, "value": value})
+}
+
+fn nanos(t: SystemTime) -> u64 {
+    t.duration_since(UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(0)
+}
+
+/// FNV-1a over `bytes` from a chosen seed, so two independent 64-bit values
+/// can be drawn from one input.
+fn fnv1a(bytes: &[u8], seed: u64) -> [u8; 8] {
+    let mut h = seed;
+    for b in bytes {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    h.to_be_bytes()
+}
+
+fn hex_one(b: &[u8; 8]) -> String {
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+fn hex(a: &[u8; 8], b: &[u8; 8]) -> String {
+    hex_one(a) + &hex_one(b)
 }
 
 /// Chrome trace event format. Each tool call is a complete event (`ph: "X"`)
@@ -242,6 +364,81 @@ mod tests {
         // The timestamp part of a rollout name is not an id.
         assert!(candidates("2026-05", &claude, &codex).is_empty());
         assert!(candidates("zzz", &claude, &codex).is_empty());
+    }
+
+    #[test]
+    fn otlp_ids_are_deterministic_and_parents_are_turns() {
+        let at = |s: u64| UNIX_EPOCH + Duration::from_secs(1_700_000_000 + s);
+        let mk = |id: &str, kind: SpanKind, start: u64, dur: Option<u64>, side: bool| ToolSpan {
+            id: id.into(),
+            name: kind.label().into(),
+            started_at: at(start),
+            duration_ms: dur,
+            sidechain: side,
+            error: false,
+            kind,
+        };
+        // Turn 1 (0..10 s) holds an inference and a tool call; a subagent
+        // call at 5 s has no subagent turn and falls back to the main one.
+        // Turn 2 is still open and holds the call at 20 s. The call at 12 s
+        // sits between turns and has no parent.
+        let spans = vec![
+            mk("turn:1", SpanKind::Turn, 0, Some(10_000), false),
+            mk("inference:1", SpanKind::Inference, 0, Some(2_000), false),
+            mk("t1", SpanKind::Tool, 2, Some(1_000), false),
+            mk("sub", SpanKind::Tool, 5, Some(1_000), true),
+            mk("t2", SpanKind::Tool, 12, Some(1_000), false),
+            mk("turn:2", SpanKind::Turn, 15, None, false),
+            mk("t3", SpanKind::Tool, 20, None, false),
+        ];
+        let refs: Vec<&ToolSpan> = spans.iter().collect();
+        assert!(parent_turn(&refs, 0).is_none());
+        assert_eq!(parent_turn(&refs, 1).unwrap().id, "turn:1");
+        assert_eq!(parent_turn(&refs, 2).unwrap().id, "turn:1");
+        assert_eq!(parent_turn(&refs, 3).unwrap().id, "turn:1");
+        assert!(parent_turn(&refs, 4).is_none());
+        assert_eq!(parent_turn(&refs, 6).unwrap().id, "turn:2");
+
+        let mut summary = SessionSummary { session_id: Some("abc".into()), ..Default::default() };
+        let mut log = agent_top_core::harness::SpanLog::unbounded();
+        for sp in &spans {
+            log.open_kind(sp.id.clone(), sp.name.clone(), sp.started_at, sp.sidechain, sp.kind);
+            if let Some(ms) = sp.duration_ms {
+                log.end_at(&sp.id, sp.started_at + Duration::from_millis(ms));
+            }
+        }
+        summary.spans = log;
+        let src = Source { path: PathBuf::from("/x/abc.jsonl"), harness: Harness::Claude };
+        let a = otlp(&src, &summary);
+        let b = otlp(&src, &summary);
+        assert_eq!(a, b, "same input, same document");
+        let out = a["resourceSpans"][0]["scopeSpans"][0]["spans"].as_array().unwrap();
+        assert_eq!(out.len(), 7);
+        assert!(out.iter().all(|s| s["traceId"].as_str().unwrap().len() == 32));
+        assert!(out.iter().all(|s| s["spanId"].as_str().unwrap().len() == 16));
+        let ids: std::collections::HashSet<&str> = out.iter().map(|s| s["spanId"].as_str().unwrap()).collect();
+        assert_eq!(ids.len(), 7, "span ids are distinct");
+        assert_eq!(out[2]["parentSpanId"], out[0]["spanId"]);
+        assert!(out[4].get("parentSpanId").is_none());
+        assert_eq!(out[6]["parentSpanId"], out[5]["spanId"]);
+        // Open spans end where they start and say so.
+        assert_eq!(out[6]["startTimeUnixNano"], out[6]["endTimeUnixNano"]);
+        assert!(out[6]["attributes"].as_array().unwrap().iter().any(|a| a["key"] == "agent_top.open"));
+        assert_ne!(
+            trace_id_of(&a),
+            trace_id_of(&otlp(
+                &Source { path: PathBuf::from("/x/abd.jsonl"), harness: Harness::Claude },
+                &SessionSummary { session_id: Some("abd".into()), ..Default::default() }
+            ))
+        );
+    }
+
+    fn trace_id_of(doc: &Value) -> String {
+        doc["resourceSpans"][0]["scopeSpans"][0]["spans"]
+            .as_array()
+            .and_then(|v| v.first())
+            .map(|s| s["traceId"].as_str().unwrap_or("").to_string())
+            .unwrap_or_default()
     }
 
     #[test]
