@@ -101,17 +101,41 @@ fn chrome_document_is_well_formed() {
     let named: Vec<u64> = events.iter().filter(|e| e["name"] == "thread_name").map(|e| e["tid"].as_u64().unwrap()).collect();
     let spans: Vec<&Value> = events.iter().filter(|e| e["ph"] != "M").collect();
     assert_eq!(spans.len() as u64, doc["otherData"]["spans"].as_u64().unwrap());
-    assert_eq!(doc["otherData"]["spans"], doc["otherData"]["tool_calls"], "this fixture has no unpaired calls");
-    for s in &spans {
+    let tools: Vec<&&Value> = spans.iter().filter(|s| s["cat"] == "tool").collect();
+    assert_eq!(tools.len() as u64, doc["otherData"]["tool_calls"].as_u64().unwrap(), "this fixture has no unpaired calls");
+    assert_eq!(tools.len() as u64, doc["otherData"]["tool_spans"].as_u64().unwrap());
+    assert!(doc["otherData"]["inference_spans"].as_u64().unwrap() > 0);
+    assert!(doc["otherData"]["turn_spans"].as_u64().unwrap() > 0);
+    for s in &tools {
         assert_eq!(s["ph"], "X", "every call in this fixture returned");
-        assert_eq!(s["cat"], "tool");
-        assert!(s["dur"].as_u64().is_some());
+        assert_eq!(s["tid"], 2, "main-agent tool calls share one track");
+    }
+    for s in &spans {
+        assert!(matches!(s["cat"].as_str(), Some("tool" | "inference" | "turn")));
         assert!(named.contains(&s["tid"].as_u64().unwrap()), "span on an unnamed track");
         assert!(s["args"]["call_id"].as_str().map(|id| !id.is_empty()).unwrap_or(false));
+        if s["ph"] == "X" {
+            assert!(s["dur"].as_u64().is_some());
+        }
     }
     // Starts are in transcript order, which is chronological.
     let ts: Vec<u64> = spans.iter().map(|s| s["ts"].as_u64().unwrap()).collect();
     assert!(ts.windows(2).all(|w| w[0] <= w[1]));
+    // On any one track, complete events nest properly or not at all: a span
+    // that starts inside another on the same track must end inside it too.
+    for tid in &named {
+        let on: Vec<(u64, u64)> = spans
+            .iter()
+            .filter(|s| s["tid"].as_u64() == Some(*tid) && s["ph"] == "X")
+            .map(|s| (s["ts"].as_u64().unwrap(), s["ts"].as_u64().unwrap() + s["dur"].as_u64().unwrap()))
+            .collect();
+        for (i, a) in on.iter().enumerate() {
+            for b in &on[i + 1..] {
+                let inside = b.0 >= a.0 && b.0 < a.1;
+                assert!(!inside || b.1 <= a.1, "track {tid}: {b:?} starts inside {a:?} but ends after it");
+            }
+        }
+    }
 }
 
 #[test]
@@ -119,7 +143,10 @@ fn writes_to_a_file_and_reports_on_stderr() {
     let out = scratch("codex.json");
     let (doc, stderr) = export("codex-0.130", &["-o", out.to_str().unwrap()]);
     assert_eq!(doc["otherData"]["harness"], "codex");
-    assert!(stderr.contains("wrote 16 tool calls from codex 01000000-0000-7000-0000-000000000000"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("wrote 16 tool calls, 11 inferences, 3 turns from codex 01000000-0000-7000-0000-000000000000"),
+        "stderr: {stderr}"
+    );
     let _ = std::fs::remove_dir_all(out.parent().unwrap());
 }
 

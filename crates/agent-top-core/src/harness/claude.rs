@@ -19,12 +19,20 @@
 //!   that answers it carry the same id in `id` / `tool_use_id`, and their
 //!   lines carry the timestamps that bracket the call. That pairing is the
 //!   trace: verified 240/240 on a real session.
+//! * `usage.server_tool_use.web_search_requests` counts server-side web
+//!   searches, billed per search on top of tokens; `web_fetch_requests` sits
+//!   beside it and is free. Deduped per message id like the rest of usage.
+//! * Turns and inferences are reconstructed from line order: a `user` line
+//!   with no `tool_result` block is a prompt and starts a turn; any non-meta
+//!   `user` line starts an inference; each `assistant` line extends that
+//!   inference to its own timestamp, and one with an end-of-turn
+//!   `stop_reason` ends the turn there too.
 //! * The registry file has `status: "busy" | "idle"`, which is the harness's
 //!   own opinion of its state and beats any transcript heuristic.
 
 use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanLog, SpanRetention, parse_rfc3339_utc};
 use crate::jsonl::TailReader;
-use crate::model::{Activity, Harness, TokenUsage};
+use crate::model::{Activity, Harness, SpanKind, TokenUsage};
 use crate::pricing::{self, Table};
 use serde::Deserialize;
 use serde_json::Value;
@@ -174,7 +182,33 @@ struct Parser {
     summary: SessionSummary,
     /// Dedupe state: the last API message id seen and what it contributed.
     last_msg_id: Option<String>,
-    last_contrib: (TokenUsage, f64, u64),
+    last_contrib: Contrib,
+    /// The inference and turn spans currently being extended, by id, and the
+    /// counters that name them.
+    inference: Option<String>,
+    turn: Option<String>,
+    inferences: u64,
+    turns: u64,
+    /// Timestamp of the previous line, so a turn abandoned mid-way can be
+    /// ended where activity actually stopped rather than at the next prompt,
+    /// which may be days later.
+    prev_ts: Option<SystemTime>,
+    /// The message ids that first ended the current inference and turn. Only
+    /// further blocks of that same message may move the end; a different
+    /// message is a different reply, and must not stretch a span that was
+    /// already over, which a reply to a slash command hours later would.
+    inference_ended_by: Option<String>,
+    turn_ended_by: Option<String>,
+}
+
+/// What one API message added to the summary, so the next line of the same
+/// message can replace it.
+#[derive(Debug, Clone, Copy, Default)]
+struct Contrib {
+    usage: TokenUsage,
+    cost: f64,
+    unpriced: u64,
+    searches: u64,
 }
 
 impl Parser {
@@ -183,7 +217,14 @@ impl Parser {
             reader: TailReader::new(path),
             summary: SessionSummary { harness: Some(Harness::Claude), spans: spans.log(), ..Default::default() },
             last_msg_id: None,
-            last_contrib: (TokenUsage::default(), 0.0, 0),
+            last_contrib: Contrib::default(),
+            inference: None,
+            turn: None,
+            inferences: 0,
+            turns: 0,
+            prev_ts: None,
+            inference_ended_by: None,
+            turn_ended_by: None,
         }
     }
 
@@ -223,23 +264,91 @@ impl Parser {
                 // Either a prompt or a tool_result: in both cases the model owes a response.
                 self.summary.activity = Activity::Working;
                 if let Some(ts) = ts {
-                    self.close_spans(&v, ts);
+                    let answered = self.close_spans(&v, ts);
+                    if !answered {
+                        self.begin_turn(ts, sidechain);
+                    }
+                    self.begin_inference(ts, sidechain);
+                }
+            }
+            // A meta line (a slash command's output, an injected caveat) is
+            // not a prompt and says nothing about state, but the model may
+            // reply to it, and that reply is an inference. If it never comes,
+            // the next submission drops the span.
+            "user" => {
+                if let Some(ts) = ts {
+                    self.begin_inference(ts, sidechain);
                 }
             }
             _ => {}
         }
+        if ts.is_some() {
+            self.prev_ts = ts;
+        }
     }
 
-    /// A user line answering tool calls: every `tool_result` block closes a span.
-    fn close_spans(&mut self, v: &Value, ts: SystemTime) {
-        let Some(content) = v.pointer("/message/content").and_then(Value::as_array) else { return };
+    /// A human prompt starts a turn. A previous turn the model never ended
+    /// (the user interrupted it, or closed the session) is ended where the
+    /// last line before this prompt was written, not at the prompt itself.
+    fn begin_turn(&mut self, ts: SystemTime, sidechain: bool) {
+        if let Some(id) = self.turn.take()
+            && self.summary.spans.open_of_kind(SpanKind::Turn).is_some_and(|s| s.id == id)
+        {
+            let ended = self.prev_ts.unwrap_or(ts).min(ts);
+            self.summary.spans.end_at(&id, ended);
+        }
+        self.turns += 1;
+        let id = format!("turn:{}", self.turns);
+        self.summary.spans.open_kind(id.clone(), "turn".into(), ts, sidechain, SpanKind::Turn);
+        self.turn = Some(id);
+        self.turn_ended_by = None;
+    }
+
+    /// Anything submitted to the model starts an inference: the span grows
+    /// with each block of the reply and ends at the last one. A submission
+    /// that got no reply before the next one (a message queued mid-turn, an
+    /// interrupted request) was not an inference and is dropped.
+    fn begin_inference(&mut self, ts: SystemTime, sidechain: bool) {
+        if let Some(id) = self.inference.take() {
+            self.summary.spans.discard_open(&id);
+        }
+        self.inferences += 1;
+        let id = format!("inference:{}", self.inferences);
+        self.summary.spans.open_kind(id.clone(), "inference".into(), ts, sidechain, SpanKind::Inference);
+        self.inference = Some(id);
+        self.inference_ended_by = None;
+    }
+
+    /// Whether a block of message `id` may move the end of a span that
+    /// `ended_by` records as first ended by some message. The first ending
+    /// message claims the span; any other message is a different reply.
+    fn may_extend(ended_by: &mut Option<String>, id: Option<&str>) -> bool {
+        match (ended_by.as_deref(), id) {
+            (None, Some(id)) => {
+                *ended_by = Some(id.to_string());
+                true
+            }
+            (None, None) => true,
+            (Some(e), Some(id)) => e == id,
+            (Some(_), None) => false,
+        }
+    }
+
+    /// A user line answering tool calls: every `tool_result` block closes a
+    /// span. Returns whether the line answered any, which is what separates a
+    /// tool result from a fresh prompt.
+    fn close_spans(&mut self, v: &Value, ts: SystemTime) -> bool {
+        let Some(content) = v.pointer("/message/content").and_then(Value::as_array) else { return false };
+        let mut answered = false;
         for b in content {
             if b.get("type").and_then(Value::as_str) != Some("tool_result") {
                 continue;
             }
+            answered = true;
             let Some(id) = b.get("tool_use_id").and_then(Value::as_str) else { continue };
             self.summary.spans.close(id, ts, b.get("is_error").and_then(Value::as_bool).unwrap_or(false));
         }
+        answered
     }
 
     fn ingest_assistant(&mut self, v: &Value, sidechain: bool, ts: Option<SystemTime>, prices: &Table) {
@@ -259,9 +368,31 @@ impl Parser {
                 }
             }
         }
+        // Every block of the reply extends the inference to where it landed.
+        // A `<synthetic>` message is written by the harness, not the model
+        // (a resume notice, say, days after the last real line), so it ends
+        // nothing.
+        let synthetic = model == "<synthetic>";
+        if let (Some(ts), Some(span), false) = (ts, self.inference.as_deref(), synthetic) {
+            if Self::may_extend(&mut self.inference_ended_by, id.as_deref()) {
+                self.summary.spans.end_at(span, ts);
+            } else {
+                self.inference = None;
+            }
+        }
         match msg.get("stop_reason").and_then(Value::as_str) {
             Some("end_turn") | Some("stop_sequence") | Some("max_tokens") | Some("refusal") => {
                 self.summary.activity = Activity::Waiting;
+                // The turn ends with the reply's last block; each block of the
+                // ending message moves the end, since all of them carry the
+                // stop reason.
+                if let (Some(ts), Some(span), false) = (ts, self.turn.as_deref(), synthetic) {
+                    if Self::may_extend(&mut self.turn_ended_by, id.as_deref()) {
+                        self.summary.spans.end_at(span, ts);
+                    } else {
+                        self.turn = None;
+                    }
+                }
             }
             _ => self.summary.activity = Activity::Working,
         }
@@ -283,16 +414,20 @@ impl Parser {
             None => TokenUsage::default(),
         };
         let price = prices.lookup(model);
-        let cost = price.map(|p| p.cost(&usage)).unwrap_or(0.0);
+        // Web searches are billed per search on top of the tokens; the usage
+        // record carries the count. Web fetches are in the same record and free.
+        let searches = msg.pointer("/usage/server_tool_use/web_search_requests").and_then(Value::as_u64).unwrap_or(0);
+        let cost = price.map(|p| p.cost(&usage)).unwrap_or(0.0) + prices.web_search_cost(searches);
         let unpriced = if price.is_none() { usage.total() } else { 0 };
 
         let same_message = id.is_some() && id == self.last_msg_id;
         if same_message {
             // Replace the previous contribution from this id with the latest one.
-            let (u, c, un) = self.last_contrib;
-            self.summary.usage.sub(&u);
-            self.summary.cost_usd -= c;
-            self.summary.unpriced_tokens = self.summary.unpriced_tokens.saturating_sub(un);
+            let c = self.last_contrib;
+            self.summary.usage.sub(&c.usage);
+            self.summary.cost_usd -= c.cost;
+            self.summary.unpriced_tokens = self.summary.unpriced_tokens.saturating_sub(c.unpriced);
+            self.summary.web_searches = self.summary.web_searches.saturating_sub(c.searches);
         } else {
             self.summary.turns += 1;
             if sidechain {
@@ -302,8 +437,9 @@ impl Parser {
         self.summary.usage.add(&usage);
         self.summary.cost_usd += cost;
         self.summary.unpriced_tokens += unpriced;
+        self.summary.web_searches += searches;
         self.last_msg_id = id;
-        self.last_contrib = (usage, cost, unpriced);
+        self.last_contrib = Contrib { usage, cost, unpriced, searches };
     }
 }
 
@@ -396,6 +532,7 @@ impl ClaudeTranscript {
             s.turns += t.turns;
             s.subagent_turns += t.subagent_turns;
             s.tool_calls += t.tool_calls;
+            s.web_searches += t.web_searches;
             s.health.billable_messages += t.health.billable_messages;
             s.health.usage_records += t.health.usage_records;
             s.health.empty_usage_records += t.health.empty_usage_records;
@@ -502,6 +639,91 @@ mod tests {
     }
 
     #[test]
+    fn reconstructs_turns_inferences_and_web_searches() {
+        let dir = std::env::temp_dir().join(format!("agent-top-claude-turns-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("s.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        let usage = r#"{"input_tokens":100,"output_tokens":10,"server_tool_use":{"web_search_requests":2,"web_fetch_requests":5}}"#;
+        // Prompt at :00; the reply streams as two lines (:02 thinking, :04 tool_use) of one message.
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-03T07:00:00.000Z","message":{{"role":"user","content":"look it up"}}}}"#)
+            .unwrap();
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:02.000Z","message":{{"id":"m1","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{{"type":"thinking"}}],"usage":{usage}}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:04.000Z","message":{{"id":"m1","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{{"type":"tool_use","id":"t1","name":"Bash"}}],"usage":{usage}}}}}"#).unwrap();
+        // Tool result at :05; final reply at :09 ends the turn.
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-03T07:00:05.000Z","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"t1"}}]}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:09.000Z","message":{{"id":"m2","model":"claude-sonnet-5","stop_reason":"end_turn","content":[{{"type":"text"}}],"usage":{{"input_tokens":1,"output_tokens":1}}}}}}"#).unwrap();
+        let mut t = ClaudeTranscript::new(&path).with_prices(pricing::builtin_table());
+        t.refresh().unwrap();
+        let s = t.summary();
+        // Two searches on one message id, counted once despite two lines; fetches are free.
+        assert_eq!(s.web_searches, 2);
+        // sonnet-5: 100*2 + 10*10 = 300 micro-dollars, plus 2 searches at $10/1000, plus 1*2 + 1*10.
+        assert!((s.cost_usd - (0.000300 + 0.02 + 0.000012)).abs() < 1e-9, "{}", s.cost_usd);
+        let by_kind = |k: SpanKind| s.spans.iter().filter(|sp| sp.kind == k).cloned().collect::<Vec<_>>();
+        let turns = by_kind(SpanKind::Turn);
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].duration_ms, Some(9_000), "prompt at :00, reply ended at :09");
+        let inf = by_kind(SpanKind::Inference);
+        assert_eq!(inf.len(), 2);
+        assert_eq!(inf[0].duration_ms, Some(4_000), "prompt at :00, last block of the reply at :04");
+        assert_eq!(inf[1].duration_ms, Some(4_000), "tool result at :05, reply at :09");
+        assert_eq!(by_kind(SpanKind::Tool)[0].duration_ms, Some(1_000));
+        // Spans are in transcript order: turn, inference, tool, inference.
+        let kinds: Vec<_> = s.spans.iter().map(|sp| sp.kind).collect();
+        assert_eq!(kinds, vec![SpanKind::Turn, SpanKind::Inference, SpanKind::Tool, SpanKind::Inference]);
+        // A second prompt starts turn 2 and, since turn 1 already ended, leaves it alone.
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-03T07:01:00.000Z","message":{{"role":"user","content":"thanks"}}}}"#).unwrap();
+        t.refresh().unwrap();
+        let turns = by_kind_of(t.summary(), SpanKind::Turn);
+        assert_eq!(turns.len(), 2);
+        assert_eq!(turns[0].duration_ms, Some(9_000));
+        assert!(turns[1].is_open());
+        // The model starts a tool call at :01:05, the user interrupts, and the
+        // next prompt comes a day later. Turn 2 ends at the last activity,
+        // :01:05, not at the next prompt, and the reply-less inference opened
+        // by the interruption line is dropped rather than left open.
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:01:05.000Z","message":{{"id":"m3","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{{"type":"tool_use","id":"t2","name":"Bash"}}],"usage":{{"input_tokens":1,"output_tokens":1}}}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-03T07:01:06.000Z","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"t2"}}]}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-04T07:00:00.000Z","message":{{"role":"user","content":"next day"}}}}"#)
+            .unwrap();
+        t.refresh().unwrap();
+        let turns = by_kind_of(t.summary(), SpanKind::Turn);
+        assert_eq!(turns.len(), 3);
+        assert_eq!(turns[1].duration_ms, Some(6_000), "turn 2: :01:00 to the interrupted tool result at :01:06");
+        assert!(turns[2].is_open());
+        let inf = by_kind_of(t.summary(), SpanKind::Inference);
+        assert_eq!(inf.iter().filter(|s| s.is_open()).count(), 1, "only the newest inference is open");
+        assert_eq!(inf.last().unwrap().started_at, turns[2].started_at);
+        // Turn 3 ends at :00:02. Two hours later a slash command writes a meta
+        // user line and the model replies with end_turn. That reply is its own
+        // inference, and it must not stretch turn 3 or its inference.
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-04T07:00:02.000Z","message":{{"id":"m4","model":"claude-sonnet-5","stop_reason":"end_turn","content":[{{"type":"text"}}],"usage":{{"input_tokens":1,"output_tokens":1}}}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-04T09:00:00.000Z","isMeta":true,"message":{{"role":"user","content":"<local-command-stdout>"}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-04T09:00:03.000Z","message":{{"id":"m5","model":"claude-sonnet-5","stop_reason":"end_turn","content":[{{"type":"text"}}],"usage":{{"input_tokens":1,"output_tokens":1}}}}}}"#).unwrap();
+        t.refresh().unwrap();
+        let turns = by_kind_of(t.summary(), SpanKind::Turn);
+        assert_eq!(turns.len(), 3, "a meta line is not a prompt");
+        assert_eq!(turns[2].duration_ms, Some(2_000));
+        let inf = by_kind_of(t.summary(), SpanKind::Inference);
+        let last_two: Vec<_> = inf.iter().rev().take(2).map(|s| s.duration_ms).collect();
+        assert_eq!(last_two, vec![Some(3_000), Some(2_000)], "the command's reply is its own 3 s inference");
+        // Three days later the harness writes a synthetic notice parented to a
+        // meta line. It is not the model and ends nothing.
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-04T09:30:00.000Z","isMeta":true,"message":{{"role":"user","content":"<local-command-stdout>"}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-07T09:00:00.000Z","message":{{"id":"synthetic-1","model":"<synthetic>","stop_reason":"stop_sequence","content":[{{"type":"text"}}],"usage":{{"input_tokens":0,"output_tokens":0}}}}}}"#).unwrap();
+        t.refresh().unwrap();
+        let inf = by_kind_of(t.summary(), SpanKind::Inference);
+        assert!(inf.last().unwrap().is_open(), "the meta line's inference has no real reply yet");
+        assert_eq!(by_kind_of(t.summary(), SpanKind::Turn)[2].duration_ms, Some(2_000));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn by_kind_of(s: &SessionSummary, k: SpanKind) -> Vec<crate::model::ToolSpan> {
+        s.spans.iter().filter(|sp| sp.kind == k).cloned().collect()
+    }
+
+    #[test]
     fn folds_subagent_transcripts_into_the_parent() {
         let dir = std::env::temp_dir().join(format!("agent-top-claude-sub-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -536,13 +758,19 @@ mod tests {
         assert_eq!(s.session_id.as_deref(), Some("abc"));
         let last = s.last_activity.unwrap().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
         assert_eq!(last % 60, 3, "last activity is the subagent's, which wrote most recently");
-        let spans = s.spans.to_vec();
+        let spans: Vec<_> = s.spans.iter().filter(|sp| sp.kind == SpanKind::Tool).collect();
         assert_eq!(spans.len(), 2);
         assert_eq!(spans[0].name, "Agent");
         assert!(spans[0].is_open());
         assert_eq!(spans[1].name, "Grep");
         assert!(spans[1].sidechain);
         assert_eq!(spans[1].duration_ms, Some(2_000));
+        // The subagent's prompt-less transcript still yields an inference span
+        // (its tool result was submitted at 07:00:03 and nothing came back yet).
+        let inf: Vec<_> = s.spans.iter().filter(|sp| sp.kind == SpanKind::Inference).collect();
+        assert_eq!(inf.len(), 1);
+        assert!(inf[0].sidechain);
+        assert!(inf[0].is_open());
 
         // The subagent keeps writing; only the new lines are read.
         writeln!(g, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:04.000Z","sessionId":"abc","isSidechain":true,"agentId":"a1","message":{{"id":"s2","model":"claude-opus-5","stop_reason":"end_turn","content":[],"usage":{{"input_tokens":1,"output_tokens":1}}}}}}"#).unwrap();
@@ -565,7 +793,15 @@ mod tests {
         writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:03.000Z","isSidechain":true,"message":{{"id":"m2","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{{"type":"tool_use","id":"toolu_c","name":"Grep"}}],"usage":{{"input_tokens":1}}}}}}"#).unwrap();
         let mut t = ClaudeTranscript::new(&path);
         t.refresh().unwrap();
-        let spans = t.summary().spans.to_vec();
+        let all = t.summary().spans.to_vec();
+        // The tool results at 07:00:02.5 started an inference that the
+        // sidechain line at 07:00:03 did not end (it is a different file's
+        // business in real life; here it shows the span is still open).
+        let inf: Vec<_> = all.iter().filter(|sp| sp.kind == SpanKind::Inference).collect();
+        assert_eq!(inf.len(), 1);
+        assert_eq!(inf[0].name, "inference");
+        assert!(all.iter().all(|sp| sp.kind != SpanKind::Turn), "no prompt line, so no turn");
+        let spans: Vec<_> = all.iter().filter(|sp| sp.kind == SpanKind::Tool).cloned().collect();
         assert_eq!(spans.len(), 3);
         assert_eq!(spans[0].name, "Bash");
         assert_eq!(spans[0].duration_ms, Some(2_500));

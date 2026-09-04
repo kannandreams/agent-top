@@ -13,6 +13,7 @@
 //! UPDATE_GOLDEN=1 cargo test -p agent-top-core --test golden
 //! ```
 
+use agent_top_core::SpanKind;
 use agent_top_core::harness::claude::ClaudeTranscript;
 use agent_top_core::harness::codex::CodexTranscript;
 use agent_top_core::harness::{SessionSummary, SessionTracker};
@@ -54,11 +55,18 @@ fn describe(s: &SessionSummary) -> Value {
         "turns": s.turns,
         "subagent_turns": s.subagent_turns,
         "tool_calls": s.tool_calls,
+        "web_searches": s.web_searches,
         "activity": format!("{:?}", s.activity),
         "started_at_ms": millis(s.started_at),
         "last_activity_ms": millis(s.last_activity),
         "spans": {
             "count": s.spans.len(),
+            "by_kind": SpanKind::ALL.iter().map(|k| json!({
+                "kind": k.label(),
+                "count": s.spans.iter().filter(|sp| sp.kind == *k).count(),
+                "open": s.spans.iter().filter(|sp| sp.kind == *k && sp.is_open()).count(),
+                "total_duration_ms": s.spans.iter().filter(|sp| sp.kind == *k).filter_map(|sp| sp.duration_ms).sum::<u64>(),
+            })).collect::<Vec<_>>(),
             "open": s.spans.iter().filter(|sp| sp.is_open()).count(),
             "errors": s.spans.iter().filter(|sp| sp.error).count(),
             "sidechain": s.spans.iter().filter(|sp| sp.sidechain).count(),
@@ -72,7 +80,7 @@ fn describe(s: &SessionSummary) -> Value {
 }
 
 fn span_json(s: &agent_top_core::ToolSpan) -> Value {
-    json!({"name": s.name, "duration_ms": s.duration_ms, "error": s.error, "sidechain": s.sidechain})
+    json!({"kind": s.kind.label(), "name": s.name, "duration_ms": s.duration_ms, "error": s.error, "sidechain": s.sidechain})
 }
 
 fn check(fixture: &str, mut tracker: Box<dyn SessionTracker>) {

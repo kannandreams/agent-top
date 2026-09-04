@@ -7,51 +7,77 @@
   "model": "gpt-5.4-mini",
   "session_id": "01000000-0000-7000-0000-000000000000",
   "spans": {
-    "count": 16,
+    "by_kind": [
+      {
+        "count": 16,
+        "kind": "tool",
+        "open": 0,
+        "total_duration_ms": 2578
+      },
+      {
+        "count": 11,
+        "kind": "inference",
+        "open": 0,
+        "total_duration_ms": 35616
+      },
+      {
+        "count": 3,
+        "kind": "turn",
+        "open": 1,
+        "total_duration_ms": 43857
+      }
+    ],
+    "count": 30,
     "errors": 0,
     "first": [
       {
+        "duration_ms": 38453,
+        "error": false,
+        "kind": "turn",
+        "name": "turn",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 2926,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      },
+      {
         "duration_ms": 172,
         "error": false,
-        "name": "exec_command",
-        "sidechain": false
-      },
-      {
-        "duration_ms": 171,
-        "error": false,
-        "name": "exec_command",
-        "sidechain": false
-      },
-      {
-        "duration_ms": 54,
-        "error": false,
+        "kind": "tool",
         "name": "exec_command",
         "sidechain": false
       }
     ],
     "last": [
       {
+        "duration_ms": 4300,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      },
+      {
         "duration_ms": 45,
         "error": false,
+        "kind": "tool",
         "name": "exec_command",
         "sidechain": false
       },
       {
         "duration_ms": 49,
         "error": false,
-        "name": "exec_command",
-        "sidechain": false
-      },
-      {
-        "duration_ms": 53,
-        "error": false,
+        "kind": "tool",
         "name": "exec_command",
         "sidechain": false
       }
     ],
-    "open": 0,
+    "open": 1,
     "sidechain": 0,
-    "total_duration_ms": 2578
+    "total_duration_ms": 82051
   },
   "started_at_ms": 1778794670533,
   "subagent_turns": 0,
@@ -65,5 +91,6 @@
     "input": 15835,
     "output": 9041,
     "total": 202284
-  }
+  },
+  "web_searches": 0
 }

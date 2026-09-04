@@ -13,124 +13,82 @@ You have three Claude Code sessions, a Codex thread in VS Code, and a Gemini CLI
 
 <sub>Recorded from a synthetic snapshot (`docs/demo-snapshot.json`, replayed with `--replay`) rather than a live machine, because a recording of real sessions would publish real project names, working directories and session ids. Regenerate with `vhs docs/demo.tape`.</sub>
 
-## What it shows
+## Quick start
+
+```sh
+brew install kannandreams/tap/agent-top   # or: cargo binstall agent-top
+agent-top
+```
+
+That is the whole setup. There is nothing to configure and nothing to enable
+in your agents: `agent-top` reads the transcripts the harnesses already write
+and the process table the OS already keeps. Start it in any terminal while
+your agents run.
+
+What to look at first:
+
+- **STATE** tells you who is working and who is waiting for you.
+- **COST** is what each session has spent so far, at list price.
+- **Red rows in the detail pane** are MCP servers whose agent has gone. They are the leak this tool exists to catch.
+
+Keys: `j`/`k` move, `Tab` switches the detail pane between the process tree and the tool trace, `s` sorts, `x` hides stopped sessions, `?` shows the rest, `q` quits.
+
+Other ways to run it:
+
+```sh
+agent-top --once             # print the table once and exit
+agent-top --json             # one snapshot as JSON, for scripts and bug reports
+agent-top trace --session 662cda1f -o trace.json   # one session as a trace file for Perfetto
+agent-top --prices           # the price table in use, and where each row came from
+```
+
+## What the table shows
 
 | Column | Meaning |
 |---|---|
 | **STATE** | `running` = mid-turn (inference or tool execution), `idle` = alive and waiting for you, `stopped` = transcript with no live process (kept for 30 minutes) |
 | **TOKENS** | input + cache read + cache write + output, from the harness's own transcript |
-| **COST** | USD at list price, from [your price table](#prices). `+` or `≥` means some tokens had no known price and the number is a floor; `n/a` means none of them did |
+| **COST** | USD at list price, from [the price table](#prices). `+` or `≥` means some tokens had no known price and the number is a floor; `n/a` means none of them did |
 | **CPU% / MEM** | summed over the agent's whole process tree |
 | **TOOLS** | tool calls in the session |
 | **PROCS / MCP** | processes in the tree, and how many of them look like Model Context Protocol servers |
 | **AGE** | process age, or time since the last transcript write for stopped sessions |
 
-The detail pane shows the process tree (`agent`, `subagent`, `mcp`, `shell`, `tool`) and the token breakdown. **Orphaned MCP processes**, servers with no live agent above them, are listed in red.
+A Claude Code session's subagents are folded into its row, the way Claude
+Code's own cost display counts them. Web searches the model ran are counted
+and, for Claude Code, priced.
 
-That failure is not hypothetical. Codex has a run of reports about leaked MCP
-process trees, three of them still open:
+## The detail pane
 
-| Report | State | What it describes |
-|---|---|---|
-| [#12491](https://github.com/openai/codex/issues/12491) | open | MCP children not reaped after a task completes: 1300+ zombies, 37 GB leaked |
-| [#17574](https://github.com/openai/codex/issues/17574) | open | Subagents leak stdio MCP helper trees, which accumulate indefinitely |
-| [#25015](https://github.com/openai/codex/issues/25015) | open | The app-server leaks a process stack per subagent, so memory grows linearly |
-| [#16256](https://github.com/openai/codex/issues/16256) | closed | MCP subagent processes never terminated when a session is stopped or suspended |
-| [#19753](https://github.com/openai/codex/pull/19753) | merged Apr 2026 | The fix for one of those paths: terminate stdio MCP servers on shutdown |
+Press `t` to open it and `Tab` to switch between two views.
 
-Nothing about this is specific to Codex. Every harness that spawns helper
-processes has the same shape of bug available to it, which is why `agent-top`
-looks for the symptom rather than for one vendor's bug.
+**Process tree.** Every process under the agent, labelled `agent`, `subagent`,
+`mcp`, `shell` or `tool`, with the token breakdown beside it. **Orphaned MCP
+processes**, servers with no live agent above them, are listed in red.
 
-## Supported harnesses
-
-| Harness | Discovery | Tokens and cost | State |
-|---|---|---|---|
-| Claude Code | process table + `~/.claude/sessions/<pid>.json` (exact) | transcript usage, priced per model, subagent transcripts folded into their parent | harness-reported |
-| Codex CLI / app-server | process table + rollout `cwd` match (heuristic) | transcript usage; priced once you add the model to [your price table](#prices) | transcript events |
-| Gemini CLI, OpenCode, Aider, Copilot CLI, cursor-agent | process table only | not yet | CPU heuristic |
-
-## Install
-
-```sh
-brew install kannandreams/tap/agent-top
-```
-
-Every route ends at the same single binary — no Python, no Node, no daemon,
-nothing to configure:
-
-| | | |
-|---|---|---|
-| **Homebrew** | `brew install kannandreams/tap/agent-top` | macOS and Linux, prebuilt |
-| **Cargo, prebuilt** | `cargo binstall agent-top` | downloads the release binary, no compiler needed |
-| **Cargo, from source** | `cargo install --locked agent-top` | builds from crates.io |
-| **From a clone** | `cargo install --locked --path crates/agent-top` | for working on it |
-| **By hand** | [the releases page](https://github.com/kannandreams/agent-top/releases) | tarballs and `sha256` for macOS and Linux, x86\_64 and arm64 |
-
-`--locked` builds against the dependency versions the release was tested with;
-drop it if you would rather cargo picked newer ones. Building from source needs
-Rust 1.85 or newer (edition 2024).
-
-To upgrade: `brew upgrade agent-top`, or re-run the `cargo install` command.
-
-## Usage
-
-```sh
-agent-top                    # interactive, refreshes every second
-agent-top --once             # print the table once and exit
-agent-top --json             # one snapshot as JSON, for scripts and bug reports
-agent-top --interval-ms 500  # faster refresh
-agent-top --stopped-window-min 120
-agent-top --replay snap.json # render someone else's --json, keys and all
-agent-top --prices           # the effective price table, and where each row came from
-agent-top trace --session 662cda1f -o trace.json   # one session's tool calls, for Perfetto
-```
-
-Homebrew installs shell completions for you. Otherwise, generate them with
-`agent-top --completions zsh` (or `bash`, `fish`, `elvish`, `powershell`) and
-source the output from wherever your shell keeps them.
-
-`--replay` renders a saved snapshot in the full interactive UI without reading
-anything on the local machine, so a bug report can be inspected exactly as the
-reporter saw it.
-
-Keys: `j`/`k` move, `s` cycle sort, `r` reverse, `t` toggle the detail pane,
-`Tab` switch that pane between the process tree and the tool trace, `x` hide
-stopped sessions, `p` pause, `?` help, `q` quit.
-
-## Tool trace
-
-`Tab` turns the detail pane into a waterfall of the selected agent's recent
-tool calls, on a shared time axis:
+**Tool trace.** A waterfall of the session's recent activity on a shared time
+axis:
 
 ```
  tool trace   5 of 71 calls · window 1m00s
-   in tools 58%  slowest Bash 20.0s  1 in flight  1 failed
- Bash             2.5s  ▉▉▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏
- Read             40ms  ▏▏▉▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏
- ↳Grep           12.0s  ▏▏▉▉▉▉▉▉▉▉▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏
+   in tools 58%  model 31%  turn 3m20s…  slowest Bash 20.0s  1 in flight  1 failed
+ model            4.2s  ▉▉▉▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏
+ Bash             2.5s  ▏▏▏▉▉▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏
+ ↳Grep           12.0s  ▏▏▏▏▉▉▉▉▉▉▉▉▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏
  Edit            300ms! ▏▏▏▏▏▏▏▏▏▏▏▏▉▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏
  Bash            20.0s… ▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏▉▉▉▉▉▉▉▉▉▉▉▉▸
 ```
 
-Width is the call's share of the window; **colour is how long it took**, on a
-log scale from green under a second, through amber, to red approaching a
-minute. Those are two channels on purpose: at a typical zoom most calls are one
-cell wide, so width alone would say nothing about a 40 ms read next to a 30 s
-test run. `↳` and blue mark a subagent's call, `…` and amber a call still
-running, `!` and red one the harness reported as failed.
+Each row is one tool call or one stretch of the model thinking (`model`).
+Width is its share of the window; colour is how long it took, green under a
+second through amber to red near a minute. `↳` marks a subagent's call, `…` one
+still running, `!` one the harness reported as failed. **in tools** and
+**model** say how much of the window went to each; what is left is usually
+waiting on you. **turn** is how long the current human turn has been going.
 
-**in tools** is the share of the window covered by at least one call
-(overlapping calls merged, not summed) — the rest is the model thinking, which
-is usually the answer to "why has this agent been busy for eight minutes".
-
-No configuration and no telemetry opt-in: the spans are reconstructed from the
-transcript the harness already writes, by pairing each call with its result
-(Claude's `tool_use` / `tool_result` on `tool_use_id`, Codex's `function_call` /
-`function_call_output` on `call_id`) and reading the timestamps that bracket
-them. Only the call's name, id and timing are read, never its arguments or
-output. The spans are in `--json` as well, so they can be fed to a real tracing
-tool.
+None of this needs telemetry switched on. The spans are reconstructed from the
+transcript by pairing each tool call with its result and each prompt with its
+reply, reading only names, ids and timestamps.
 
 ### Exporting a trace
 
@@ -138,20 +96,15 @@ tool.
 agent-top trace --session 662cda1f -o trace.json
 ```
 
-writes every tool call in that session as a [Chrome trace event
-file](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview),
-which [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing` open
-directly. `--session` takes a session id, a unique prefix of one, or a path to
-a transcript file. The main agent's calls and its subagents' calls sit on
-separate tracks; a call that never returned is a slice with no end rather than
-an invented one.
-
-The live view keeps the newest 128 calls. The export reads the transcript again
-from the start and keeps all of them, so it works on a session that finished
-last week, and on a harness that has no telemetry of its own. Claude Code's
-OpenTelemetry has to be switched on before a session starts and emits metrics
-and logs rather than spans; this is retroactive and needs nothing enabled. It
-writes a file and never contacts a collector.
+writes the whole session, every tool call, inference and turn, as a [Chrome
+trace event
+file](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview)
+that [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing` open
+directly. Turns, tool calls and model time sit on separate tracks, main agent
+and subagents apart, so a turn shows as a bar with its calls beneath it.
+`--session` takes a session id, a unique prefix of one, or a path to a
+transcript file, and works on sessions that ended long ago. It writes a file
+and never contacts a collector.
 
 ## Prices
 
@@ -186,6 +139,62 @@ built-in prices still apply.
 A model with no entry anywhere is never guessed at. Its tokens are counted and
 reported as unpriced, and any total containing them is shown as a floor.
 
+Web searches are billed per search, on top of tokens, and the rate is in the
+same file under `[server_tools]`. Codex web searches are counted but not
+priced, because OpenAI's rate is not in the table.
+
+## Supported harnesses
+
+| Harness | Discovery | Tokens and cost | State |
+|---|---|---|---|
+| Claude Code | process table + `~/.claude/sessions/<pid>.json` (exact) | transcript usage, priced per model, subagent transcripts folded into their parent | harness-reported |
+| Codex CLI / app-server | process table + rollout `cwd` match (heuristic) | transcript usage; priced once you add the model to [your price table](#prices) | transcript events |
+| Gemini CLI, OpenCode, Aider, Copilot CLI, cursor-agent | process table only | not yet | CPU heuristic |
+
+## Install
+
+| | | |
+|---|---|---|
+| **Homebrew** | `brew install kannandreams/tap/agent-top` | macOS and Linux, prebuilt; installs shell completions |
+| **Cargo, prebuilt** | `cargo binstall agent-top` | downloads the release binary, no compiler needed |
+| **Cargo, from source** | `cargo install --locked agent-top` | builds from crates.io; needs Rust 1.85 or newer |
+| **By hand** | [the releases page](https://github.com/kannandreams/agent-top/releases) | tarballs and `sha256` for macOS and Linux, x86\_64 and arm64 |
+
+Every route ends at the same single binary: no Python, no Node, no daemon. To
+upgrade, `brew upgrade agent-top` or re-run the `cargo install` command.
+Without Homebrew, `agent-top --completions zsh` (or `bash`, `fish`) prints a
+completion script to source from your shell's startup file.
+
+## All the flags
+
+```sh
+agent-top                        # interactive, refreshes every second
+agent-top --interval-ms 500      # faster refresh
+agent-top --stopped-window-min 120   # keep stopped sessions visible for two hours
+agent-top --replay snap.json     # render a saved --json snapshot, keys and all, reading nothing local
+agent-top trace --session <id|prefix|path> [--format chrome] [-o FILE]
+```
+
+`--replay` is for bug reports: attach a `--json` snapshot and the reader can
+inspect it exactly as you saw it.
+
+## Why this exists
+
+The failure that motivated the tool is not hypothetical. Codex has a run of
+reports about leaked MCP process trees, three of them still open:
+
+| Report | State | What it describes |
+|---|---|---|
+| [#12491](https://github.com/openai/codex/issues/12491) | open | MCP children not reaped after a task completes: 1300+ zombies, 37 GB leaked |
+| [#17574](https://github.com/openai/codex/issues/17574) | open | Subagents leak stdio MCP helper trees, which accumulate indefinitely |
+| [#25015](https://github.com/openai/codex/issues/25015) | open | The app-server leaks a process stack per subagent, so memory grows linearly |
+| [#16256](https://github.com/openai/codex/issues/16256) | closed | MCP subagent processes never terminated when a session is stopped or suspended |
+| [#19753](https://github.com/openai/codex/pull/19753) | merged Apr 2026 | The fix for one of those paths: terminate stdio MCP servers on shutdown |
+
+Nothing about this is specific to Codex. Every harness that spawns helper
+processes has the same shape of bug available to it, which is why `agent-top`
+looks for the symptom rather than for one vendor's bug.
+
 ## Where the numbers come from
 
 The whole point of this tool is that its numbers are right, so it is explicit
@@ -214,7 +223,7 @@ on each tick.
 
 ## Roadmap
 
-See [docs/roadmap.md](docs/roadmap.md). Short version: exact Codex attribution, a logical subagent tree from transcripts, trace export to OTLP, user-supplied price tables, and a `hook` subcommand for harnesses that support it. [docs/releasing.md](docs/releasing.md) is the release runbook.
+See [docs/roadmap.md](docs/roadmap.md). Next: OTLP export, a Gemini CLI adapter, and per-MCP-server rows. [docs/releasing.md](docs/releasing.md) is the release runbook.
 
 ## Development
 
@@ -229,7 +238,7 @@ is discovery, transcript parsing, pricing and the process model, with no
 terminal dependency, so all of it is testable without a TTY and it is exactly
 what `--json` prints; `crates/agent-top` is the ratatui front end and the CLI.
 Both are published, because a crate on crates.io cannot depend on an
-unpublished one — `agent-top-core` exists on the registry so that `agent-top`
+unpublished one: `agent-top-core` exists on the registry so that `agent-top`
 can. The internal engineering handbook (PRD, RFCs, ADRs, decisions) lives in the sibling `agent-top-internal-docs` repository.
 
 ## License

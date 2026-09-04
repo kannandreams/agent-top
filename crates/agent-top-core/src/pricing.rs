@@ -60,6 +60,15 @@ struct FileTable {
     updated: Option<String>,
     #[serde(default)]
     model: Vec<FileModel>,
+    #[serde(default)]
+    server_tools: Option<FileServerTools>,
+}
+
+/// Server-side tools billed per call rather than per token.
+#[derive(Debug, Deserialize)]
+struct FileServerTools {
+    /// USD per 1,000 web searches.
+    web_search: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,9 +104,19 @@ pub struct Table {
     pub updated: Option<String>,
     pub user_path: Option<PathBuf>,
     pub warnings: Vec<String>,
+    /// USD per 1,000 web searches, when the table prices them.
+    pub web_search_per_1k: Option<f64>,
+    pub web_search_origin: Option<Origin>,
 }
 
 impl Table {
+    /// USD for `n` web searches, or zero when the table does not price them.
+    /// Anthropic bills web search per search on top of the tokens it produces;
+    /// web fetch and code execution alongside it are free (checked 2026-09-04).
+    pub fn web_search_cost(&self, n: u64) -> f64 {
+        self.web_search_per_1k.map(|p| n as f64 * p / 1_000.0).unwrap_or(0.0)
+    }
+
     pub fn lookup(&self, model: &str) -> Option<Price> {
         let m = model.trim().to_ascii_lowercase();
         let m = m.strip_prefix("anthropic.").unwrap_or(&m);
@@ -123,6 +142,10 @@ pub fn build(builtin: &str, user: Option<(&str, PathBuf)>) -> Table {
                 .into_iter()
                 .map(|m| Entry { prefix: m.prefix.to_ascii_lowercase(), price: m.price(), origin: Origin::Builtin })
                 .collect();
+            if let Some(p) = f.server_tools.and_then(|t| t.web_search) {
+                table.web_search_per_1k = Some(p);
+                table.web_search_origin = Some(Origin::Builtin);
+            }
         }
         // Only reachable if the shipped file is broken, which is a bug here
         // rather than anything a user can fix, but it must not panic.
@@ -140,6 +163,10 @@ pub fn build(builtin: &str, user: Option<(&str, PathBuf)>) -> Table {
                     Some(i) => table.entries[i] = entry,
                     None => table.entries.push(entry),
                 }
+            }
+            if let Some(p) = f.server_tools.and_then(|t| t.web_search) {
+                table.web_search_per_1k = Some(p);
+                table.web_search_origin = Some(Origin::User);
             }
         }
         Err(e) => table.warnings.push(format!("{}: ignored, {}", path.display(), first_line(&e.to_string()))),
@@ -198,6 +225,8 @@ mod tests {
         let t = builtin();
         assert!(t.warnings.is_empty(), "{:?}", t.warnings);
         assert_eq!(t.updated.as_deref(), Some("2026-06-24"));
+        assert_eq!(t.web_search_per_1k, Some(10.0));
+        assert!((t.web_search_cost(3) - 0.03).abs() < 1e-12);
         assert!(t.entries.len() >= 11);
         assert!(t.entries.iter().all(|e| e.origin == Origin::Builtin));
     }

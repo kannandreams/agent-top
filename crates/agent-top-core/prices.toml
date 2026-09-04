@@ -22,6 +22,14 @@
 updated = "2026-06-24"
 source = "https://www.anthropic.com/pricing"
 
+# Server-side tools billed per call, on top of the tokens they produce, in US
+# dollars per 1,000 calls. Anthropic charges for web search only; web fetch and
+# the code execution that runs alongside either are free (checked 2026-09-04
+# at https://platform.claude.com/docs/en/about-claude/pricing). Codex web
+# searches are counted but not priced by this entry, which is Anthropic's rate.
+[server_tools]
+web_search = 10.0
+
 [[model]]
 prefix = "claude-fable-5-1"
 input = 10.0

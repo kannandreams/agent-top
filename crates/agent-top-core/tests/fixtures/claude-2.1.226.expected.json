@@ -7,51 +7,77 @@
   "model": "claude-fable-5",
   "session_id": "00000000-1111-2222-3333-444444444444",
   "spans": {
-    "count": 25,
+    "by_kind": [
+      {
+        "count": 25,
+        "kind": "tool",
+        "open": 0,
+        "total_duration_ms": 105035
+      },
+      {
+        "count": 27,
+        "kind": "inference",
+        "open": 0,
+        "total_duration_ms": 257701
+      },
+      {
+        "count": 5,
+        "kind": "turn",
+        "open": 1,
+        "total_duration_ms": 141784
+      }
+    ],
+    "count": 57,
     "errors": 1,
     "first": [
       {
+        "duration_ms": 98156,
+        "error": false,
+        "kind": "turn",
+        "name": "turn",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 5666,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      },
+      {
         "duration_ms": 251,
         "error": false,
+        "kind": "tool",
         "name": "Bash",
-        "sidechain": false
-      },
-      {
-        "duration_ms": 42,
-        "error": false,
-        "name": "Bash",
-        "sidechain": false
-      },
-      {
-        "duration_ms": 9,
-        "error": false,
-        "name": "Read",
         "sidechain": false
       }
     ],
     "last": [
       {
+        "duration_ms": 6868,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      },
+      {
         "duration_ms": 31323,
         "error": false,
+        "kind": "tool",
         "name": "Write",
         "sidechain": false
       },
       {
-        "duration_ms": 20,
+        "duration_ms": 38074,
         "error": false,
-        "name": "TaskUpdate",
-        "sidechain": false
-      },
-      {
-        "duration_ms": 28073,
-        "error": false,
-        "name": "Write",
+        "kind": "inference",
+        "name": "inference",
         "sidechain": false
       }
     ],
-    "open": 0,
+    "open": 1,
     "sidechain": 0,
-    "total_duration_ms": 105035
+    "total_duration_ms": 504520
   },
   "started_at_ms": 1786279493374,
   "subagent_turns": 0,
@@ -65,5 +91,6 @@
     "input": 33,
     "output": 18658,
     "total": 1104581
-  }
+  },
+  "web_searches": 0
 }

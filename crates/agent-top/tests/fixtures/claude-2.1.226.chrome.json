@@ -5,11 +5,15 @@
     "generator": "agent-top",
     "harness": "claude",
     "harness_version": "2.1.226",
+    "inference_spans": 27,
     "model": "claude-fable-5",
-    "open_spans": 0,
+    "open_spans": 1,
     "session_id": "00000000-1111-2222-3333-444444444444",
-    "spans": 25,
-    "tool_calls": 25
+    "spans": 57,
+    "tool_calls": 25,
+    "tool_spans": 25,
+    "turn_spans": 5,
+    "web_searches": 0
   },
   "traceEvents": [
     {
@@ -23,12 +27,58 @@
     },
     {
       "args": {
-        "name": "agent"
+        "name": "turns"
       },
       "name": "thread_name",
       "ph": "M",
       "pid": 2040797021,
       "tid": 1
+    },
+    {
+      "args": {
+        "name": "tools"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 2040797021,
+      "tid": 2
+    },
+    {
+      "args": {
+        "name": "model"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 2040797021,
+      "tid": 3
+    },
+    {
+      "args": {
+        "call_id": "turn:1",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "turn",
+      "dur": 98156000,
+      "name": "turn",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279493374000
+    },
+    {
+      "args": {
+        "call_id": "inference:1",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 5666000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279493374000
     },
     {
       "args": {
@@ -41,8 +91,22 @@
       "name": "Bash",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279499040000
+    },
+    {
+      "args": {
+        "call_id": "inference:2",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 8295000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279499291000
     },
     {
       "args": {
@@ -55,8 +119,22 @@
       "name": "Bash",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279507586000
+    },
+    {
+      "args": {
+        "call_id": "inference:3",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 677000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279507628000
     },
     {
       "args": {
@@ -69,7 +147,7 @@
       "name": "Read",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279508301000
     },
     {
@@ -83,8 +161,22 @@
       "name": "Read",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279508305000
+    },
+    {
+      "args": {
+        "call_id": "inference:5",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 431000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279508310000
     },
     {
       "args": {
@@ -97,8 +189,22 @@
       "name": "Read",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279508741000
+    },
+    {
+      "args": {
+        "call_id": "inference:6",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 29357000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279508752000
     },
     {
       "args": {
@@ -111,8 +217,22 @@
       "name": "Agent",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279538109000
+    },
+    {
+      "args": {
+        "call_id": "inference:7",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 6414000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279538125000
     },
     {
       "args": {
@@ -125,8 +245,22 @@
       "name": "Agent",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279544539000
+    },
+    {
+      "args": {
+        "call_id": "inference:8",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 12059000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279544541000
     },
     {
       "args": {
@@ -139,8 +273,22 @@
       "name": "Agent",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279556600000
+    },
+    {
+      "args": {
+        "call_id": "inference:9",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 696000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279556604000
     },
     {
       "args": {
@@ -153,8 +301,22 @@
       "name": "Read",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279557300000
+    },
+    {
+      "args": {
+        "call_id": "inference:10",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 422000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279557307000
     },
     {
       "args": {
@@ -167,8 +329,22 @@
       "name": "Read",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279557729000
+    },
+    {
+      "args": {
+        "call_id": "inference:11",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 11501000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279557736000
     },
     {
       "args": {
@@ -181,8 +357,22 @@
       "name": "Bash",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279569237000
+    },
+    {
+      "args": {
+        "call_id": "inference:12",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 488000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279569274000
     },
     {
       "args": {
@@ -195,8 +385,22 @@
       "name": "ToolSearch",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279569762000
+    },
+    {
+      "args": {
+        "call_id": "inference:13",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 6026000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279569767000
     },
     {
       "args": {
@@ -209,8 +413,22 @@
       "name": "TaskCreate",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279575793000
+    },
+    {
+      "args": {
+        "call_id": "inference:14",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 2283000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279575804000
     },
     {
       "args": {
@@ -223,8 +441,22 @@
       "name": "TaskCreate",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279578087000
+    },
+    {
+      "args": {
+        "call_id": "inference:15",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 1914000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279578098000
     },
     {
       "args": {
@@ -237,8 +469,22 @@
       "name": "TaskCreate",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279580012000
+    },
+    {
+      "args": {
+        "call_id": "inference:16",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 1061000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279580022000
     },
     {
       "args": {
@@ -251,8 +497,22 @@
       "name": "TaskCreate",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279581083000
+    },
+    {
+      "args": {
+        "call_id": "inference:17",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 8340000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279581165000
     },
     {
       "args": {
@@ -265,8 +525,50 @@
       "name": "TaskUpdate",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786279589505000
+    },
+    {
+      "args": {
+        "call_id": "inference:18",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 2016000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786279589514000
+    },
+    {
+      "args": {
+        "call_id": "turn:2",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "turn",
+      "dur": 19738000,
+      "name": "turn",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786282910589000
+    },
+    {
+      "args": {
+        "call_id": "inference:19",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 6367000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786282910589000
     },
     {
       "args": {
@@ -279,8 +581,50 @@
       "name": "Bash",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786282916956000
+    },
+    {
+      "args": {
+        "call_id": "turn:3",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "turn",
+      "dur": 0,
+      "name": "turn",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786282930328000
+    },
+    {
+      "args": {
+        "call_id": "turn:4",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "turn",
+      "dur": 23890000,
+      "name": "turn",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786282934726000
+    },
+    {
+      "args": {
+        "call_id": "inference:22",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 4208000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786282934726000
     },
     {
       "args": {
@@ -293,8 +637,22 @@
       "name": "Bash",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786282938934000
+    },
+    {
+      "args": {
+        "call_id": "inference:23",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 3467000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786282944493000
     },
     {
       "args": {
@@ -307,8 +665,49 @@
       "name": "Bash",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786282947960000
+    },
+    {
+      "args": {
+        "call_id": "inference:24",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 10593000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786282948023000
+    },
+    {
+      "args": {
+        "call_id": "turn:5",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "turn",
+      "name": "turn",
+      "ph": "B",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786283003300000
+    },
+    {
+      "args": {
+        "call_id": "inference:25",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 16115000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786283003300000
     },
     {
       "args": {
@@ -321,8 +720,22 @@
       "name": "TaskUpdate",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786283019415000
+    },
+    {
+      "args": {
+        "call_id": "inference:26",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 29489000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786283019422000
     },
     {
       "args": {
@@ -335,8 +748,22 @@
       "name": "Write",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786283048911000
+    },
+    {
+      "args": {
+        "call_id": "inference:27",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 32712000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786283075011000
     },
     {
       "args": {
@@ -349,8 +776,22 @@
       "name": "Write",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786283107723000
+    },
+    {
+      "args": {
+        "call_id": "inference:28",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 12162000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786283135796000
     },
     {
       "args": {
@@ -363,8 +804,22 @@
       "name": "TaskUpdate",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786283147958000
+    },
+    {
+      "args": {
+        "call_id": "inference:29",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 38074000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786283147978000
     },
     {
       "args": {
@@ -377,8 +832,22 @@
       "name": "Write",
       "ph": "X",
       "pid": 2040797021,
-      "tid": 1,
+      "tid": 2,
       "ts": 1786283186052000
+    },
+    {
+      "args": {
+        "call_id": "inference:30",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 6868000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 3,
+      "ts": 1786283217375000
     }
   ]
 }

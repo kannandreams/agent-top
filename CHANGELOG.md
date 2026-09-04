@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Web searches are priced.** Anthropic bills server-side web search per search ($10 per 1,000, on top of the tokens it produces); web fetch is free. The count is read from each message's usage record, deduplicated like the rest of usage, and added to the row's cost. The rate lives in `prices.toml` under `[server_tools]` and a user table can override it. Codex `web_search_call` items are counted and shown, not priced, because OpenAI's rate is not in the table. The count is in `--json` as `web_searches` and in the detail pane.
+- **Turn and inference spans.** The waterfall used to show tool calls with blank gaps between them. Each gap is now labelled: a `model` row runs from a prompt or tool result being submitted to the last block of the reply, and each human turn is a span from the prompt to the model ending its reply. The summary line reads `in tools 58%  model 31%  turn 3m20s…`. Every span carries a `kind` (`tool`, `inference`, `turn`) in `--json`; snapshots from earlier versions read back with `tool`. The live span log grows from 128 to 256 to hold the extra rows.
+- **The trace export nests.** Chrome trace files now carry six tracks: turns, tools and model time for the main agent and again for its subagents. Perfetto shows a turn as a bar with its tool calls and inferences beneath. Open spans stay begin-only.
+
+### Fixed
+- An inference that never got a reply (a message queued mid-turn, an interrupted request) is dropped rather than left running forever, and a turn the user interrupted ends at the last line written rather than at the next prompt, which could be days later. A `<synthetic>` message written by the harness on resume ends nothing.
+
 ## [0.3.0] - 2026-09-04
 
 ### Added

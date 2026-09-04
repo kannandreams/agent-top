@@ -14,7 +14,7 @@
 
 use agent_top_core::Harness;
 use agent_top_core::harness::{self, SessionSummary, SpanRetention};
-use agent_top_core::model::ToolSpan;
+use agent_top_core::model::{SpanKind, ToolSpan};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
@@ -115,12 +115,19 @@ fn chrome(src: &Source, s: &SessionSummary) -> Value {
         Some(cwd) => format!("{} {}", src.harness.label(), cwd.file_name().map(|n| n.to_string_lossy()).unwrap_or_default()),
         None => src.harness.label().to_string(),
     };
-    let mut events = vec![meta("process_name", pid, 0, &label), meta("thread_name", pid, MAIN_TID, "agent")];
-    if s.spans.iter().any(|sp| sp.sidechain) {
-        events.push(meta("thread_name", pid, SUBAGENT_TID, "subagents"));
+    // One track per kind and side, so nothing on a track overlaps partially:
+    // a tool call starts inside the inference that issued it and ends after
+    // it, which Perfetto would render as a mis-nested slice on one track.
+    let mut events = vec![meta("process_name", pid, 0, &label)];
+    let mut used: Vec<u64> = s.spans.iter().map(tid_for).collect();
+    used.sort_unstable();
+    used.dedup();
+    for tid in used {
+        events.push(meta("thread_name", pid, tid, track_name(tid)));
     }
     events.extend(s.spans.iter().map(|sp| span_event(sp, pid)));
     let open = s.spans.iter().filter(|sp| sp.is_open()).count();
+    let count = |k: SpanKind| s.spans.iter().filter(|sp| sp.kind == k).count();
     json!({
         "traceEvents": events,
         "displayTimeUnit": "ms",
@@ -133,30 +140,55 @@ fn chrome(src: &Source, s: &SessionSummary) -> Value {
             "cwd": s.cwd.as_ref().map(|p| p.to_string_lossy().into_owned()),
             "transcript": src.path.to_string_lossy(),
             "tool_calls": s.tool_calls,
+            "web_searches": s.web_searches,
             "spans": s.spans.len(),
+            "tool_spans": count(SpanKind::Tool),
+            "inference_spans": count(SpanKind::Inference),
+            "turn_spans": count(SpanKind::Turn),
             "open_spans": open,
         },
     })
 }
 
-const MAIN_TID: u64 = 1;
-const SUBAGENT_TID: u64 = 2;
+/// Tracks 1 to 3 are the main agent's turns, tool calls and model time;
+/// 4 to 6 the same for its subagents. Perfetto sorts tracks by tid, so turns
+/// sit on top and the two sides stay together.
+fn tid_for(sp: &ToolSpan) -> u64 {
+    let kind = match sp.kind {
+        SpanKind::Turn => 1,
+        SpanKind::Tool => 2,
+        SpanKind::Inference => 3,
+    };
+    if sp.sidechain { kind + 3 } else { kind }
+}
+
+fn track_name(tid: u64) -> &'static str {
+    match tid {
+        1 => "turns",
+        2 => "tools",
+        3 => "model",
+        4 => "subagent turns",
+        5 => "subagent tools",
+        _ => "subagent model",
+    }
+}
 
 fn meta(name: &str, pid: u64, tid: u64, value: &str) -> Value {
     json!({"name": name, "ph": "M", "pid": pid, "tid": tid, "args": {"name": value}})
 }
 
 fn span_event(sp: &ToolSpan, pid: u64) -> Value {
-    let tid = if sp.sidechain { SUBAGENT_TID } else { MAIN_TID };
+    let tid = tid_for(sp);
+    let cat = sp.kind.label();
     let args = json!({"call_id": sp.id, "error": sp.error, "sidechain": sp.sidechain});
     match sp.duration_ms {
         Some(ms) => json!({
-            "name": sp.name, "cat": "tool", "ph": "X",
+            "name": sp.name, "cat": cat, "ph": "X",
             "ts": micros(sp.started_at), "dur": ms * 1000,
             "pid": pid, "tid": tid, "args": args,
         }),
         None => json!({
-            "name": sp.name, "cat": "tool", "ph": "B",
+            "name": sp.name, "cat": cat, "ph": "B",
             "ts": micros(sp.started_at),
             "pid": pid, "tid": tid, "args": args,
         }),
@@ -215,18 +247,33 @@ mod tests {
     #[test]
     fn open_spans_become_begin_events_on_their_own_track() {
         let at = UNIX_EPOCH + Duration::from_millis(1_700_000_000_123);
-        let closed =
-            ToolSpan { id: "a".into(), name: "Bash".into(), started_at: at, duration_ms: Some(2_500), sidechain: false, error: true };
-        let open = ToolSpan { id: "b".into(), name: "Grep".into(), started_at: at, duration_ms: None, sidechain: true, error: false };
+        let span = |id: &str, name: &str, dur: Option<u64>, sidechain: bool, error: bool, kind: SpanKind| ToolSpan {
+            id: id.into(),
+            name: name.into(),
+            started_at: at,
+            duration_ms: dur,
+            sidechain,
+            error,
+            kind,
+        };
+        let closed = span("a", "Bash", Some(2_500), false, true, SpanKind::Tool);
+        let open = span("b", "Grep", None, true, false, SpanKind::Tool);
+        let thinking = span("inference:1", "inference", Some(900), false, false, SpanKind::Inference);
+        let turn = span("turn:1", "turn", None, true, false, SpanKind::Turn);
         let x = span_event(&closed, 7);
         assert_eq!(x["ph"], "X");
         assert_eq!(x["ts"], 1_700_000_000_123_000u64);
         assert_eq!(x["dur"], 2_500_000u64);
-        assert_eq!(x["tid"], MAIN_TID);
+        assert_eq!(x["tid"], 2);
+        assert_eq!(x["cat"], "tool");
         assert_eq!(x["args"]["error"], true);
         let b = span_event(&open, 7);
         assert_eq!(b["ph"], "B");
         assert!(b.get("dur").is_none());
-        assert_eq!(b["tid"], SUBAGENT_TID);
+        assert_eq!(b["tid"], 5);
+        assert_eq!(span_event(&thinking, 7)["tid"], 3);
+        assert_eq!(span_event(&thinking, 7)["cat"], "inference");
+        assert_eq!(span_event(&turn, 7)["tid"], 4);
+        assert_eq!(track_name(4), "subagent turns");
     }
 }

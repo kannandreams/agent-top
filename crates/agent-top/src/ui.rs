@@ -3,7 +3,7 @@
 
 use crate::app::{App, DetailView};
 use crate::format::{age, bytes, cost, cpu_cell, duration_ms, mem_cell, short_cmd, short_model, tokens, tokens_cell, truncate};
-use agent_top_core::{Agent, AgentState, Attribution, ProcKind, ProcNode, ToolSpan};
+use agent_top_core::{Agent, AgentState, Attribution, Harness, ProcKind, ProcNode, SpanKind, ToolSpan};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -65,6 +65,9 @@ const RAMP_OPEN: Ramp = Ramp([(0xb0, 0x8a, 0x2a), (0xe0, 0xc0, 0x40), (0xf5, 0xe
 /// A call the harness reported as failed. Red family, so it reads as wrong and
 /// not merely slow.
 const RAMP_ERROR: Ramp = Ramp([(0x9c, 0x2b, 0x4e), (0xdc, 0x3c, 0x50), (0xff, 0x77, 0x94)]);
+/// The model thinking: deliberately muted, so tool calls stay the foreground
+/// and the gaps between them read as labelled rather than loud.
+const RAMP_INFERENCE: Ramp = Ramp([(0x4e, 0x4e, 0x62), (0x6e, 0x6e, 0x8c), (0x90, 0x90, 0xb4)]);
 /// Host CPU and memory, btop's classic green-amber-red.
 const RAMP_LOAD: Ramp = Ramp([(0x4c, 0xc3, 0x8a), (0xd8, 0xc0, 0x4a), (0xe0, 0x45, 0x45)]);
 
@@ -419,6 +422,11 @@ fn agent_facts(a: &Agent) -> Text<'static> {
         kv("turns", format!("{} ({} subagent)", a.turns, a.subagent_turns)),
         kv("tool calls", a.tool_calls.to_string()),
     ]);
+    if a.web_searches > 0 {
+        let cost = agent_top_core::pricing::table().web_search_cost(a.web_searches);
+        let priced = if a.harness == Harness::Claude && cost > 0.0 { format!(" (${cost:.2})") } else { " (not priced)".to_string() };
+        lines.push(kv("web searches", format!("{}{priced}", a.web_searches)));
+    }
     if let Some(p) = &a.session_path {
         lines.push(kv("transcript", tilde(p)));
     }
@@ -445,13 +453,16 @@ fn tool_trace(a: &Agent, now: SystemTime, width: usize, height: usize) -> Text<'
         ]);
     }
 
-    // Two header lines, then one row per span, newest at the bottom.
+    // Two header lines, then one row per span, newest at the bottom. Turns
+    // contain everything else and would each be a full-width bar, so they
+    // are summarised in the header rather than drawn.
     let rows = height.saturating_sub(2).max(1);
     let shown: Vec<&ToolSpan> = {
-        let mut v: Vec<&ToolSpan> = a.spans.iter().rev().take(rows).collect();
+        let mut v: Vec<&ToolSpan> = a.spans.iter().rev().filter(|s| s.kind != SpanKind::Turn).take(rows).collect();
         v.reverse();
         v
     };
+    let turn = a.spans.iter().rev().find(|s| s.kind == SpanKind::Turn);
     let t0 = shown.iter().map(|s| s.started_at).min().unwrap_or(now);
     let mut t1 = shown.iter().map(|s| s.ended_at(now)).max().unwrap_or(now);
     // An in-flight call is still growing, so the axis runs to the present.
@@ -468,12 +479,13 @@ fn tool_trace(a: &Agent, now: SystemTime, width: usize, height: usize) -> Text<'
         ((off as f64 / window_ms as f64) * bar_w as f64).round() as usize
     };
 
+    let calls = shown.iter().filter(|s| s.kind == SpanKind::Tool).count();
     let mut lines = vec![
         head(vec![Span::styled(
-            format!("   {} of {} calls · window {}", shown.len(), a.tool_calls, duration_ms(window_ms)),
+            format!("   {} of {} calls · window {}", calls, a.tool_calls, duration_ms(window_ms)),
             Style::default().fg(DIM),
         )]),
-        Line::from(trace_summary(&shown, now, window_ms)),
+        Line::from(trace_summary(&shown, turn, now, window_ms)),
     ];
     let track = Style::default().fg(term_color(TRACK_RGB));
     for s in &shown {
@@ -483,22 +495,27 @@ fn tool_trace(a: &Agent, now: SystemTime, width: usize, height: usize) -> Text<'
         // The ramp says how long the call took; the marker and the name colour
         // say what kind of call it was. Keeping those on separate channels
         // means a slow call and a failed call never compete for one colour.
+        let inference = s.kind == SpanKind::Inference;
         let (ramp, mark) = if s.error {
             (&RAMP_ERROR, "!")
         } else if s.is_open() {
             (&RAMP_OPEN, "…")
+        } else if inference {
+            (&RAMP_INFERENCE, " ")
         } else if s.sidechain {
             (&RAMP_SUBAGENT, " ")
         } else {
             (&RAMP_OK, " ")
         };
-        let name_style = match (s.error, s.is_open(), s.sidechain) {
-            (true, _, _) => Style::default().fg(RAMP_ERROR.at(1.0)),
-            (_, true, _) => Style::default().fg(RAMP_OPEN.at(0.8)),
-            (_, _, true) => Style::default().fg(RAMP_SUBAGENT.at(0.0)),
+        let name_style = match (s.error, s.is_open(), inference, s.sidechain) {
+            (true, _, _, _) => Style::default().fg(RAMP_ERROR.at(1.0)),
+            (_, true, _, _) => Style::default().fg(RAMP_OPEN.at(0.8)),
+            (_, _, true, _) => Style::default().fg(DIM),
+            (_, _, _, true) => Style::default().fg(RAMP_SUBAGENT.at(0.0)),
             _ => Style::default().fg(Color::White),
         };
-        let name = format!("{}{}", if s.sidechain { "↳" } else { "" }, s.name);
+        let label = if inference { "model" } else { s.name.as_str() };
+        let name = format!("{}{}", if s.sidechain { "↳" } else { "" }, label);
         let mut row = vec![
             Span::styled(format!("{:<NAME_W$}", truncate(&name, NAME_W)), name_style),
             Span::styled(format!("{:>DUR_W$}", format!("{}{mark}", duration_ms(elapsed))), Style::default().fg(DIM)),
@@ -522,16 +539,30 @@ fn tool_trace(a: &Agent, now: SystemTime, width: usize, height: usize) -> Text<'
     Text::from(lines)
 }
 
-/// The line under the trace header: where the window actually went.
-fn trace_summary(shown: &[&ToolSpan], now: SystemTime, window_ms: u64) -> Vec<Span<'static>> {
-    let slowest = shown.iter().max_by_key(|s| s.elapsed_ms(now));
-    let errors = shown.iter().filter(|s| s.error).count();
-    let open = shown.iter().filter(|s| s.is_open()).count();
-    let share = busy_ms(shown, now) * 100 / window_ms;
+/// The line under the trace header: where the window actually went. Tool
+/// time and model time are measured separately, each with overlaps merged,
+/// so together they say how much of the window was accounted for and how
+/// much was neither (waiting on the human, mostly).
+fn trace_summary(shown: &[&ToolSpan], turn: Option<&ToolSpan>, now: SystemTime, window_ms: u64) -> Vec<Span<'static>> {
+    let tools: Vec<&ToolSpan> = shown.iter().copied().filter(|s| s.kind == SpanKind::Tool).collect();
+    let thinking: Vec<&ToolSpan> = shown.iter().copied().filter(|s| s.kind == SpanKind::Inference).collect();
+    let slowest = tools.iter().max_by_key(|s| s.elapsed_ms(now));
+    let errors = tools.iter().filter(|s| s.error).count();
+    let open = tools.iter().filter(|s| s.is_open()).count();
+    let share = busy_ms(&tools, now) * 100 / window_ms;
     let mut spans = vec![
         Span::styled("  in tools ", Style::default().fg(DIM)),
         Span::styled(format!("{share}%"), Style::default().fg(RAMP_OK.at(share as f64 / 100.0)).bold()),
     ];
+    if !thinking.is_empty() {
+        let share = busy_ms(&thinking, now) * 100 / window_ms;
+        spans.push(Span::styled("  model ", Style::default().fg(DIM)));
+        spans.push(Span::styled(format!("{share}%"), Style::default().fg(RAMP_INFERENCE.at(1.0)).bold()));
+    }
+    if let Some(t) = turn {
+        let mark = if t.is_open() { "…" } else { "" };
+        spans.push(Span::styled(format!("  turn {}{mark}", duration_ms(t.elapsed_ms(now))), Style::default().fg(DIM)));
+    }
     if let Some(s) = slowest {
         spans.push(Span::styled(
             format!("  slowest {} {}", truncate(&s.name, 14), duration_ms(s.elapsed_ms(now))),
@@ -716,6 +747,7 @@ mod tests {
             duration_ms: dur_ms,
             sidechain,
             error,
+            kind: SpanKind::Tool,
         }
     }
 
@@ -738,6 +770,7 @@ mod tests {
             turns: 12,
             subagent_turns: 1,
             tool_calls: 71,
+            web_searches: 0,
             spans,
             age_secs: 1080,
             idle_secs: Some(3),

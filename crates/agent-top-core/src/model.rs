@@ -105,18 +105,52 @@ impl TokenUsage {
     }
 }
 
-/// One tool call, reconstructed from a transcript: the unit of an agent trace.
+/// What a span measures. Tool calls came first and gave the type its name;
+/// the other two label the time between them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, PartialOrd, Ord)]
+#[serde(rename_all = "kebab-case")]
+pub enum SpanKind {
+    /// One tool call, from the harness issuing it to the result coming back.
+    #[default]
+    Tool,
+    /// The model producing a response: from a prompt or tool results being
+    /// submitted to the last block of the reply being written. The gap in a
+    /// waterfall that is not a tool call is almost always one of these.
+    Inference,
+    /// One human turn: from the prompt to the model ending its reply.
+    /// Contains every tool call and inference span issued in between.
+    Turn,
+}
+
+impl SpanKind {
+    pub const ALL: [SpanKind; 3] = [SpanKind::Tool, SpanKind::Inference, SpanKind::Turn];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            SpanKind::Tool => "tool",
+            SpanKind::Inference => "inference",
+            SpanKind::Turn => "turn",
+        }
+    }
+}
+
+/// One span of an agent trace: a tool call, an inference, or a turn.
 ///
 /// Every harness writes the same shape in its own vocabulary — Claude pairs a
 /// `tool_use` block with a `tool_result` block by `tool_use_id`, Codex pairs a
 /// `function_call` with a `function_call_output` by `call_id` — and both stamp
 /// each line with a timestamp. That is a span: a name, a start and a duration.
 /// Only the call's metadata is kept; arguments and output are never read.
+///
+/// The name predates `kind`: the type carried only tool calls until 0.3.1 and
+/// is kept for the sake of the published API.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ToolSpan {
-    /// The harness's own call id, so a span survives across refreshes.
+    /// The harness's own call id, so a span survives across refreshes. For
+    /// inference and turn spans, a counter the parser assigns.
     pub id: String,
-    /// Tool name as the harness reports it (`Bash`, `exec_command`, ...).
+    /// Tool name as the harness reports it (`Bash`, `exec_command`, ...), or
+    /// `inference` / `turn`.
     pub name: String,
     pub started_at: SystemTime,
     /// Wall-clock duration, or `None` while the call is still in flight.
@@ -125,6 +159,9 @@ pub struct ToolSpan {
     pub sidechain: bool,
     /// The harness reported the result as an error.
     pub error: bool,
+    /// Absent in snapshots written before 0.3.1, which held tool calls only.
+    #[serde(default)]
+    pub kind: SpanKind,
 }
 
 impl ToolSpan {
@@ -237,8 +274,13 @@ pub struct Agent {
     pub turns: u64,
     pub subagent_turns: u64,
     pub tool_calls: u64,
-    /// The most recent tool calls as spans, oldest first. Bounded; see
-    /// `harness::MAX_SPANS`.
+    /// Server-side web searches the model ran, billed per search on top of
+    /// tokens. Counted for every harness; priced only where the price table
+    /// has a rate (Anthropic's, for Claude Code).
+    #[serde(default)]
+    pub web_searches: u64,
+    /// The most recent spans, oldest first: tool calls, inferences and turns.
+    /// Bounded; see `harness::MAX_SPANS`.
     pub spans: Vec<ToolSpan>,
     /// Seconds since the process started (live) or since the last transcript write (stopped).
     pub age_secs: u64,

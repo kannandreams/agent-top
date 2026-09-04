@@ -11,13 +11,18 @@
 //!   `custom_tool_call` is one tool call; the matching `*_output` item
 //!   carries the same `payload.call_id`, and the two lines' timestamps
 //!   bracket the call. That pairing is the trace.
+//! * `task_started` and `task_complete` bracket a turn span. An inference
+//!   span runs from a user `message` item or a `*_output` item to the next
+//!   thing the model produced: a call, a `reasoning` item, a
+//!   `web_search_call`, or an assistant `message`.
+//! * `response_item` `web_search_call` is one server-side web search.
 //!
 //! Codex model prices are not in the static table, so cost is reported as
 //! unpriced tokens.
 
 use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanRetention, parse_rfc3339_utc};
 use crate::jsonl::TailReader;
-use crate::model::{Activity, Harness, TokenUsage};
+use crate::model::{Activity, Harness, SpanKind, TokenUsage};
 use crate::pricing::{self, Table};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -77,6 +82,12 @@ pub struct CodexTranscript {
     reader: TailReader,
     prices: &'static Table,
     summary: SessionSummary,
+    /// Counters naming the turn and inference spans, and the ids of the ones
+    /// currently being extended.
+    turns: u64,
+    inferences: u64,
+    turn: Option<String>,
+    inference: Option<String>,
 }
 
 impl CodexTranscript {
@@ -85,6 +96,34 @@ impl CodexTranscript {
             reader: TailReader::new(path),
             prices: pricing::table(),
             summary: SessionSummary { harness: Some(Harness::Codex), ..Default::default() },
+            turns: 0,
+            inferences: 0,
+            turn: None,
+            inference: None,
+        }
+    }
+
+    /// Something was submitted to the model. One inference at a time: a
+    /// developer message followed by a user message is one submission.
+    fn begin_inference(&mut self, ts: SystemTime) {
+        if self.summary.spans.open_of_kind(SpanKind::Inference).is_some() {
+            return;
+        }
+        // A turn that ended without the model replying (aborted) leaves the
+        // previous inference open; it produced nothing, so it goes.
+        if let Some(id) = self.inference.take() {
+            self.summary.spans.discard_open(&id);
+        }
+        self.inferences += 1;
+        let id = format!("inference:{}", self.inferences);
+        self.summary.spans.open_kind(id.clone(), "inference".into(), ts, false, SpanKind::Inference);
+        self.inference = Some(id);
+    }
+
+    /// The model produced something: the inference in progress ends here.
+    fn end_inference(&mut self, ts: SystemTime) {
+        if let Some(id) = self.inference.take() {
+            self.summary.spans.end_at(&id, ts);
         }
     }
 
@@ -154,14 +193,32 @@ impl CodexTranscript {
                         }
                     }
                 }
-                "task_started" | "user_message" => self.summary.activity = Activity::Working,
-                "task_complete" | "turn_aborted" | "error" => self.summary.activity = Activity::Waiting,
+                "task_started" => {
+                    self.summary.activity = Activity::Working;
+                    if let Some(ts) = ts {
+                        self.turns += 1;
+                        let id = format!("turn:{}", self.turns);
+                        self.summary.spans.open_kind(id.clone(), "turn".into(), ts, false, SpanKind::Turn);
+                        self.turn = Some(id);
+                    }
+                }
+                "user_message" => self.summary.activity = Activity::Working,
+                "task_complete" | "turn_aborted" | "error" => {
+                    self.summary.activity = Activity::Waiting;
+                    if let (Some(ts), Some(id)) = (ts, self.turn.take()) {
+                        self.summary.spans.end_at(&id, ts);
+                    }
+                    if let Some(id) = self.inference.take() {
+                        self.summary.spans.discard_open(&id);
+                    }
+                }
                 _ => {}
             },
             "response_item" => match ptype {
                 "function_call" | "custom_tool_call" | "local_shell_call" => {
                     self.summary.tool_calls += 1;
                     if let (Some(ts), Some(p)) = (ts, payload) {
+                        self.end_inference(ts);
                         let id = call_id(p);
                         let name = p.get("name").and_then(Value::as_str).unwrap_or(ptype);
                         self.summary.spans.open(id, name.to_string(), ts, false);
@@ -173,12 +230,37 @@ impl CodexTranscript {
                         // agent-top does not read tool output, so a failed call
                         // is not distinguishable from a successful one here.
                         self.summary.spans.close(&call_id(p), ts, false);
+                        self.begin_inference(ts);
                     }
                 }
-                "message" if payload.and_then(|p| p.get("role")).and_then(Value::as_str) == Some("assistant") => {
-                    self.summary.turns += 1;
-                    self.summary.health.billable_messages += 1;
+                // A server-side web search: billed per search by OpenAI, but
+                // at a rate this table does not carry, so counted only.
+                "web_search_call" => {
+                    self.summary.web_searches += 1;
+                    if let Some(ts) = ts {
+                        self.end_inference(ts);
+                    }
                 }
+                "reasoning" => {
+                    if let Some(ts) = ts {
+                        self.end_inference(ts);
+                    }
+                }
+                "message" => match payload.and_then(|p| p.get("role")).and_then(Value::as_str) {
+                    Some("assistant") => {
+                        self.summary.turns += 1;
+                        self.summary.health.billable_messages += 1;
+                        if let Some(ts) = ts {
+                            self.end_inference(ts);
+                        }
+                    }
+                    Some("user") => {
+                        if let Some(ts) = ts {
+                            self.begin_inference(ts);
+                        }
+                    }
+                    _ => {}
+                },
                 _ => {}
             },
             _ => {}
@@ -231,6 +313,7 @@ mod tests {
         writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:24.000Z","type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":14778,"cached_input_tokens":12672,"output_tokens":241,"total_tokens":15019}}}}}}}}"#).unwrap();
         writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:25.000Z","type":"event_msg","payload":{{"type":"token_count","info":null}}}}"#)
             .unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:25.500Z","type":"response_item","payload":{{"type":"web_search_call","status":"completed"}}}}"#).unwrap();
         let mut t = CodexTranscript::new(&path);
         t.refresh().unwrap();
         let s = t.summary();
@@ -243,10 +326,14 @@ mod tests {
         assert_eq!(s.tool_calls, 1);
         assert_eq!(s.activity, Activity::Working);
         assert_eq!(read_meta(&path).unwrap().0, PathBuf::from("/tmp/p"));
-        let spans = s.spans.to_vec();
-        assert_eq!(spans.len(), 1);
-        assert_eq!(spans[0].name, "shell");
-        assert!(spans[0].is_open(), "no output item yet");
+        assert_eq!(s.web_searches, 1);
+        let tools: Vec<_> = s.spans.iter().filter(|sp| sp.kind == SpanKind::Tool).collect();
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].name, "shell");
+        assert!(tools[0].is_open(), "no output item yet");
+        let turns: Vec<_> = s.spans.iter().filter(|sp| sp.kind == SpanKind::Turn).collect();
+        assert_eq!(turns.len(), 1);
+        assert!(turns[0].is_open(), "task_started with no task_complete");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -260,15 +347,29 @@ mod tests {
         writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:23.100Z","type":"response_item","payload":{{"type":"custom_tool_call","call_id":"call_2","name":"apply_patch"}}}}"#).unwrap();
         writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:24.000Z","type":"response_item","payload":{{"type":"function_call_output","call_id":"call_1","output":"ok"}}}}"#).unwrap();
         writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:26.100Z","type":"response_item","payload":{{"type":"custom_tool_call_output","call_id":"call_2","output":"ok"}}}}"#).unwrap();
+        // The model answers the outputs 1.5 s after the last one, then the turn completes.
+        writeln!(
+            f,
+            r#"{{"timestamp":"2026-08-28T08:53:27.600Z","type":"response_item","payload":{{"type":"message","role":"assistant"}}}}"#
+        )
+        .unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:27.700Z","type":"event_msg","payload":{{"type":"task_complete"}}}}"#).unwrap();
         let mut t = CodexTranscript::new(&path);
         t.refresh().unwrap();
-        let spans = t.summary().spans.to_vec();
+        let all = t.summary().spans.to_vec();
+        let spans: Vec<_> = all.iter().filter(|sp| sp.kind == SpanKind::Tool).collect();
         assert_eq!(spans.len(), 2);
         assert_eq!(spans[0].name, "exec_command");
         assert_eq!(spans[0].duration_ms, Some(1_000));
         assert_eq!(spans[1].name, "apply_patch");
         assert_eq!(spans[1].duration_ms, Some(3_000));
         assert_eq!(t.summary().tool_calls, 2);
+        // One inference: opened by the first output at :24, not re-opened by the
+        // second at :26.1, ended by the assistant message at :27.6.
+        let inf: Vec<_> = all.iter().filter(|sp| sp.kind == SpanKind::Inference).collect();
+        assert_eq!(inf.len(), 1);
+        assert_eq!(inf[0].duration_ms, Some(3_600));
+        assert!(all.iter().all(|sp| sp.kind != SpanKind::Turn), "no task_started in this file");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

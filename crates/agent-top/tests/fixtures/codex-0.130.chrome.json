@@ -5,11 +5,15 @@
     "generator": "agent-top",
     "harness": "codex",
     "harness_version": "0.130.0",
+    "inference_spans": 11,
     "model": "gpt-5.4-mini",
-    "open_spans": 0,
+    "open_spans": 1,
     "session_id": "01000000-0000-7000-0000-000000000000",
-    "spans": 16,
-    "tool_calls": 16
+    "spans": 30,
+    "tool_calls": 16,
+    "tool_spans": 16,
+    "turn_spans": 3,
+    "web_searches": 0
   },
   "traceEvents": [
     {
@@ -23,12 +27,58 @@
     },
     {
       "args": {
-        "name": "agent"
+        "name": "turns"
       },
       "name": "thread_name",
       "ph": "M",
       "pid": 260683570,
       "tid": 1
+    },
+    {
+      "args": {
+        "name": "tools"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 260683570,
+      "tid": 2
+    },
+    {
+      "args": {
+        "name": "model"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 260683570,
+      "tid": 3
+    },
+    {
+      "args": {
+        "call_id": "turn:1",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "turn",
+      "dur": 38453000,
+      "name": "turn",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778794670534000
+    },
+    {
+      "args": {
+        "call_id": "inference:1",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 2926000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 3,
+      "ts": 1778794670534000
     },
     {
       "args": {
@@ -41,7 +91,7 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778794673461000
     },
     {
@@ -55,8 +105,22 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778794673462000
+    },
+    {
+      "args": {
+        "call_id": "inference:2",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 1710000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 3,
+      "ts": 1778794673633000
     },
     {
       "args": {
@@ -69,7 +133,7 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778794675343000
     },
     {
@@ -83,8 +147,22 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778794675364000
+    },
+    {
+      "args": {
+        "call_id": "inference:3",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 4556000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 3,
+      "ts": 1778794675397000
     },
     {
       "args": {
@@ -97,8 +175,22 @@
       "name": "apply_patch",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778794700964000
+    },
+    {
+      "args": {
+        "call_id": "inference:4",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 2495000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 3,
+      "ts": 1778794702097000
     },
     {
       "args": {
@@ -111,7 +203,7 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778794704594000
     },
     {
@@ -125,7 +217,7 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778794704594000
     },
     {
@@ -139,8 +231,50 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778794704594000
+    },
+    {
+      "args": {
+        "call_id": "inference:5",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 4322000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 3,
+      "ts": 1778794704647000
+    },
+    {
+      "args": {
+        "call_id": "turn:2",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "turn",
+      "dur": 5404000,
+      "name": "turn",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778795240994000
+    },
+    {
+      "args": {
+        "call_id": "inference:6",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 1948000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 3,
+      "ts": 1778795240995000
     },
     {
       "args": {
@@ -153,8 +287,49 @@
       "name": "apply_patch",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778795244123000
+    },
+    {
+      "args": {
+        "call_id": "inference:7",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 2193000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 3,
+      "ts": 1778795244184000
+    },
+    {
+      "args": {
+        "call_id": "turn:3",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "turn",
+      "name": "turn",
+      "ph": "B",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778795267806000
+    },
+    {
+      "args": {
+        "call_id": "inference:8",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 2932000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 3,
+      "ts": 1778795267807000
     },
     {
       "args": {
@@ -167,7 +342,7 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778795270739000
     },
     {
@@ -181,7 +356,7 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778795270739000
     },
     {
@@ -195,8 +370,22 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778795270742000
+    },
+    {
+      "args": {
+        "call_id": "inference:9",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 5086000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 3,
+      "ts": 1778795270792000
     },
     {
       "args": {
@@ -209,8 +398,22 @@
       "name": "apply_patch",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778795286992000
+    },
+    {
+      "args": {
+        "call_id": "inference:10",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 3148000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 3,
+      "ts": 1778795287463000
     },
     {
       "args": {
@@ -223,7 +426,7 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778795290611000
     },
     {
@@ -237,7 +440,7 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778795290621000
     },
     {
@@ -251,8 +454,22 @@
       "name": "exec_command",
       "ph": "X",
       "pid": 260683570,
-      "tid": 1,
+      "tid": 2,
       "ts": 1778795290631000
+    },
+    {
+      "args": {
+        "call_id": "inference:11",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 4300000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 3,
+      "ts": 1778795290664000
     }
   ]
 }

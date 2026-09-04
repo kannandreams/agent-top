@@ -6,7 +6,7 @@
 pub mod claude;
 pub mod codex;
 
-use crate::model::{Activity, Harness, TokenUsage, ToolSpan};
+use crate::model::{Activity, Harness, SpanKind, TokenUsage, ToolSpan};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -60,6 +60,8 @@ pub struct SessionSummary {
     pub turns: u64,
     pub subagent_turns: u64,
     pub tool_calls: u64,
+    /// See `Agent::web_searches`.
+    pub web_searches: u64,
     pub spans: SpanLog,
     pub health: ParseHealth,
     pub activity: Activity,
@@ -71,7 +73,10 @@ pub struct SessionSummary {
 /// a few dozen rows; the rest is history nobody scrolls to in a live view, and
 /// every span costs a clone on each refresh. An export wants the whole session
 /// and uses `SpanLog::unbounded` in a separate pass; see `SpanRetention`.
-pub const MAX_SPANS: usize = 128;
+///
+/// Sized for roughly a hundred tool calls: each model response also adds an
+/// inference span and each human prompt a turn span.
+pub const MAX_SPANS: usize = 256;
 
 /// A bounded, in-order log of tool spans, built by pairing a harness's
 /// "call started" and "call finished" records by call id.
@@ -99,16 +104,43 @@ impl SpanLog {
         SpanLog { spans: VecDeque::new(), cap: usize::MAX }
     }
 
-    /// Record the start of a call. Ignored when that id is already open, so a
-    /// transcript line replayed by the harness does not double-count.
+    /// Record the start of a tool call. Ignored when that id is already open,
+    /// so a transcript line replayed by the harness does not double-count.
     pub fn open(&mut self, id: String, name: String, at: SystemTime, sidechain: bool) {
+        self.open_kind(id, name, at, sidechain, SpanKind::Tool);
+    }
+
+    /// `open`, for any kind of span.
+    pub fn open_kind(&mut self, id: String, name: String, at: SystemTime, sidechain: bool, kind: SpanKind) {
         if id.is_empty() || self.spans.iter().any(|s| s.is_open() && s.id == id) {
             return;
         }
         if self.spans.len() >= self.cap {
             self.spans.pop_front();
         }
-        self.spans.push_back(ToolSpan { id, name, started_at: at, duration_ms: None, sidechain, error: false });
+        self.spans.push_back(ToolSpan { id, name, started_at: at, duration_ms: None, sidechain, error: false, kind });
+    }
+
+    /// Move the end of the newest span with this id to `at`, open or not. An
+    /// inference span grows as the response streams in, one content block
+    /// per line, and its end is wherever the last block landed.
+    pub fn end_at(&mut self, id: &str, at: SystemTime) {
+        let Some(s) = self.spans.iter_mut().rev().find(|s| s.id == id) else { return };
+        s.duration_ms = Some(at.duration_since(s.started_at).map(|d| d.as_millis() as u64).unwrap_or(0));
+    }
+
+    /// The newest open span of this kind, if any.
+    pub fn open_of_kind(&self, kind: SpanKind) -> Option<&ToolSpan> {
+        self.spans.iter().rev().find(|s| s.is_open() && s.kind == kind)
+    }
+
+    /// Remove the newest span with this id if it is still open. For a span
+    /// that turned out not to be one: an inference that never produced a
+    /// reply because the user interrupted or submitted again.
+    pub fn discard_open(&mut self, id: &str) {
+        if let Some(i) = self.spans.iter().rposition(|s| s.is_open() && s.id == id) {
+            self.spans.remove(i);
+        }
     }
 
     /// Close the open call with this id. A result whose call scrolled out of
@@ -309,6 +341,28 @@ mod tests {
         let last = log.to_vec().pop().unwrap();
         assert!(last.is_open());
         assert_eq!(last.elapsed_ms(at(503)), 3_000);
+    }
+
+    #[test]
+    fn end_at_moves_the_end_of_any_kind_of_span() {
+        let mut log = SpanLog::default();
+        log.open_kind("inference:1".into(), "inference".into(), at(10), false, SpanKind::Inference);
+        assert!(log.open_of_kind(SpanKind::Inference).is_some());
+        assert!(log.open_of_kind(SpanKind::Turn).is_none());
+        // The response streams in over three lines; the span ends at the last one.
+        log.end_at("inference:1", at(11));
+        log.end_at("inference:1", at(13));
+        log.end_at("nope", at(99));
+        let v = log.to_vec();
+        assert_eq!(v[0].duration_ms, Some(3_000));
+        assert_eq!(v[0].kind, SpanKind::Inference);
+        assert!(log.open_of_kind(SpanKind::Inference).is_none());
+        // Discarding only removes open spans; the ended one stays.
+        log.discard_open("inference:1");
+        assert_eq!(log.len(), 1);
+        log.open_kind("inference:2".into(), "inference".into(), at(20), false, SpanKind::Inference);
+        log.discard_open("inference:2");
+        assert_eq!(log.len(), 1);
     }
 
     #[test]
