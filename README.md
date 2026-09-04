@@ -119,7 +119,7 @@ curl -X POST http://localhost:4318/v1/traces -H 'Content-Type: application/json'
 open http://localhost:16686
 ```
 
-## From transcript to trace
+## How a session becomes a trace
 
 Nothing has to be switched on in the agent. The harness already writes a
 transcript; agent-top reads it, live for the table and again in full for an
