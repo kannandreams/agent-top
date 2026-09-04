@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.3] - 2026-09-04
 
 ### Added
 - **`trace --endpoint URL`** posts the OTLP document to a collector and prints the response status. It is the one network call agent-top can make; it happens only with an address typed on the command line, and there is no default, config key or environment variable. Without the flag nothing leaves the machine. Requires `--format otlp`.
