@@ -46,7 +46,7 @@ looks for the symptom rather than for one vendor's bug.
 
 | Harness | Discovery | Tokens and cost | State |
 |---|---|---|---|
-| Claude Code | process table + `~/.claude/sessions/<pid>.json` (exact) | transcript usage, priced per model | harness-reported |
+| Claude Code | process table + `~/.claude/sessions/<pid>.json` (exact) | transcript usage, priced per model, subagent transcripts folded into their parent | harness-reported |
 | Codex CLI / app-server | process table + rollout `cwd` match (heuristic) | transcript usage; priced once you add the model to [your price table](#prices) | transcript events |
 | Gemini CLI, OpenCode, Aider, Copilot CLI, cursor-agent | process table only | not yet | CPU heuristic |
 

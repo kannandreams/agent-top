@@ -8,7 +8,13 @@
 //! * `usage.cache_creation.ephemeral_1h_input_tokens` /
 //!   `ephemeral_5m_input_tokens` split cache writes by TTL, which have
 //!   different prices.
-//! * `isSidechain: true` marks subagent turns.
+//! * Subagents (Claude Code 2.1.233 and later): each Agent-tool call gets its
+//!   own transcript at `<project>/<session>/subagents/agent-<id>.jsonl`, every
+//!   line carrying the parent's `sessionId`, `isSidechain: true` and an
+//!   `agentId`, with `agent-<id>.meta.json` beside it naming the agent type
+//!   and the spawning `toolUseId`. The parent transcript no longer carries any
+//!   sidechain lines itself. Claude Code's own cost display includes those
+//!   files, so `ClaudeTranscript` tails and folds them in.
 //! * A `tool_use` block in an assistant message and the `tool_result` block
 //!   that answers it carry the same id in `id` / `tool_use_id`, and their
 //!   lines carry the timestamps that bracket the call. That pairing is the
@@ -16,12 +22,13 @@
 //! * The registry file has `status: "busy" | "idle"`, which is the harness's
 //!   own opinion of its state and beats any transcript heuristic.
 
-use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanRetention, parse_rfc3339_utc};
+use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanLog, SpanRetention, parse_rfc3339_utc};
 use crate::jsonl::TailReader;
 use crate::model::{Activity, Harness, TokenUsage};
 use crate::pricing::{self, Table};
 use serde::Deserialize;
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -152,51 +159,44 @@ pub fn guess_transcript(cwd: &Path, proc_start: SystemTime) -> Option<PathBuf> {
     best.map(|(_, p)| p)
 }
 
-pub struct ClaudeTranscript {
+/// Where Claude Code keeps a session's subagent transcripts: one
+/// `agent-<id>.jsonl` per Agent-tool call, next to an `agent-<id>.meta.json`
+/// naming the agent type and the `toolUseId` that spawned it.
+pub fn subagents_dir(transcript: &Path) -> Option<PathBuf> {
+    let stem = transcript.file_stem()?;
+    Some(transcript.with_file_name(stem).join("subagents"))
+}
+
+/// One JSONL file being tailed into a `SessionSummary`: the main transcript,
+/// or one subagent's.
+struct Parser {
     reader: TailReader,
-    prices: &'static Table,
     summary: SessionSummary,
     /// Dedupe state: the last API message id seen and what it contributed.
     last_msg_id: Option<String>,
     last_contrib: (TokenUsage, f64, u64),
 }
 
-impl ClaudeTranscript {
-    pub fn new(path: impl Into<PathBuf>) -> Self {
-        ClaudeTranscript {
+impl Parser {
+    fn new(path: impl Into<PathBuf>, spans: SpanRetention) -> Self {
+        Parser {
             reader: TailReader::new(path),
-            prices: pricing::table(),
-            summary: SessionSummary { harness: Some(Harness::Claude), ..Default::default() },
+            summary: SessionSummary { harness: Some(Harness::Claude), spans: spans.log(), ..Default::default() },
             last_msg_id: None,
             last_contrib: (TokenUsage::default(), 0.0, 0),
         }
     }
 
-    /// Price with this table instead of the process-wide one. Lets a test
-    /// assert a cost without the developer's own price file changing it.
-    pub fn with_prices(mut self, prices: &'static Table) -> Self {
-        self.prices = prices;
-        self
-    }
-
-    /// Keep every span instead of the newest `MAX_SPANS`. See `SpanRetention`.
-    pub fn with_spans(mut self, retention: SpanRetention) -> Self {
-        self.summary.spans = retention.log();
-        self
-    }
-
-    pub fn set_registry_hints(&mut self, ps: &PidSession) {
-        self.summary.session_id.get_or_insert_with(|| ps.session_id.clone());
-        self.summary.cwd.get_or_insert_with(|| ps.cwd.clone());
-        if ps.version.is_some() {
-            self.summary.harness_version = ps.version.clone();
+    /// Returns how many lines were ingested and whether more are waiting.
+    fn refresh(&mut self, prices: &Table) -> anyhow::Result<(usize, bool)> {
+        let (lines, more) = self.reader.read_new_lines(REFRESH_BUDGET_BYTES)?;
+        for l in &lines {
+            self.ingest(l, prices);
         }
-        if self.summary.started_at.is_none() {
-            self.summary.started_at = ps.started();
-        }
+        Ok((lines.len(), more))
     }
 
-    fn ingest(&mut self, line: &str) {
+    fn ingest(&mut self, line: &str, prices: &Table) {
         let Ok(v) = serde_json::from_str::<Value>(line) else { return };
         let kind = v.get("type").and_then(Value::as_str).unwrap_or("");
         if let Some(ts) = v.get("timestamp").and_then(Value::as_str).and_then(parse_rfc3339_utc) {
@@ -218,7 +218,7 @@ impl ClaudeTranscript {
         let is_meta = v.get("isMeta").and_then(Value::as_bool).unwrap_or(false);
         let ts = v.get("timestamp").and_then(Value::as_str).and_then(parse_rfc3339_utc);
         match kind {
-            "assistant" => self.ingest_assistant(&v, sidechain, ts),
+            "assistant" => self.ingest_assistant(&v, sidechain, ts, prices),
             "user" if !is_meta => {
                 // Either a prompt or a tool_result: in both cases the model owes a response.
                 self.summary.activity = Activity::Working;
@@ -242,7 +242,7 @@ impl ClaudeTranscript {
         }
     }
 
-    fn ingest_assistant(&mut self, v: &Value, sidechain: bool, ts: Option<SystemTime>) {
+    fn ingest_assistant(&mut self, v: &Value, sidechain: bool, ts: Option<SystemTime>, prices: &Table) {
         let Some(msg) = v.get("message") else { return };
         let id = msg.get("id").and_then(Value::as_str).map(str::to_string);
         let model = msg.get("model").and_then(Value::as_str).unwrap_or("");
@@ -282,7 +282,7 @@ impl ClaudeTranscript {
             }
             None => TokenUsage::default(),
         };
-        let price = self.prices.lookup(model);
+        let price = prices.lookup(model);
         let cost = price.map(|p| p.cost(&usage)).unwrap_or(0.0);
         let unpriced = if price.is_none() { usage.total() } else { 0 };
 
@@ -304,6 +304,108 @@ impl ClaudeTranscript {
         self.summary.unpriced_tokens += unpriced;
         self.last_msg_id = id;
         self.last_contrib = (usage, cost, unpriced);
+    }
+}
+
+/// A Claude Code session: the main transcript plus every subagent transcript
+/// under its `subagents/` directory, folded into one summary.
+///
+/// Claude Code bills a subagent's API calls to the session that spawned it
+/// and shows them in its own cost display, but writes them to a separate
+/// file, so a session that used the Agent tool reads low if only the main
+/// transcript is counted. Each subagent file is tailed like the main one and
+/// its tokens, cost, turns, tool calls and spans are added to the parent's.
+/// A subagent may run a different model from its parent; each line is priced
+/// by the model it names, so that is handled without special casing.
+pub struct ClaudeTranscript {
+    main: Parser,
+    /// Keyed by path, so a directory listing adds each subagent once.
+    subagents: BTreeMap<PathBuf, Parser>,
+    prices: &'static Table,
+    retention: SpanRetention,
+    /// The fold of `main` and `subagents`, rebuilt whenever any of them read
+    /// a line. Cheap: a clone of the main summary and a merge of the span logs.
+    summary: SessionSummary,
+}
+
+impl ClaudeTranscript {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        let retention = SpanRetention::Recent;
+        ClaudeTranscript {
+            main: Parser::new(path, retention),
+            subagents: BTreeMap::new(),
+            prices: pricing::table(),
+            retention,
+            summary: SessionSummary { harness: Some(Harness::Claude), ..Default::default() },
+        }
+    }
+
+    /// Price with this table instead of the process-wide one. Lets a test
+    /// assert a cost without the developer's own price file changing it.
+    pub fn with_prices(mut self, prices: &'static Table) -> Self {
+        self.prices = prices;
+        self
+    }
+
+    /// Keep every span instead of the newest `MAX_SPANS`. See `SpanRetention`.
+    pub fn with_spans(mut self, retention: SpanRetention) -> Self {
+        self.retention = retention;
+        self.main.summary.spans = retention.log();
+        for p in self.subagents.values_mut() {
+            p.summary.spans = retention.log();
+        }
+        self
+    }
+
+    pub fn set_registry_hints(&mut self, ps: &PidSession) {
+        let s = &mut self.main.summary;
+        s.session_id.get_or_insert_with(|| ps.session_id.clone());
+        s.cwd.get_or_insert_with(|| ps.cwd.clone());
+        if ps.version.is_some() {
+            s.harness_version = ps.version.clone();
+        }
+        if s.started_at.is_none() {
+            s.started_at = ps.started();
+        }
+        self.fold();
+    }
+
+    /// Pick up subagent transcripts that appeared since the last look. One
+    /// directory listing per refresh; the directory is small and usually
+    /// absent, so this is a single failed `open` for most sessions.
+    fn discover_subagents(&mut self) {
+        let Some(dir) = subagents_dir(self.main.reader.path()) else { return };
+        let Ok(rd) = std::fs::read_dir(&dir) else { return };
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.extension().and_then(|x| x.to_str()) != Some("jsonl") || self.subagents.contains_key(&p) {
+                continue;
+            }
+            let parser = Parser::new(&p, self.retention);
+            self.subagents.insert(p, parser);
+        }
+    }
+
+    fn fold(&mut self) {
+        let mut s = self.main.summary.clone();
+        for c in self.subagents.values() {
+            let t = &c.summary;
+            s.usage.add(&t.usage);
+            s.cost_usd += t.cost_usd;
+            s.unpriced_tokens += t.unpriced_tokens;
+            s.turns += t.turns;
+            s.subagent_turns += t.subagent_turns;
+            s.tool_calls += t.tool_calls;
+            s.health.billable_messages += t.health.billable_messages;
+            s.health.usage_records += t.health.usage_records;
+            s.health.empty_usage_records += t.health.empty_usage_records;
+            s.last_activity = s.last_activity.max(t.last_activity);
+        }
+        if !self.subagents.is_empty() {
+            let logs = std::iter::once(&self.main.summary.spans).chain(self.subagents.values().map(|c| &c.summary.spans));
+            s.spans = SpanLog::merged(logs, self.main.summary.spans.cap());
+        }
+        self.summary = s;
     }
 }
 
@@ -334,9 +436,17 @@ fn parse_usage(u: &Value) -> TokenUsage {
 
 impl SessionTracker for ClaudeTranscript {
     fn refresh(&mut self) -> anyhow::Result<bool> {
-        let (lines, more) = self.reader.read_new_lines(REFRESH_BUDGET_BYTES)?;
-        for l in &lines {
-            self.ingest(l);
+        let (mut ingested, mut more) = self.main.refresh(self.prices)?;
+        self.discover_subagents();
+        for c in self.subagents.values_mut() {
+            // One unreadable subagent file must not take the session with it.
+            if let Ok((n, m)) = c.refresh(self.prices) {
+                ingested += n;
+                more |= m;
+            }
+        }
+        if ingested > 0 || self.summary.session_id.is_none() {
+            self.fold();
         }
         Ok(more)
     }
@@ -346,7 +456,7 @@ impl SessionTracker for ClaudeTranscript {
     }
 
     fn path(&self) -> &Path {
-        self.reader.path()
+        self.main.reader.path()
     }
 }
 
@@ -388,6 +498,57 @@ mod tests {
         t.refresh().unwrap();
         assert_eq!(t.summary().turns, 2);
         assert_eq!(t.summary().activity, Activity::Waiting);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn folds_subagent_transcripts_into_the_parent() {
+        let dir = std::env::temp_dir().join(format!("agent-top-claude-sub-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("s.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        // The parent spawns an Agent-tool call at 07:00:00, which is still running.
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:00.000Z","sessionId":"abc","cwd":"/tmp/p","message":{{"id":"m1","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{{"type":"tool_use","id":"toolu_agent","name":"Agent"}}],"usage":{{"input_tokens":100,"output_tokens":10}}}}}}"#).unwrap();
+        let mut t = ClaudeTranscript::new(&path).with_prices(pricing::builtin_table());
+        t.refresh().unwrap();
+        assert_eq!(t.summary().usage.total(), 110);
+        assert_eq!(t.summary().subagent_turns, 0);
+        // sonnet-5: 100*2 + 10*10 = 300 micro-dollars
+        assert!((t.summary().cost_usd - 0.000300).abs() < 1e-9);
+
+        // A subagent transcript appears, on a different model, with its own tool call.
+        let sub = subagents_dir(&path).unwrap();
+        std::fs::create_dir_all(&sub).unwrap();
+        let mut g = std::fs::File::create(sub.join("agent-a1.jsonl")).unwrap();
+        std::fs::write(sub.join("agent-a1.meta.json"), r#"{"agentType":"Explore"}"#).unwrap();
+        writeln!(g, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:01.000Z","sessionId":"abc","isSidechain":true,"agentId":"a1","message":{{"id":"s1","model":"claude-opus-5","stop_reason":"tool_use","content":[{{"type":"tool_use","id":"toolu_sub","name":"Grep"}}],"usage":{{"input_tokens":1000,"output_tokens":100}}}}}}"#).unwrap();
+        writeln!(g, r#"{{"type":"user","timestamp":"2026-09-03T07:00:03.000Z","sessionId":"abc","isSidechain":true,"agentId":"a1","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"toolu_sub"}}]}}}}"#).unwrap();
+        t.refresh().unwrap();
+        let s = t.summary();
+        assert_eq!(s.usage.total(), 1210);
+        assert_eq!(s.turns, 2);
+        assert_eq!(s.subagent_turns, 1);
+        assert_eq!(s.tool_calls, 2);
+        // opus-5: 1000*5 + 100*25 = 7500 micro-dollars, on top of the parent's 300
+        assert!((s.cost_usd - 0.007800).abs() < 1e-9, "{}", s.cost_usd);
+        assert_eq!(s.model.as_deref(), Some("claude-sonnet-5"), "the row's model is the parent's");
+        assert_eq!(s.session_id.as_deref(), Some("abc"));
+        let last = s.last_activity.unwrap().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+        assert_eq!(last % 60, 3, "last activity is the subagent's, which wrote most recently");
+        let spans = s.spans.to_vec();
+        assert_eq!(spans.len(), 2);
+        assert_eq!(spans[0].name, "Agent");
+        assert!(spans[0].is_open());
+        assert_eq!(spans[1].name, "Grep");
+        assert!(spans[1].sidechain);
+        assert_eq!(spans[1].duration_ms, Some(2_000));
+
+        // The subagent keeps writing; only the new lines are read.
+        writeln!(g, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:04.000Z","sessionId":"abc","isSidechain":true,"agentId":"a1","message":{{"id":"s2","model":"claude-opus-5","stop_reason":"end_turn","content":[],"usage":{{"input_tokens":1,"output_tokens":1}}}}}}"#).unwrap();
+        t.refresh().unwrap();
+        assert_eq!(t.summary().usage.total(), 1212);
+        assert_eq!(t.summary().subagent_turns, 2);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

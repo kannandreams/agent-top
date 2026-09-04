@@ -363,8 +363,10 @@ fn written_at(p: &Path) -> Option<SystemTime> {
     std::fs::metadata(p).and_then(|m| m.modified()).ok()
 }
 
-/// Claude Code stores subagent transcripts as `agent-<id>.jsonl` next to the
-/// parent session; they are not sessions of their own.
+/// Older Claude Code versions stored subagent transcripts as `agent-<id>.jsonl`
+/// next to the parent session; they are not sessions of their own. Current
+/// versions nest them under `<session>/subagents/`, where the directory walk
+/// does not look, and `ClaudeTranscript` folds them into the parent.
 fn is_subagent_transcript(p: &Path) -> bool {
     p.file_name().and_then(|f| f.to_str()).map(|f| f.starts_with("agent-")).unwrap_or(false)
 }

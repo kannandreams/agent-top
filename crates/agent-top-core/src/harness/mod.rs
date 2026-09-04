@@ -136,6 +136,22 @@ impl SpanLog {
     pub fn to_vec(&self) -> Vec<ToolSpan> {
         self.spans.iter().cloned().collect()
     }
+
+    /// One log from several, ordered by start time, keeping the newest `cap`.
+    /// A parent's spans and its subagents' spans interleave in wall-clock
+    /// order, which is what a waterfall wants.
+    pub fn merged<'a>(logs: impl IntoIterator<Item = &'a SpanLog>, cap: usize) -> SpanLog {
+        let mut spans: Vec<ToolSpan> = logs.into_iter().flat_map(|l| l.spans.iter().cloned()).collect();
+        spans.sort_by_key(|s| s.started_at);
+        if spans.len() > cap {
+            spans.drain(..spans.len() - cap);
+        }
+        SpanLog { spans: spans.into(), cap }
+    }
+
+    pub fn cap(&self) -> usize {
+        self.cap
+    }
 }
 
 /// How many of a session's tool spans a tracker keeps.

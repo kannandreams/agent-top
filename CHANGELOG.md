@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows [Kee
 - **`agent-top trace`.** Exports one session's tool calls as a Chrome trace event file (`--format chrome`, the only format so far) that Perfetto and `chrome://tracing` open with no setup. The live tracker keeps the newest 128 calls, which is right for a waterfall pane and wrong for an export, so the subcommand reads the transcript again from the start with no cap. `--session` accepts a session id, a unique prefix of one, or a path to a transcript; an ambiguous prefix lists the candidates. The process id in the file is derived from the session id, so exporting the same session twice gives the same trace. A call that never returned is written as a begin event with no end. Output goes to standard output or to `-o FILE`; nothing is sent anywhere.
 - `agent-top-core`: `SpanLog::unbounded`, `SpanRetention`, `SessionTracker::refresh_all`, `harness::detect` and `harness::open_transcript`, which is what the export is built from. Existing types and defaults are unchanged.
 
+### Fixed
+- **Subagent usage was not counted for Claude Code.** Since 2.1.233 each Agent-tool call writes its own transcript under `<session>/subagents/agent-<id>.jsonl`, and the parent transcript carries no sidechain lines at all. agent-top read only the parent, so a session that used subagents showed fewer tokens and a lower cost than Claude Code's own display, and the waterfall never showed a subagent call. The tracker now discovers those files, tails each one incrementally, and folds their tokens, cost, turns, tool calls and spans into the parent row. Subagents on a different model from the parent are priced by the model each line names. The row's model, state and start time remain the parent's.
+
 ## [0.2.1] - 2026-09-04
 
 No change to the binary's behaviour. This release exists so that a published
