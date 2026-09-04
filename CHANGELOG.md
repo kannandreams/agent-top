@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.1] - 2026-09-04
 
 ### Added
 - **Web searches are priced.** Anthropic bills server-side web search per search ($10 per 1,000, on top of the tokens it produces); web fetch is free. The count is read from each message's usage record, deduplicated like the rest of usage, and added to the row's cost. The rate lives in `prices.toml` under `[server_tools]` and a user table can override it. Codex `web_search_call` items are counted and shown, not priced, because OpenAI's rate is not in the table. The count is in `--json` as `web_searches` and in the detail pane.
