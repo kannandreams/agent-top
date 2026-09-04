@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.0] - 2026-09-04
 
 ### Added
 - **`agent-top trace`.** Exports one session's tool calls as a Chrome trace event file (`--format chrome`, the only format so far) that Perfetto and `chrome://tracing` open with no setup. The live tracker keeps the newest 128 calls, which is right for a waterfall pane and wrong for an export, so the subcommand reads the transcript again from the start with no cap. `--session` accepts a session id, a unique prefix of one, or a path to a transcript; an ambiguous prefix lists the candidates. The process id in the file is derived from the session id, so exporting the same session twice gives the same trace. A call that never returned is written as a begin event with no end. Output goes to standard output or to `-o FILE`; nothing is sent anywhere.
