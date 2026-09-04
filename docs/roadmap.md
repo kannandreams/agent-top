@@ -1,6 +1,6 @@
 # Roadmap
 
-Dates are targets, not promises. Each phase ships on its own.
+Each phase ships on its own, and the order matters more than any date.
 
 ## v0.1 — the table (now)
 
@@ -19,20 +19,20 @@ Dates are targets, not promises. Each phase ships on its own.
 - `--format otlp` for the trace export, with deterministic trace and span ids and tool calls parented to their turn. Any direct push to a collector stays opt-in behind an explicit `--endpoint`, because a network call contradicts the default posture in [vision.md](vision.md), and none is built.
 - Prebuilt macOS and Linux binaries, a Homebrew tap and `cargo binstall` support, cut by tag (see [releasing.md](releasing.md)).
 
-## v0.2 — trust the numbers (Q4 2026)
+## v0.2 — trust the numbers
 
 - Gemini CLI and OpenCode transcript adapters.
 - Per-agent history sparkline (tokens per minute) and cost rate ($/hour).
 - Linux `/proc` verification against a real Linux desktop, not only CI.
 - Golden transcript fixtures: small real transcripts per harness version, checked in with the exact numbers they should produce. These catch regressions in our own parsing. They cannot catch an upstream format change, because a fixture recorded at version X keeps passing forever after the harness moves to version Y.
 
-## v0.3 — the tree (Q1 2027)
+## v0.3 — the tree
 
 - Logical subagent tree from transcripts (Claude `isSidechain` and `agent-*.jsonl`, Codex `close_agent` events), merged with the process tree.
 - Per-MCP-server rows: which agent started it, how many tool calls went through it, idle time.
 - Orphan lifecycle: first-seen time, parent-of-record, one-key copy of the `kill` command. Still no signalling from agent-top.
 
-## v0.4 — signals (Q2 2027)
+## v0.4 — signals
 
 - Optional `agent-top hook` subcommand that harnesses with hook support can call on session start/stop to register pid, session id and transcript path exactly.
 - Rate-limit view for harnesses that log it (Codex `rate_limits` is already in the transcript).
@@ -42,5 +42,5 @@ Dates are targets, not promises. Each phase ships on its own.
 ## Out of scope, deliberately
 
 - Killing or restarting agents from inside agent-top.
-- Any network call.
+- Any network call agent-top decides to make on its own. `trace --endpoint` posts one file to an address the user typed, and that is the whole exception.
 - Reading transcript content (prompts, code). agent-top reads metadata fields only.

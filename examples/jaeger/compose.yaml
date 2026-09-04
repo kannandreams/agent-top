@@ -1,0 +1,13 @@
+# A local Jaeger for looking at agent-top traces.
+#
+#   docker compose -f examples/jaeger/compose.yaml up -d
+#   agent-top trace --session <id> --format otlp --endpoint http://localhost:4318/v1/traces
+#   open http://localhost:16686
+#
+# Everything stays on this machine. Stop it with `down`; nothing persists.
+services:
+  jaeger:
+    image: jaegertracing/jaeger:2.4.0
+    ports:
+      - "16686:16686"   # the Jaeger UI
+      - "4318:4318"     # OTLP over HTTP, where agent-top posts

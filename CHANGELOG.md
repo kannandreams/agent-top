@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **`trace --endpoint URL`** posts the OTLP document to a collector and prints the response status. It is the one network call agent-top can make; it happens only with an address typed on the command line, and there is no default, config key or environment variable. Without the flag nothing leaves the machine. Requires `--format otlp`.
+- **`examples/jaeger/compose.yaml`**, a local Jaeger with the OTLP port open, and an "OTLP to Jaeger" section in the README.
+- The detail pane shows the exact `agent-top trace` command for the selected session.
+
+### Changed
+- The README explains how to open a Chrome trace file in Perfetto rather than saying it "opens directly", and the roadmap no longer carries target dates.
+
 ## [0.3.2] - 2026-09-04
 
 ### Added

@@ -94,6 +94,18 @@ fn codex_id(stem: &str) -> &str {
     stem.strip_prefix("rollout-").and_then(|s| s.get(TS_LEN..)).unwrap_or(stem)
 }
 
+/// POST an OTLP/JSON document to a collector's traces URL and return the
+/// status. The one place in agent-top that opens a network connection, and
+/// only ever with an address the user typed on this command line: no
+/// default, no config key, no environment variable.
+pub fn post(url: &str, doc: &str) -> Result<u16> {
+    match ureq::post(url).header("content-type", "application/json").send(doc) {
+        Ok(resp) => Ok(resp.status().as_u16()),
+        Err(ureq::Error::StatusCode(code)) => bail!("{url} rejected the trace with HTTP {code}"),
+        Err(e) => bail!("posting to {url}: {e}"),
+    }
+}
+
 /// Read the whole transcript with every span kept.
 pub fn read(src: &Source) -> Result<SessionSummary> {
     let mut tracker = harness::open_transcript(&src.path, src.harness, SpanRetention::All);

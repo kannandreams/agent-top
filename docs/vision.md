@@ -16,7 +16,7 @@ A single terminal view, in the spirit of `btop`, that lists every coding agent o
 
 - **Not a harness.** It does not run models, hold API keys, or talk to any provider.
 - **Not a controller.** It never signals, restarts, or configures an agent. Killing an orphaned MCP server is the user's decision with the user's `kill`.
-- **Not a cloud dashboard.** Local machine, local files, no telemetry.
+- **Not a cloud dashboard.** Local machine, local files, no telemetry. The one network call it can make is posting a trace file to an address the user typed after `--endpoint`; nothing is sent by default and nothing is sent about the user.
 - **Not a billing system.** Cost is computed from list prices on the transcript's own usage numbers and is labelled a floor whenever a price is unknown.
 
 ## Principles

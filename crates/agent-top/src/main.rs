@@ -61,6 +61,11 @@ enum Command {
         /// Write here instead of standard output.
         #[arg(short, long, value_name = "FILE")]
         output: Option<PathBuf>,
+        /// Also POST the document to this OTLP/HTTP traces URL, for example
+        /// http://localhost:4318/v1/traces. The only network call agent-top
+        /// ever makes, and only when you type the address. OTLP format only.
+        #[arg(long, value_name = "URL")]
+        endpoint: Option<String>,
     },
 }
 
@@ -93,8 +98,8 @@ fn main() -> Result<()> {
         print!("{}", format::price_table(agent_top_core::pricing::table()));
         return Ok(());
     }
-    if let Some(Command::Trace { session, format, output }) = &cli.command {
-        return export_trace(session, *format, output.as_deref());
+    if let Some(Command::Trace { session, format, output, endpoint }) = &cli.command {
+        return export_trace(session, *format, output.as_deref(), endpoint.as_deref());
     }
     // A user's price file that could not be read is the difference between a
     // real cost and a wrong one, so say so rather than quietly using defaults.
@@ -173,10 +178,17 @@ fn run(terminal: &mut ratatui::DefaultTerminal, source: &mut Source, interval: D
     }
 }
 
-fn export_trace(session: &str, format: trace::Format, output: Option<&std::path::Path>) -> Result<()> {
+fn export_trace(session: &str, format: trace::Format, output: Option<&std::path::Path>, endpoint: Option<&str>) -> Result<()> {
+    if endpoint.is_some() && format != trace::Format::Otlp {
+        anyhow::bail!("--endpoint posts OTLP; add --format otlp");
+    }
     let src = trace::resolve(session)?;
     let summary = trace::read(&src)?;
     let doc = serde_json::to_string(&trace::render(&src, &summary, format))?;
+    if let Some(url) = endpoint {
+        let status = trace::post(url, &doc)?;
+        eprintln!("agent-top: {url} accepted the trace ({status})");
+    }
     let count = |k: agent_top_core::SpanKind| summary.spans.iter().filter(|s| s.kind == k).count();
     let open = summary.spans.iter().filter(|s| s.kind == agent_top_core::SpanKind::Tool && s.is_open()).count();
     let still_open = if open > 0 { format!(" ({open} never returned)") } else { String::new() };
@@ -193,6 +205,9 @@ fn export_trace(session: &str, format: trace::Format, output: Option<&std::path:
                 path.display()
             );
         }
+        // Posted somewhere and no file asked for: the terminal need not get
+        // the document too.
+        None if endpoint.is_some() => {}
         _ => println!("{doc}"),
     }
     Ok(())

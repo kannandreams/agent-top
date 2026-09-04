@@ -19,6 +19,7 @@ clap.workspace = true
 clap_complete.workspace = true
 ratatui.workspace = true
 serde_json.workspace = true
+ureq.workspace = true
 
 # `cargo binstall agent-top` downloads the release asset instead of compiling.
 # These patterns must match the names the release workflow produces.

@@ -212,3 +212,72 @@ fn refuses_a_file_that_is_not_a_transcript() {
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("not a transcript"));
 }
+
+/// `--endpoint` posts the OTLP document to the given URL and nothing else:
+/// a listener on localhost receives exactly one request with the same
+/// document the file form writes.
+#[test]
+fn endpoint_posts_the_otlp_document_once() {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (mut sock, _) = listener.accept().unwrap();
+        let mut buf = Vec::new();
+        let mut tmp = [0u8; 65536];
+        let mut header_end = None;
+        let mut content_length = 0usize;
+        loop {
+            let n = sock.read(&mut tmp).unwrap();
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&tmp[..n]);
+            if header_end.is_none()
+                && let Some(i) = buf.windows(4).position(|w| w == b"\r\n\r\n")
+            {
+                header_end = Some(i + 4);
+                let head = String::from_utf8_lossy(&buf[..i]).to_ascii_lowercase();
+                content_length =
+                    head.lines().find_map(|l| l.strip_prefix("content-length:")).and_then(|v| v.trim().parse().ok()).unwrap_or(0);
+            }
+            if let Some(h) = header_end
+                && buf.len() >= h + content_length
+            {
+                break;
+            }
+        }
+        sock.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}").unwrap();
+        let h = header_end.unwrap();
+        (String::from_utf8_lossy(&buf[..h]).into_owned(), buf[h..h + content_length].to_vec())
+    });
+    let transcript = core_fixtures().join("codex-0.130.jsonl");
+    let out = Command::new(env!("CARGO_BIN_EXE_agent-top"))
+        .args(["trace", "--session"])
+        .arg(&transcript)
+        .args(["--format", "otlp", "--endpoint", &format!("http://127.0.0.1:{port}/v1/traces")])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(out.stdout.is_empty(), "posted, so nothing is printed");
+    assert!(String::from_utf8_lossy(&out.stderr).contains("accepted the trace (200)"));
+    let (head, body) = server.join().unwrap();
+    assert!(head.starts_with("POST /v1/traces HTTP/1.1"), "{head}");
+    assert!(head.to_ascii_lowercase().contains("content-type: application/json"));
+    let posted: Value = serde_json::from_slice(&body).unwrap();
+    let (expected, _) = export("codex-0.130", &["--format", "otlp"]);
+    assert_eq!(posted, expected);
+}
+
+#[test]
+fn endpoint_requires_otlp() {
+    let transcript = core_fixtures().join("codex-0.130.jsonl");
+    let out = Command::new(env!("CARGO_BIN_EXE_agent-top"))
+        .args(["trace", "--session"])
+        .arg(&transcript)
+        .args(["--endpoint", "http://127.0.0.1:9/v1/traces"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("--format otlp"));
+}

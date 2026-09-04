@@ -25,6 +25,8 @@ serde_json = "1.0"
 sysinfo = "0.39"
 thiserror = "2.0"
 toml = { version = "0.9", default-features = false, features = ["parse", "serde"] }
+# Only for `agent-top trace --endpoint`, which posts one file where the user says.
+ureq = "3.4"
 
 [profile.release]
 lto = "thin"

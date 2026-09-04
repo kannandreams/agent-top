@@ -430,6 +430,12 @@ fn agent_facts(a: &Agent) -> Text<'static> {
     if let Some(p) = &a.session_path {
         lines.push(kv("transcript", tilde(p)));
     }
+    if let Some(id) = &a.session_id {
+        // The first eight characters are almost always unique on one machine,
+        // and are what a user can type. The command resolves a prefix.
+        let short: String = id.chars().take(8).collect();
+        lines.push(kv("export", format!("agent-top trace --session {short} -o trace.json")));
+    }
     Text::from(lines)
 }
 
