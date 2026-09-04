@@ -5,7 +5,7 @@ Each phase ships on its own, and the order matters more than any date.
 ## v0.1 — the table (now)
 
 - Agents, state, tokens, cost, CPU, memory, tool calls, process count, MCP count, age.
-- Claude Code exact attribution; Codex heuristic attribution.
+- Claude Code exact attribution through its registry; Codex exact attribution through the rollout files a process holds open (macOS and Linux), heuristic elsewhere.
 - Process tree and orphaned MCP detection.
 - Tool trace: per-call spans from both harnesses, as a waterfall in the detail pane and as JSON.
 - Prices as data: a `prices.toml` compiled into the binary, with `~/.config/agent-top/prices.toml` merged over it, so any model can be priced and a stale price corrected without a release.

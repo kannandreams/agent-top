@@ -83,6 +83,13 @@ impl Collector {
         let mut agents = Vec::new();
         let mut attached: HashSet<PathBuf> = HashSet::new();
 
+        // Which rollouts each Codex process has open, gathered before any
+        // attribution so that no process's fallback can claim a thread
+        // another process is demonstrably writing.
+        let held: HashMap<u32, Option<Vec<PathBuf>>> =
+            roots.iter().filter(|r| r.harness == Some(Harness::Codex)).map(|r| (r.pid, codex::rollouts_open_by(r.pid))).collect();
+        let all_held: HashSet<PathBuf> = held.values().flatten().flatten().cloned().collect();
+
         for root in roots {
             let raw = by_pid.get(&root.pid).copied();
             let harness = root.harness.unwrap_or(Harness::Unknown);
@@ -96,7 +103,14 @@ impl Collector {
                     let (p, a) = attribute_claude(&root, raw, cwd.as_deref(), proc_start, &registry);
                     (p.into_iter().collect::<Vec<_>>(), a)
                 }
-                Harness::Codex => attribute_codex(cwd.as_deref(), proc_start, &self.recent_codex, &attached, now, &self.opts),
+                Harness::Codex => {
+                    let mine: Option<Vec<PathBuf>> = held
+                        .get(&root.pid)
+                        .and_then(|h| h.as_ref())
+                        .map(|h| h.iter().filter(|p| !attached.contains(*p)).cloned().collect());
+                    let taken: HashSet<PathBuf> = attached.union(&all_held).cloned().collect();
+                    attribute_codex(cwd.as_deref(), proc_start, mine.as_deref(), &self.recent_codex, &taken, now, &self.opts)
+                }
                 _ => (Vec::new(), Attribution::None),
             };
 
@@ -315,6 +329,13 @@ fn attribute_claude(
 
 /// Codex conversations belonging to one process, newest activity first.
 ///
+/// `held` are the rollouts the process has open, which is not a guess: Codex
+/// opens a thread's rollout when the thread starts and closes it when the
+/// thread ends. When the platform can say (`Some`), that list is the answer,
+/// an empty one included: a process holding no rollout is hosting no thread,
+/// and a rollout nobody holds is a finished conversation for the stopped
+/// list. The heuristics below are for when it cannot (`None`).
+///
 /// A `codex` CLI runs one conversation from the directory it was started in, so
 /// a cwd match finds it. The VS Code app-server is a different shape: one
 /// long-lived process, running from `/`, hosting any number of conversations
@@ -323,16 +344,27 @@ fn attribute_claude(
 /// returns all of them that are currently live and lets the caller give each
 /// its own row.
 ///
-/// A rollout already claimed by another process is skipped, so two Codex
-/// processes cannot both show the same conversation.
+/// A rollout in `taken` is skipped: one already claimed by another process,
+/// or one some process has open, so that two Codex processes cannot both
+/// show the same conversation and an older app-server cannot collect the
+/// threads of a newer one.
 fn attribute_codex(
     cwd: Option<&Path>,
     proc_start: SystemTime,
+    held: Option<&[PathBuf]>,
     recent: &[(PathBuf, PathBuf, SystemTime)],
     taken: &HashSet<PathBuf>,
     now: SystemTime,
     opts: &CollectorOptions,
 ) -> (Vec<PathBuf>, Attribution) {
+    if let Some(held) = held {
+        let mut mine = held.to_vec();
+        mine.sort_by_key(|p| std::cmp::Reverse(written_at(p)));
+        mine.truncate(MAX_CODEX_THREADS);
+        let attribution = if mine.is_empty() { Attribution::None } else { Attribution::OpenFile };
+        return (mine, attribution);
+    }
+
     let slack = Duration::from_secs(60);
     let started_after = |ts: &SystemTime| *ts + slack >= proc_start;
     let candidates = || recent.iter().filter(|(p, _, ts)| started_after(ts) && !taken.contains(p));
@@ -448,14 +480,14 @@ mod tests {
             [&a, &b, &c].iter().map(|p| ((*p).clone(), PathBuf::from("/Users/dev/code/one"), started)).collect();
 
         // The app-server case: the process cwd matches no conversation.
-        let (paths, attribution) = attribute_codex(Some(Path::new("/")), started, &recent, &HashSet::new(), now, &opts);
+        let (paths, attribution) = attribute_codex(Some(Path::new("/")), started, None, &recent, &HashSet::new(), now, &opts);
         assert_eq!(paths.len(), 3, "all three conversations get a row");
         assert_eq!(paths[0], c, "newest activity first");
         assert_eq!(attribution, Attribution::CwdHeuristic, "still a heuristic, and still labelled one");
 
         // A conversation already claimed by another process is not shown twice.
         let taken: HashSet<PathBuf> = [c.clone()].into_iter().collect();
-        let (paths, _) = attribute_codex(Some(Path::new("/")), started, &recent, &taken, now, &opts);
+        let (paths, _) = attribute_codex(Some(Path::new("/")), started, None, &recent, &taken, now, &opts);
         assert_eq!(paths.len(), 2);
         assert!(!paths.contains(&c));
 
@@ -463,18 +495,54 @@ mod tests {
         // window has finished; it belongs in the stopped list, not on this
         // process.
         let stale = now + opts.activity_timeout + Duration::from_secs(60);
-        let (paths, attribution) = attribute_codex(Some(Path::new("/")), started, &recent, &HashSet::new(), stale, &opts);
+        let (paths, attribution) = attribute_codex(Some(Path::new("/")), started, None, &recent, &HashSet::new(), stale, &opts);
         assert!(paths.is_empty());
         assert_eq!(attribution, Attribution::None);
 
         // The CLI case: one conversation, in the directory the process runs in.
-        let (paths, _) = attribute_codex(Some(Path::new("/Users/dev/code/one")), started, &recent, &HashSet::new(), now, &opts);
+        let (paths, _) = attribute_codex(Some(Path::new("/Users/dev/code/one")), started, None, &recent, &HashSet::new(), now, &opts);
         assert_eq!(paths.len(), 3, "a cwd match takes every conversation in that directory");
         assert_eq!(paths[0], c);
 
         // A rollout that predates the process is not this process's.
-        let (paths, _) = attribute_codex(Some(Path::new("/")), now + Duration::from_secs(3600), &recent, &HashSet::new(), now, &opts);
+        let (paths, _) = attribute_codex(Some(Path::new("/")), now + Duration::from_secs(3600), None, &recent, &HashSet::new(), now, &opts);
         assert!(paths.is_empty());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Two app-servers at once, the VS Code one and a CLI-spawned one, both
+    /// running from `/`. Without the open-file signal the one asked first
+    /// took every live thread. The bug this guards was found live on
+    /// 2026-09-04: two threads of a fresh app-server were shown on the four
+    /// day old VS Code one.
+    #[test]
+    fn an_open_rollout_belongs_to_the_process_holding_it() {
+        let dir = std::env::temp_dir().join(format!("agent-top-held-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let now = SystemTime::now();
+        let started = now - Duration::from_secs(600);
+        let opts = CollectorOptions::default();
+        let a = rollout(&dir, "a.jsonl", now - Duration::from_secs(200));
+        let b = rollout(&dir, "b.jsonl", now - Duration::from_secs(100));
+        let recent: Vec<(PathBuf, PathBuf, SystemTime)> =
+            [&a, &b].iter().map(|p| ((*p).clone(), PathBuf::from("/Users/dev/code/one"), started)).collect();
+
+        // The newer app-server holds both rollouts open. It started after the
+        // rollouts' recorded start, which the heuristic would reject; the open
+        // file settles it.
+        let held = vec![a.clone(), b.clone()];
+        let (paths, attribution) = attribute_codex(Some(Path::new("/")), now, Some(&held), &recent, &HashSet::new(), now, &opts);
+        assert_eq!(paths, vec![b.clone(), a.clone()], "held rollouts, newest written first");
+        assert_eq!(attribution, Attribution::OpenFile);
+
+        // The older app-server holds nothing. Its fallback would have taken
+        // both live rollouts; with them marked taken it gets no row.
+        let taken: HashSet<PathBuf> = held.iter().cloned().collect();
+        let (paths, attribution) = attribute_codex(Some(Path::new("/")), started, None, &recent, &taken, now, &opts);
+        assert!(paths.is_empty());
+        assert_eq!(attribution, Attribution::None);
 
         let _ = fs::remove_dir_all(&dir);
     }

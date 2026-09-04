@@ -310,6 +310,9 @@ pub enum Attribution {
     HarnessRegistry,
     /// A `--resume <id>` style argument on the command line.
     CommandLine,
+    /// The process has the transcript open (Codex keeps every live thread's
+    /// rollout open); exact.
+    OpenFile,
     /// Matched by working directory and start time; may be wrong with concurrent sessions.
     CwdHeuristic,
     /// No transcript found; process only.

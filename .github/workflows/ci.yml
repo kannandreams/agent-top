@@ -20,7 +20,7 @@ jobs:
     env:
       MISE_LOCKED: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install development toolchain
         uses: jdx/mise-action@v4.2.3

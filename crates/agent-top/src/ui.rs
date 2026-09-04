@@ -230,8 +230,8 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
         mem_row,
     );
     let [spark_label, spark] = Layout::horizontal([Constraint::Length(11), Constraint::Min(4)]).areas(spark_row);
-    f.render_widget(Paragraph::new(Span::styled("tokens/s ", Style::default().fg(DIM))), spark_label);
-    f.render_widget(Sparkline::default().data(&app.tokens_per_tick).style(Style::default().fg(ACCENT)), spark);
+    f.render_widget(Paragraph::new(Span::styled("out tok/s ", Style::default().fg(DIM))), spark_label);
+    f.render_widget(Sparkline::default().data(&app.output_rate).style(Style::default().fg(ACCENT)), spark);
 
     let t = &snap.totals;
     let lines = vec![
@@ -386,6 +386,7 @@ fn agent_facts(a: &Agent) -> Text<'static> {
     let attribution = match a.attribution {
         Attribution::HarnessRegistry => "harness registry (exact)",
         Attribution::CommandLine => "command line --resume (exact)",
+        Attribution::OpenFile => "open transcript file (exact)",
         Attribution::CwdHeuristic => "cwd + start time (heuristic)",
         Attribution::None => "none (process only)",
         Attribution::TranscriptOnly => "transcript only (no process)",

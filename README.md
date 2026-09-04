@@ -199,7 +199,7 @@ priced, because OpenAI's rate is not in the table.
 | Harness | Discovery | Tokens and cost | State |
 |---|---|---|---|
 | Claude Code | process table + `~/.claude/sessions/<pid>.json` (exact) | transcript usage, priced per model, subagent transcripts folded into their parent | harness-reported |
-| Codex CLI / app-server | process table + rollout `cwd` match (heuristic) | transcript usage; priced once you add the model to [your price table](#prices) | transcript events |
+| Codex CLI / app-server | process table + the rollout files the process holds open (exact on macOS and Linux; `cwd` heuristic elsewhere) | transcript usage; priced once you add the model to [your price table](#prices) | transcript events |
 | Gemini CLI, OpenCode, Aider, Copilot CLI, cursor-agent | process table only | not yet | CPU heuristic |
 
 ## Install
@@ -260,8 +260,11 @@ about which ones are exact and which are inferred.
   of a number that looks more precise than it is.
 - **Attribution says how confident it is.** Claude Code publishes a per-pid
   registry, so a session is matched to its process exactly. Codex has no
-  equivalent, so the match is made on working directory and start time, and the
-  detail pane labels that row a heuristic rather than presenting it as fact.
+  registry, but it keeps every live thread's rollout file open, and on macOS and
+  Linux agent-top reads which files a process holds, which is just as exact. On
+  a platform where it cannot, the match falls back to working directory and
+  start time, and the detail pane labels that row a heuristic rather than
+  presenting it as fact.
 - **Only metadata is read.** Token counts, model ids, tool names, timestamps.
   Never a prompt, a tool input, or a tool result.
 - **Nothing is written, signalled, or sent anywhere.** `agent-top` never kills or

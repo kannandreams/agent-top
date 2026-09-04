@@ -8,6 +8,7 @@ pub mod collector;
 pub mod harness;
 pub mod jsonl;
 pub mod model;
+mod openfiles;
 pub mod pricing;
 pub mod process;
 

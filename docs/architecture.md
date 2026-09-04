@@ -24,7 +24,7 @@ crates/agent-top               ratatui front end
 ```mermaid
 flowchart LR
   P[sysinfo process table] --> F[build_forest\nagent roots, child kinds, orphans]
-  R[~/.claude/sessions/pid.json] --> A[attribute\nregistry > argv > cwd heuristic]
+  R[~/.claude/sessions/pid.json] --> A[attribute\nregistry > argv > open files > cwd heuristic]
   F --> A
   T[transcripts\n~/.claude/projects, ~/.codex/sessions] --> K[SessionTracker\nincremental tail]
   A --> K

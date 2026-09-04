@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.3.4] - 2026-09-04
+
+### Fixed
+- **Codex rollouts were invisible after the first day of a month.** The scan of `~/.codex/sessions/YYYY/MM/DD/` pruned directories by their mtime, and a directory's mtime moves only when an entry is created directly inside it, so the year directory was last touched when the month directory was created. Every rollout written after that was skipped, which left every Codex process with `attribution: none`. The tree is now walked in full; it is a few hundred directories at most.
+- **Two Codex app-servers no longer trade threads.** With the VS Code extension's app-server and a second one running, whichever was asked first took every live thread. A Codex process is now matched to the rollouts it holds open, which is exact: Codex opens a thread's rollout when the thread starts and closes it when the thread ends. The detail pane labels these rows "open transcript file (exact)" and `--json` says `"attribution": "open-file"`. A process that holds no rollout gets no thread, and a rollout nobody holds is a finished conversation in the stopped list. On a platform where open files cannot be read, the old heuristics still apply. Adds `libproc` on macOS; Linux reads `/proc/<pid>/fd`.
+- **The header sparkline measures output tokens per second.** It was labelled tokens/s but plotted the change in total tokens per refresh, cache reads included, so one turn on a large context showed as a spike. It now plots output tokens per second over a ten second window and is labelled `out tok/s`.
+
+### Changed
+- CI and release workflows use `actions/checkout@v5`.
+
 ## [0.3.3] - 2026-09-04
 
 ### Added

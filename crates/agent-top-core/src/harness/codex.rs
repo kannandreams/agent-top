@@ -41,10 +41,41 @@ pub fn sessions_dir() -> Option<PathBuf> {
 
 /// Rollout files modified after `since`. Walks `YYYY/MM/DD` and prunes by
 /// directory mtime so the walk stays cheap on a long history.
+/// Rollouts the process has open: the app-server's live threads, or the CLI's
+/// one conversation. `None` when the platform cannot say. Filtered to the
+/// sessions directory so an unrelated file the process holds (a log, a
+/// config) is never mistaken for a thread, and mapped back under the
+/// un-canonicalised sessions directory so the paths compare equal to those
+/// from `recent_rollouts`.
+pub fn rollouts_open_by(pid: u32) -> Option<Vec<PathBuf>> {
+    let root = sessions_dir()?;
+    let canonical = std::fs::canonicalize(&root).unwrap_or_else(|_| root.clone());
+    let open = crate::openfiles::open_files(pid)?;
+    Some(
+        open.into_iter()
+            .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("jsonl"))
+            .filter_map(|p| p.strip_prefix(&canonical).ok().map(|rel| root.join(rel)))
+            .collect(),
+    )
+}
+
+/// Every rollout written since `since`.
 pub fn recent_rollouts(since: SystemTime) -> Vec<PathBuf> {
     let Some(root) = sessions_dir() else { return Vec::new() };
+    rollouts_under(&root, since)
+}
+
+/// The tree is `YYYY/MM/DD/*.jsonl` and is walked in full, three levels deep,
+/// with only the files filtered by mtime. Pruning directories by their mtime
+/// looked cheaper and was wrong: a directory's mtime moves only when an entry
+/// is created directly inside it, so the year directory is touched once a
+/// month and every rollout written after the first of the month was invisible.
+/// Pruning by name would be wrong too, since a directory's date says when a
+/// thread started, not whether it is still being written to; the app-server
+/// keeps a thread for days. A few hundred directories cost a few milliseconds.
+pub(crate) fn rollouts_under(root: &Path, since: SystemTime) -> Vec<PathBuf> {
     let mut out = Vec::new();
-    walk(&root, 0, since, &mut out);
+    walk(root, 0, since, &mut out);
     out
 }
 
@@ -54,7 +85,7 @@ fn walk(dir: &Path, depth: usize, since: SystemTime, out: &mut Vec<PathBuf>) {
         let p = e.path();
         let Ok(md) = e.metadata() else { continue };
         if md.is_dir() {
-            if depth < 3 && md.modified().map(|m| m >= since).unwrap_or(true) {
+            if depth < 3 {
                 walk(&p, depth + 1, since, out);
             }
         } else if p.extension().and_then(|x| x.to_str()) == Some("jsonl") && md.modified().map(|m| m >= since).unwrap_or(false) {
@@ -295,6 +326,30 @@ impl SessionTracker for CodexTranscript {
 mod tests {
     use super::*;
     use std::io::Write;
+    use std::time::Duration;
+
+    /// The bug this guards: the year and month directories were last touched
+    /// when a child directory was created, long before the rollout of
+    /// interest was written.
+    #[test]
+    fn finds_a_fresh_rollout_under_stale_directories() {
+        let root = std::env::temp_dir().join(format!("agent-top-rollouts-{}", std::process::id()));
+        let day = root.join("2026").join("09").join("04");
+        std::fs::create_dir_all(&day).unwrap();
+        let fresh = day.join("rollout-fresh.jsonl");
+        let stale = day.join("rollout-stale.jsonl");
+        std::fs::write(&fresh, "{}\n").unwrap();
+        std::fs::write(&stale, "{}\n").unwrap();
+        let now = SystemTime::now();
+        let long_ago = now - Duration::from_secs(40 * 86_400);
+        std::fs::File::open(&stale).unwrap().set_modified(long_ago).unwrap();
+        for dir in [&root, &root.join("2026"), &root.join("2026").join("09"), &day] {
+            std::fs::File::open(dir).unwrap().set_modified(long_ago).unwrap();
+        }
+        let found = rollouts_under(&root, now - Duration::from_secs(1800));
+        assert_eq!(found, vec![fresh], "the fresh file is found through directories nobody has touched in weeks");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 
     #[test]
     fn reads_cumulative_usage_and_state() {
