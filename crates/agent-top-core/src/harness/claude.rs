@@ -32,7 +32,7 @@
 
 use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanLog, SpanRetention, parse_rfc3339_utc};
 use crate::jsonl::TailReader;
-use crate::model::{Activity, Harness, SpanKind, TokenUsage};
+use crate::model::{Activity, CostBreakdown, Harness, SpanKind, TokenUsage};
 use crate::pricing::{self, Table};
 use serde::Deserialize;
 use serde_json::Value;
@@ -206,7 +206,7 @@ struct Parser {
 #[derive(Debug, Clone, Copy, Default)]
 struct Contrib {
     usage: TokenUsage,
-    cost: f64,
+    cost: CostBreakdown,
     unpriced: u64,
     searches: u64,
 }
@@ -417,7 +417,8 @@ impl Parser {
         // Web searches are billed per search on top of the tokens; the usage
         // record carries the count. Web fetches are in the same record and free.
         let searches = msg.pointer("/usage/server_tool_use/web_search_requests").and_then(Value::as_u64).unwrap_or(0);
-        let cost = price.map(|p| p.cost(&usage)).unwrap_or(0.0) + prices.web_search_cost(searches);
+        let mut cost = price.map(|p| p.breakdown(&usage)).unwrap_or_default();
+        cost.web_search = prices.web_search_cost(searches);
         let unpriced = if price.is_none() { usage.total() } else { 0 };
 
         let same_message = id.is_some() && id == self.last_msg_id;
@@ -425,7 +426,8 @@ impl Parser {
             // Replace the previous contribution from this id with the latest one.
             let c = self.last_contrib;
             self.summary.usage.sub(&c.usage);
-            self.summary.cost_usd -= c.cost;
+            self.summary.cost_usd -= c.cost.total();
+            self.summary.cost_breakdown.sub(&c.cost);
             self.summary.unpriced_tokens = self.summary.unpriced_tokens.saturating_sub(c.unpriced);
             self.summary.web_searches = self.summary.web_searches.saturating_sub(c.searches);
         } else {
@@ -435,7 +437,8 @@ impl Parser {
             }
         }
         self.summary.usage.add(&usage);
-        self.summary.cost_usd += cost;
+        self.summary.cost_usd += cost.total();
+        self.summary.cost_breakdown.add(&cost);
         self.summary.unpriced_tokens += unpriced;
         self.summary.web_searches += searches;
         self.last_msg_id = id;
@@ -528,6 +531,7 @@ impl ClaudeTranscript {
             let t = &c.summary;
             s.usage.add(&t.usage);
             s.cost_usd += t.cost_usd;
+            s.cost_breakdown.add(&t.cost_breakdown);
             s.unpriced_tokens += t.unpriced_tokens;
             s.turns += t.turns;
             s.subagent_turns += t.subagent_turns;

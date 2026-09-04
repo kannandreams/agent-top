@@ -3,7 +3,7 @@
 
 use crate::app::{App, DetailView};
 use crate::format::{age, bytes, cost, cpu_cell, duration_ms, mem_cell, short_cmd, short_model, tokens, tokens_cell, truncate};
-use agent_top_core::{Agent, AgentState, Attribution, Harness, ProcKind, ProcNode, SpanKind, ToolSpan};
+use agent_top_core::{Agent, AgentState, Attribution, ProcKind, ProcNode, SpanKind, ToolSpan};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -381,8 +381,37 @@ fn kv<'a>(k: &'a str, v: String) -> Line<'a> {
     Line::from(vec![Span::styled(format!("{k:<11}"), Style::default().fg(DIM)), Span::raw(v)])
 }
 
+/// One line of the cost breakdown: tokens, the price they were charged at,
+/// and what that came to. The price column is the row's current model's; the
+/// cost column is exact even when the session changed model part way.
+fn cost_row(label: &str, n: u64, per_m: Option<f64>, usd: f64) -> Line<'static> {
+    let (per_m, usd) = match per_m {
+        Some(p) => (format!("{p:>9.2}"), format!("{usd:>10.2}")),
+        None => (format!("{:>9}", "n/a"), format!("{:>10}", "-")),
+    };
+    Line::from(vec![
+        Span::styled(format!("{label:<13}"), Style::default().fg(DIM)),
+        Span::raw(format!("{:>7}", tokens(n))),
+        dim(per_m),
+        Span::raw(usd),
+    ])
+}
+
+/// What the cost figure is priced at, so a user comparing it with another
+/// tool's number knows which table produced it.
+fn price_basis(a: &Agent) -> String {
+    match a.price_source {
+        Some(agent_top_core::PriceSource::Builtin) => "list price, built-in table".into(),
+        Some(agent_top_core::PriceSource::UserFile) => "your price file".into(),
+        None if a.unpriced_tokens > 0 => "no price for this model".into(),
+        None => String::new(),
+    }
+}
+
 fn agent_facts(a: &Agent) -> Text<'static> {
     let u = &a.usage;
+    let b = &a.cost_breakdown;
+    let price = a.model.as_deref().and_then(agent_top_core::pricing::price_for);
     let attribution = match a.attribution {
         Attribution::HarnessRegistry => "harness registry (exact)",
         Attribution::CommandLine => "command line --resume (exact)",
@@ -406,26 +435,29 @@ fn agent_facts(a: &Agent) -> Text<'static> {
         kv("activity", format!("{:?}{}", a.activity, a.idle_secs.map(|s| format!(", last write {} ago", age(s))).unwrap_or_default())),
         kv("attributed", attribution.to_string()),
         Line::raw(""),
-        Line::from(vec![Span::styled("tokens", Style::default().fg(ACCENT).bold())]),
-        kv("  input", tokens(u.input)),
-        kv("  cache rd", tokens(u.cache_read)),
-        kv("  cache wr", format!("{} (5m {}, 1h {})", tokens(u.cache_write()), tokens(u.cache_write_5m), tokens(u.cache_write_1h))),
-        kv("  output", tokens(u.output)),
-        kv("  total", tokens(u.total())),
-        kv(
-            "cost",
-            format!(
-                "{}{}",
-                cost(a),
-                if a.unpriced_tokens > 0 { format!("  ({} tokens unpriced)", tokens(a.unpriced_tokens)) } else { String::new() }
-            ),
-        ),
+        Line::from(vec![
+            Span::styled(format!("{:<13}{:>7}", "tokens", ""), Style::default().fg(ACCENT).bold()),
+            dim(format!("{:>9}{:>10}", "$/M", "cost")),
+        ]),
+        cost_row("  input", u.input, price.map(|p| p.input), b.input),
+        cost_row("  cache rd", u.cache_read, price.map(|p| p.cache_read), b.cache_read),
+        cost_row("  cache wr 5m", u.cache_write_5m, price.map(|p| p.cache_write_5m), b.cache_write_5m),
+        cost_row("  cache wr 1h", u.cache_write_1h, price.map(|p| p.cache_write_1h), b.cache_write_1h),
+        cost_row("  output", u.output, price.map(|p| p.output), b.output),
+        Line::from(vec![
+            Span::styled(format!("{:<13}", "  total"), Style::default().fg(DIM)),
+            Span::raw(format!("{:>7}", tokens(u.total()))),
+        ]),
+        Line::from(vec![
+            Span::styled(format!("{:<11}", "cost"), Style::default().fg(DIM)),
+            Span::styled(cost(a), Style::default().bold()),
+            dim(format!("   {}", price_basis(a))),
+        ]),
         kv("turns", format!("{} ({} subagent)", a.turns, a.subagent_turns)),
         kv("tool calls", a.tool_calls.to_string()),
     ]);
     if a.web_searches > 0 {
-        let cost = agent_top_core::pricing::table().web_search_cost(a.web_searches);
-        let priced = if a.harness == Harness::Claude && cost > 0.0 { format!(" (${cost:.2})") } else { " (not priced)".to_string() };
+        let priced = if b.web_search > 0.0 { format!(" (${:.2})", b.web_search) } else { " (not priced)".to_string() };
         lines.push(kv("web searches", format!("{}{priced}", a.web_searches)));
     }
     if let Some(p) = &a.session_path {
@@ -715,7 +747,10 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::raw("  STATE   running = mid-turn, idle = waiting for you,"),
         Line::raw("          stopped = transcript with no live process"),
         Line::raw("  TOKENS  input + cache read + cache write + output"),
-        Line::raw("  COST    USD at list price; '+' or '≥' = some tokens unpriced"),
+        Line::raw("  COST    USD at list price; '+' or '≥' = some tokens unpriced."),
+        Line::raw("          The detail pane shows it per kind of token with the"),
+        Line::raw("          price used, so a different figure elsewhere can be"),
+        Line::raw("          traced to the one line that differs."),
         Line::raw("  PROCS   processes in the agent's tree; MCP = of those,"),
         Line::raw("          Model Context Protocol servers (name heuristic)"),
         Line::raw("  AGE     process age, or time since last write when stopped"),
@@ -773,6 +808,8 @@ mod tests {
             harness_version: Some("2.1.259".into()),
             usage: TokenUsage { input: 2, cache_write_5m: 9_900, cache_write_1h: 0, cache_read: 22_000, output: 250 },
             cost_usd: 1.42,
+            cost_breakdown: agent_top_core::CostBreakdown { output: 1.42, ..Default::default() },
+            price_source: Some(agent_top_core::PriceSource::Builtin),
             unpriced_tokens: 0,
             turns: 12,
             subagent_turns: 1,
@@ -823,6 +860,48 @@ mod tests {
             })
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    /// The cost is shown one line per kind of token with the price it was
+    /// charged at, so a figure that differs from another tool's can be traced
+    /// to the line that differs. Run with `--nocapture` to eyeball it.
+    #[test]
+    fn detail_pane_breaks_the_cost_down_per_token_kind() {
+        let mut a = agent("tuff", Vec::new());
+        a.cost_breakdown = agent_top_core::CostBreakdown {
+            input: 0.00002,
+            cache_write_5m: 0.12375,
+            cache_write_1h: 0.0,
+            cache_read: 0.0055,
+            output: 0.0125,
+            web_search: 0.0,
+        };
+        a.cost_usd = a.cost_breakdown.total();
+        let mut app = App::new(snapshot(vec![a]));
+        app.detail = DetailView::Tree;
+        let out = render(&mut app, 110, 60);
+        println!("{out}");
+        let line = |label: &str| out.lines().find(|l| l.contains(label)).unwrap_or_else(|| panic!("no {label} line in\n{out}")).to_string();
+        assert!(line("$/M").contains("cost"), "column headings");
+        assert!(line("cache rd").contains("22k") && line("cache rd").contains("0.25") && line("cache rd").contains("0.01"));
+        assert!(line("cache wr 5m").contains("9.9k") && line("cache wr 5m").contains("12.50") && line("cache wr 5m").contains("0.12"));
+        assert!(line("output").contains("50.00") && line("output").contains("0.01"));
+        assert!(line("list price, built-in table").contains("$0.14"), "the total names its basis");
+
+        // A model with no price shows the counts and says so, rather than
+        // printing zeros that read as a cheap session.
+        let mut a = agent("tuff", Vec::new());
+        a.model = Some("gpt-9-unknown".into());
+        a.price_source = None;
+        a.cost_usd = 0.0;
+        a.cost_breakdown = Default::default();
+        a.unpriced_tokens = a.usage.total();
+        let mut app = App::new(snapshot(vec![a]));
+        app.detail = DetailView::Tree;
+        let out = render(&mut app, 110, 60);
+        let line = |label: &str| out.lines().find(|l| l.contains(label)).unwrap().to_string();
+        assert!(line("cache rd").contains("n/a") && line("cache rd").contains("22k"));
+        assert!(line("no price for this model").contains("n/a"));
     }
 
     /// Renders the whole frame with the trace panel open. Run with

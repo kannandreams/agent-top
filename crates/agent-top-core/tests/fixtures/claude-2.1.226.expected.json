@@ -1,5 +1,13 @@
 {
   "activity": "Working",
+  "cost_breakdown_micros": {
+    "cache_read": 1005090,
+    "cache_write_1h": 1616000,
+    "cache_write_5m": 0,
+    "input": 330,
+    "output": 932900,
+    "web_search": 0
+  },
   "cost_usd_micros": 3554320,
   "cwd": "/Users/dev/code/example",
   "harness_version": "2.1.226",

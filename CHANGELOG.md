@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.3.5] - 2026-09-04
+
+### Added
+- **The cost is broken down per kind of token in the detail pane**, with the price each was charged at and what it came to, and the total names the table it was priced from ("list price, built-in table" or "your price file"). A figure that differs from the harness's own display can now be traced to the one line that differs, instead of looking like a bug. `--json` carries the same lines as `cost_breakdown` and the table as `price_source`; both are additive.
+- A README section, "If the cost does not match your harness", with a real worked example (Claude Code pricing Fable 5.1 cache reads at $0.50 per million where the published page says $0.25) and the one-model override that makes the figures agree.
+
+### Changed
+- The README's Prices section says plainly that a user file overrides the built-in table one model at a time.
+
 ## [0.3.4] - 2026-09-04
 
 ### Fixed

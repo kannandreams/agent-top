@@ -214,10 +214,12 @@ impl CodexTranscript {
                         let price = self.summary.model.as_deref().and_then(|m| self.prices.lookup(m));
                         match price {
                             Some(p) => {
-                                self.summary.cost_usd = p.cost(&usage);
+                                self.summary.cost_breakdown = p.breakdown(&usage);
+                                self.summary.cost_usd = self.summary.cost_breakdown.total();
                                 self.summary.unpriced_tokens = 0;
                             }
                             None => {
+                                self.summary.cost_breakdown = Default::default();
                                 self.summary.cost_usd = 0.0;
                                 self.summary.unpriced_tokens = usage.total();
                             }

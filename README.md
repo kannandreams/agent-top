@@ -66,6 +66,25 @@ Press `t` to open it and `Tab` to switch between two views.
 `mcp`, `shell` or `tool`, with the token breakdown beside it. **Orphaned MCP
 processes**, servers with no live agent above them, are listed in red.
 
+The facts on the left include the cost one line per kind of token, with the
+price each was charged at and what it came to, and the total names the table
+it was priced from:
+
+```
+ tokens                    $/M      cost
+   input         8.7k    10.00      0.09
+   cache rd     31.2M     0.25      7.80
+   cache wr 5m      0    12.50      0.00
+   cache wr 1h   1.0M    20.00     20.30
+   output        318k    50.00     15.90
+   total        32.0M
+ cost       $44.12   list price, built-in table
+```
+
+If another tool shows a different figure for the same session, this is where
+to look: three lines will match and one will not. See
+[If the cost does not match your harness](#if-the-cost-does-not-match-your-harness).
+
 **Tool trace.** A waterfall of the session's recent activity on a shared time
 axis:
 
@@ -160,8 +179,16 @@ one case where agent-top sends one itself, because you gave it the address.
 ## Prices
 
 Prices are data, not code. The table shipped in the binary lives in
-[`crates/agent-top-core/prices.toml`](crates/agent-top-core/prices.toml), and a
-file of your own is merged over it at startup:
+[`crates/agent-top-core/prices.toml`](crates/agent-top-core/prices.toml) and
+carries the vendors' published list prices. `agent-top --prices` prints it.
+
+You can override any price, or add a model that is missing, without waiting for
+a release: write a file of your own at `~/.config/agent-top/prices.toml`. It is
+merged over the built-in table at startup, one model at a time, so list only
+what you want to change. A model in your file replaces the built-in row for
+that model; every other row stays as shipped. `--prices` marks the rows that
+came from your file, and the detail pane says "your price file" next to a cost
+that used one.
 
 ```toml
 # ~/.config/agent-top/prices.toml   (USD per million tokens)
@@ -271,6 +298,49 @@ about which ones are exact and which are inferred.
   writes to an agent, and the only network call it can make is the one you ask
   for by typing an address after `--endpoint`. Killing an orphaned MCP server
   is your decision, with your own `kill`.
+
+### If the cost does not match your harness
+
+It usually will not match to the cent, and that is not a bug in either tool.
+agent-top prices the harness's own token counts at the vendor's published list
+price. Harnesses keep their own price tables, and those can differ from the
+published page for a model, or lag behind a price change. Neither number is a
+bill: on a subscription plan nothing is charged per token, and both figures are
+"what this would have cost on the API".
+
+A real example. One Claude Code session, read at the same moment by both tools:
+
+| Line | Tokens | agent-top | Claude Code |
+|---|---|---|---|
+| input | 8.7k | $10 / M, $0.09 | $10 / M, $0.09 |
+| cache write (1h) | 1.0M | $20 / M, $20.30 | $20 / M, $20.30 |
+| cache read | 31.2M | $0.25 / M, $7.80 | $0.50 / M, $15.59 |
+| output | 318k | $50 / M, $15.90 | $50 / M, $15.90 |
+| total | | $44.12 | $51.91 |
+
+Three lines agree, the cache read line does not: the pricing page lists Fable
+5.1 cache hits at $0.25 per million, and Claude Code 2.1.259 charged $0.50.
+Because every turn re-sends the whole conversation from cache, that one line
+is most of a long session's cost, and a small difference on it becomes a large
+gap in the total.
+
+The detail pane shows this breakdown for every row, so the differing line can
+be found without arithmetic. If you would rather see the same figure as your
+harness, override that one price in your own table and the row will say
+"your price file":
+
+```toml
+# ~/.config/agent-top/prices.toml
+[[model]]
+prefix = "claude-fable-5-1"
+input = 10.0
+output = 50.0
+cache_read = 0.5
+```
+
+The built-in table stays at the published price. It is never adjusted to match
+a harness, because the harness's table is not published and changes without
+notice.
 
 [docs/architecture.md](docs/architecture.md) has the mechanism underneath: the
 process walk, the incremental transcript tail, and how a snapshot is assembled

@@ -269,6 +269,13 @@ pub struct Agent {
     pub usage: TokenUsage,
     /// USD spent on messages whose model had a known price.
     pub cost_usd: f64,
+    /// `cost_usd` by kind of token, so a figure that differs from another
+    /// tool's can be traced to the one line that differs.
+    #[serde(default)]
+    pub cost_breakdown: CostBreakdown,
+    /// Where the price of this row's model came from; `None` when it has none.
+    #[serde(default)]
+    pub price_source: Option<PriceSource>,
     /// Tokens on messages whose model had no known price (so `cost_usd` is a floor).
     pub unpriced_tokens: u64,
     pub turns: u64,
@@ -301,6 +308,53 @@ pub struct Agent {
     /// means this row's tokens and cost are not to be believed. Almost always a
     /// harness that changed its format under us.
     pub parse_warning: Option<String>,
+}
+
+/// USD by kind of token, accumulated message by message at each message's
+/// own model price, so a session that changed model part way is still exact.
+/// The lines sum to `Agent::cost_usd`.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+pub struct CostBreakdown {
+    pub input: f64,
+    pub cache_write_5m: f64,
+    pub cache_write_1h: f64,
+    pub cache_read: f64,
+    pub output: f64,
+    /// Server-side web searches, billed per search on top of the tokens.
+    pub web_search: f64,
+}
+
+impl CostBreakdown {
+    pub fn total(&self) -> f64 {
+        self.input + self.cache_write_5m + self.cache_write_1h + self.cache_read + self.output + self.web_search
+    }
+
+    pub fn add(&mut self, o: &CostBreakdown) {
+        self.input += o.input;
+        self.cache_write_5m += o.cache_write_5m;
+        self.cache_write_1h += o.cache_write_1h;
+        self.cache_read += o.cache_read;
+        self.output += o.output;
+        self.web_search += o.web_search;
+    }
+
+    pub fn sub(&mut self, o: &CostBreakdown) {
+        self.input -= o.input;
+        self.cache_write_5m -= o.cache_write_5m;
+        self.cache_write_1h -= o.cache_write_1h;
+        self.cache_read -= o.cache_read;
+        self.output -= o.output;
+        self.web_search -= o.web_search;
+    }
+}
+
+/// Where a model's price came from. The built-in table carries list prices;
+/// a user's file is whatever they chose to write, and the UI says which.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PriceSource {
+    Builtin,
+    UserFile,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

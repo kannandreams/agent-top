@@ -262,6 +262,8 @@ mod tests {
             harness_version: None,
             usage: TokenUsage { input: 10, cache_write_5m: 0, cache_write_1h: 0, cache_read: 500_000, output },
             cost_usd: 0.0,
+            cost_breakdown: Default::default(),
+            price_source: None,
             unpriced_tokens: 0,
             turns: 1,
             subagent_turns: 0,

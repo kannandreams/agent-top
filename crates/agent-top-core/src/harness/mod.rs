@@ -6,7 +6,7 @@
 pub mod claude;
 pub mod codex;
 
-use crate::model::{Activity, Harness, SpanKind, TokenUsage, ToolSpan};
+use crate::model::{Activity, CostBreakdown, Harness, SpanKind, TokenUsage, ToolSpan};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -56,6 +56,8 @@ pub struct SessionSummary {
     pub harness_version: Option<String>,
     pub usage: TokenUsage,
     pub cost_usd: f64,
+    /// `cost_usd` by kind of token. See `Agent::cost_breakdown`.
+    pub cost_breakdown: CostBreakdown,
     pub unpriced_tokens: u64,
     pub turns: u64,
     pub subagent_turns: u64,

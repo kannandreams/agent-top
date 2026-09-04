@@ -10,7 +10,7 @@
 //! A model with no entry is never guessed at. Its tokens are counted and
 //! reported as unpriced, and any total containing them is shown as a floor.
 
-use crate::model::TokenUsage;
+use crate::model::{CostBreakdown, PriceSource, TokenUsage};
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -30,12 +30,20 @@ pub struct Price {
 impl Price {
     /// Cost in USD of `usage` at this price.
     pub fn cost(&self, usage: &TokenUsage) -> f64 {
+        self.breakdown(usage).total()
+    }
+
+    /// The same cost, one line per kind of token.
+    pub fn breakdown(&self, usage: &TokenUsage) -> CostBreakdown {
         const M: f64 = 1_000_000.0;
-        usage.input as f64 * self.input / M
-            + usage.cache_write_5m as f64 * self.cache_write_5m / M
-            + usage.cache_write_1h as f64 * self.cache_write_1h / M
-            + usage.cache_read as f64 * self.cache_read / M
-            + usage.output as f64 * self.output / M
+        CostBreakdown {
+            input: usage.input as f64 * self.input / M,
+            cache_write_5m: usage.cache_write_5m as f64 * self.cache_write_5m / M,
+            cache_write_1h: usage.cache_write_1h as f64 * self.cache_write_1h / M,
+            cache_read: usage.cache_read as f64 * self.cache_read / M,
+            output: usage.output as f64 * self.output / M,
+            web_search: 0.0,
+        }
     }
 }
 
@@ -118,10 +126,23 @@ impl Table {
     }
 
     pub fn lookup(&self, model: &str) -> Option<Price> {
+        self.entry_for(model).map(|e| e.price)
+    }
+
+    /// Whether the model's effective price is the built-in list price or the
+    /// user's own.
+    pub fn source_for(&self, model: &str) -> Option<PriceSource> {
+        self.entry_for(model).map(|e| match e.origin {
+            Origin::Builtin => PriceSource::Builtin,
+            Origin::User => PriceSource::UserFile,
+        })
+    }
+
+    fn entry_for(&self, model: &str) -> Option<&Entry> {
         let m = model.trim().to_ascii_lowercase();
         let m = m.strip_prefix("anthropic.").unwrap_or(&m);
         let m = m.strip_prefix("us.anthropic.").unwrap_or(m);
-        self.entries.iter().filter(|e| m.starts_with(&e.prefix)).max_by_key(|e| e.prefix.len()).map(|e| e.price)
+        self.entries.iter().filter(|e| m.starts_with(&e.prefix)).max_by_key(|e| e.prefix.len())
     }
 }
 
