@@ -54,7 +54,10 @@ instead of being guessed at, so a cost is never quietly invented.
 
 **Tracing.** Pairs each tool call with its result to produce spans with real
 durations. This works for harnesses that emit no telemetry of their own, and it
-works retroactively on sessions that have already finished.
+works retroactively on sessions that have already finished. The live tracker
+keeps the newest 128 spans; to read a whole transcript, open it with
+`harness::open_transcript(path, harness, SpanRetention::All)` and call
+`refresh_all`, which is what `agent-top trace` does.
 
 Everything is read only and stays on the machine. The library makes no network
 calls, never signals or writes to an agent, and reads metadata fields only,

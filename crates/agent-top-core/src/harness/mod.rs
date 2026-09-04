@@ -67,9 +67,10 @@ pub struct SessionSummary {
     pub last_activity: Option<SystemTime>,
 }
 
-/// Spans kept per session. A screenful of waterfall is a few dozen rows; the
-/// rest is history nobody scrolls to in a live view, and every span costs a
-/// clone on each refresh.
+/// Spans kept per session by the live tracker. A screenful of waterfall is
+/// a few dozen rows; the rest is history nobody scrolls to in a live view, and
+/// every span costs a clone on each refresh. An export wants the whole session
+/// and uses `SpanLog::unbounded` in a separate pass; see `SpanRetention`.
 pub const MAX_SPANS: usize = 128;
 
 /// A bounded, in-order log of tool spans, built by pairing a harness's
@@ -78,19 +79,33 @@ pub const MAX_SPANS: usize = 128;
 /// Records arrive interleaved and out of order (agents run tools in parallel),
 /// so a span is closed by searching back for the still-open span with that id
 /// rather than assuming the most recent one.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SpanLog {
     spans: VecDeque<ToolSpan>,
+    cap: usize,
+}
+
+impl Default for SpanLog {
+    fn default() -> Self {
+        SpanLog { spans: VecDeque::new(), cap: MAX_SPANS }
+    }
 }
 
 impl SpanLog {
+    /// A log that keeps every span. For a one-shot pass over a whole
+    /// transcript, never for the live tracker, where the memory and the clone
+    /// per refresh would grow with the session.
+    pub fn unbounded() -> Self {
+        SpanLog { spans: VecDeque::new(), cap: usize::MAX }
+    }
+
     /// Record the start of a call. Ignored when that id is already open, so a
     /// transcript line replayed by the harness does not double-count.
     pub fn open(&mut self, id: String, name: String, at: SystemTime, sidechain: bool) {
         if id.is_empty() || self.spans.iter().any(|s| s.is_open() && s.id == id) {
             return;
         }
-        if self.spans.len() == MAX_SPANS {
+        if self.spans.len() >= self.cap {
             self.spans.pop_front();
         }
         self.spans.push_back(ToolSpan { id, name, started_at: at, duration_ms: None, sidechain, error: false });
@@ -123,12 +138,67 @@ impl SpanLog {
     }
 }
 
+/// How many of a session's tool spans a tracker keeps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SpanRetention {
+    /// The newest `MAX_SPANS`, enough for the live waterfall. The default.
+    #[default]
+    Recent,
+    /// Every span in the transcript, for a trace export. Memory grows with
+    /// the session, so this is for a single pass, not a tracker kept across
+    /// refreshes.
+    All,
+}
+
+impl SpanRetention {
+    pub(crate) fn log(self) -> SpanLog {
+        match self {
+            SpanRetention::Recent => SpanLog::default(),
+            SpanRetention::All => SpanLog::unbounded(),
+        }
+    }
+}
+
 pub trait SessionTracker {
     /// Ingest whatever was appended since the last call. Returns true when
     /// there is still unread data (the byte budget was exhausted).
     fn refresh(&mut self) -> anyhow::Result<bool>;
     fn summary(&self) -> &SessionSummary;
     fn path(&self) -> &Path;
+
+    /// Ingest the whole file, however many refreshes that takes. For a
+    /// one-shot read such as an export; the live collector spreads a large
+    /// transcript over several ticks instead.
+    fn refresh_all(&mut self) -> anyhow::Result<()> {
+        while self.refresh()? {}
+        Ok(())
+    }
+}
+
+/// Which harness wrote a transcript, judged from its first few lines. Codex
+/// opens every rollout with a `session_meta` record; Claude Code lines carry
+/// `sessionId`. Anything else is not a transcript agent-top reads.
+pub fn detect(path: &Path) -> Option<Harness> {
+    use std::io::{BufRead, BufReader};
+    let f = std::fs::File::open(path).ok()?;
+    for line in BufReader::new(f).lines().map_while(Result::ok).take(5) {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else { continue };
+        if v.get("type").and_then(serde_json::Value::as_str) == Some("session_meta") {
+            return Some(Harness::Codex);
+        }
+        if v.get("sessionId").is_some() || v.get("parentUuid").is_some() {
+            return Some(Harness::Claude);
+        }
+    }
+    None
+}
+
+/// A tracker for a transcript whose harness is already known.
+pub fn open_transcript(path: &Path, harness: Harness, spans: SpanRetention) -> Box<dyn SessionTracker> {
+    match harness {
+        Harness::Codex => Box::new(codex::CodexTranscript::new(path).with_spans(spans)),
+        _ => Box::new(claude::ClaudeTranscript::new(path).with_spans(spans)),
+    }
 }
 
 /// Bytes ingested per tracker per refresh. Keeps a cold start on a 100 MB
@@ -223,6 +293,36 @@ mod tests {
         let last = log.to_vec().pop().unwrap();
         assert!(last.is_open());
         assert_eq!(last.elapsed_ms(at(503)), 3_000);
+    }
+
+    #[test]
+    fn unbounded_log_keeps_everything() {
+        let mut log = SpanLog::unbounded();
+        for i in 0..(MAX_SPANS * 3) {
+            log.open(format!("id{i}"), "T".into(), at(i as u64), false);
+            log.close(&format!("id{i}"), at(i as u64 + 1), false);
+        }
+        assert_eq!(log.len(), MAX_SPANS * 3);
+        assert_eq!(log.iter().next().unwrap().id, "id0");
+        assert_eq!(SpanRetention::default(), SpanRetention::Recent);
+    }
+
+    #[test]
+    fn detects_the_harness_from_the_first_lines() {
+        let dir = std::env::temp_dir().join(format!("agent-top-detect-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let codex = dir.join("rollout.jsonl");
+        std::fs::write(&codex, "{\"type\":\"session_meta\",\"payload\":{\"id\":\"x\"}}\n").unwrap();
+        let claude = dir.join("s.jsonl");
+        // A summary line first, as Claude Code writes on resume, then a real one.
+        std::fs::write(&claude, "{\"type\":\"summary\",\"leafUuid\":\"u\"}\n{\"type\":\"user\",\"sessionId\":\"abc\"}\n").unwrap();
+        let other = dir.join("other.jsonl");
+        std::fs::write(&other, "{\"hello\":1}\nnot json\n").unwrap();
+        assert_eq!(detect(&codex), Some(Harness::Codex));
+        assert_eq!(detect(&claude), Some(Harness::Claude));
+        assert_eq!(detect(&other), None);
+        assert_eq!(detect(&dir.join("missing.jsonl")), None);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

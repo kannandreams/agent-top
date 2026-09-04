@@ -2,11 +2,12 @@
 
 mod app;
 mod format;
+mod trace;
 mod ui;
 
 use agent_top_core::{Collector, CollectorOptions, Snapshot};
 use anyhow::{Context, Result};
-use clap::{CommandFactory, Parser};
+use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use std::path::PathBuf;
@@ -40,6 +41,27 @@ struct Cli {
     /// saw it. Nothing on the local machine is read.
     #[arg(long, value_name = "FILE")]
     replay: Option<PathBuf>,
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Export one session's tool calls as a trace file, for Perfetto and the
+    /// like. Reads the whole transcript, so it works on sessions that ended
+    /// long ago and on harnesses with no telemetry of their own. Writes a
+    /// file; never contacts a collector.
+    Trace {
+        /// A session id, a unique prefix of one, or a path to a transcript.
+        #[arg(long, value_name = "ID|FILE")]
+        session: String,
+        /// Output format.
+        #[arg(long, value_enum, default_value_t = trace::Format::Chrome)]
+        format: trace::Format,
+        /// Write here instead of standard output.
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
+    },
 }
 
 /// Where frames come from: this machine, or a snapshot someone saved earlier.
@@ -70,6 +92,9 @@ fn main() -> Result<()> {
     if cli.prices {
         print!("{}", format::price_table(agent_top_core::pricing::table()));
         return Ok(());
+    }
+    if let Some(Command::Trace { session, format, output }) = &cli.command {
+        return export_trace(session, *format, output.as_deref());
     }
     // A user's price file that could not be read is the difference between a
     // real cost and a wrong one, so say so rather than quietly using defaults.
@@ -146,4 +171,26 @@ fn run(terminal: &mut ratatui::DefaultTerminal, source: &mut Source, interval: D
             last_tick = Instant::now();
         }
     }
+}
+
+fn export_trace(session: &str, format: trace::Format, output: Option<&std::path::Path>) -> Result<()> {
+    let src = trace::resolve(session)?;
+    let summary = trace::read(&src)?;
+    let doc = serde_json::to_string(&trace::render(&src, &summary, format))?;
+    let open = summary.spans.iter().filter(|s| s.is_open()).count();
+    let still_open = if open > 0 { format!(", {open} never returned") } else { String::new() };
+    match output {
+        Some(path) if path != std::path::Path::new("-") => {
+            std::fs::write(path, doc).with_context(|| format!("writing {}", path.display()))?;
+            eprintln!(
+                "agent-top: wrote {} tool calls{still_open} from {} {} to {}",
+                summary.spans.len(),
+                src.harness.label(),
+                summary.session_id.as_deref().unwrap_or("?"),
+                path.display()
+            );
+        }
+        _ => println!("{doc}"),
+    }
+    Ok(())
 }

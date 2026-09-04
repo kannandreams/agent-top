@@ -15,7 +15,7 @@
 //! Codex model prices are not in the static table, so cost is reported as
 //! unpriced tokens.
 
-use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, parse_rfc3339_utc};
+use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanRetention, parse_rfc3339_utc};
 use crate::jsonl::TailReader;
 use crate::model::{Activity, Harness, TokenUsage};
 use crate::pricing::{self, Table};
@@ -91,6 +91,12 @@ impl CodexTranscript {
     /// See `ClaudeTranscript::with_prices`.
     pub fn with_prices(mut self, prices: &'static Table) -> Self {
         self.prices = prices;
+        self
+    }
+
+    /// Keep every span instead of the newest `MAX_SPANS`. See `SpanRetention`.
+    pub fn with_spans(mut self, retention: SpanRetention) -> Self {
+        self.summary.spans = retention.log();
         self
     }
 

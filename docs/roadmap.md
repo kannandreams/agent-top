@@ -13,6 +13,7 @@ Dates are targets, not promises. Each phase ships on its own.
 - One row per Codex conversation rather than per process, so an app-server hosting several threads no longer collapses them into one mis-attributed row. Resources stay counted once, on the row that owns the process.
 - Shell completions for bash, zsh and fish, generated from the binary and installed by Homebrew.
 - `--once`, `--json`.
+- Trace export: `agent-top trace --session <id> --format chrome`, every tool call in a session as a file Perfetto opens. Reads the whole transcript rather than the live tracker's 128-span window, so it is retroactive and harness-neutral.
 - Prebuilt macOS and Linux binaries, a Homebrew tap and `cargo binstall` support, cut by tag (see [releasing.md](releasing.md)).
 
 ## v0.2 — trust the numbers (Q4 2026)
@@ -27,7 +28,7 @@ Dates are targets, not promises. Each phase ships on its own.
 - Logical subagent tree from transcripts (Claude `isSidechain` and `agent-*.jsonl`, Codex `close_agent` events), merged with the process tree.
 - Per-MCP-server rows: which agent started it, how many tool calls went through it, idle time.
 - Orphan lifecycle: first-seen time, parent-of-record, one-key copy of the `kill` command. Still no signalling from agent-top.
-- Trace export: `agent-top trace --session <id> --format otlp|chrome`, written to a file so it can be opened in Perfetto or fed to Jaeger. Retroactive and harness-neutral, unlike a harness's own telemetry, which has to be enabled before the session starts. Any direct push to a collector stays opt-in behind an explicit `--endpoint`, because a network call contradicts the default posture in [vision.md](vision.md).
+- `--format otlp` for the trace export, so the file can be fed to Jaeger and any OpenTelemetry backend. Trace and span ids derived from the session and call ids, so re-exporting is idempotent. Any direct push to a collector stays opt-in behind an explicit `--endpoint`, because a network call contradicts the default posture in [vision.md](vision.md).
 - Spans beyond tool calls: inference spans from `requestId` and turn boundaries, so the gaps in the waterfall are labelled rather than blank.
 
 ## v0.4 — signals (Q2 2027)

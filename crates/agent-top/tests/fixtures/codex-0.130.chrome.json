@@ -1,0 +1,258 @@
+{
+  "displayTimeUnit": "ms",
+  "otherData": {
+    "cwd": "/Users/dev/code/example",
+    "generator": "agent-top",
+    "harness": "codex",
+    "harness_version": "0.130.0",
+    "model": "gpt-5.4-mini",
+    "open_spans": 0,
+    "session_id": "01000000-0000-7000-0000-000000000000",
+    "spans": 16,
+    "tool_calls": 16
+  },
+  "traceEvents": [
+    {
+      "args": {
+        "name": "codex example"
+      },
+      "name": "process_name",
+      "ph": "M",
+      "pid": 260683570,
+      "tid": 0
+    },
+    {
+      "args": {
+        "name": "agent"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 260683570,
+      "tid": 1
+    },
+    {
+      "args": {
+        "call_id": "call_vFH8PriHf4icdNRpeerp42RE",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 172000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778794673461000
+    },
+    {
+      "args": {
+        "call_id": "call_M0KgHWI2NPaJZpSugOQk3q0S",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 171000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778794673462000
+    },
+    {
+      "args": {
+        "call_id": "call_Q3o5L1qI2XrMu5YnQj3ElZpy",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 54000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778794675343000
+    },
+    {
+      "args": {
+        "call_id": "call_dQiB17mEK7xCByiDs9DwBv6u",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 51000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778794675364000
+    },
+    {
+      "args": {
+        "call_id": "call_Ioh6BdGlw2pCVZ5GUHDaH7PA",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 1133000,
+      "name": "apply_patch",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778794700964000
+    },
+    {
+      "args": {
+        "call_id": "call_mlsWx2PoRkOI4QLTqChWoeu8",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 53000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778794704594000
+    },
+    {
+      "args": {
+        "call_id": "call_tbhvgF0LPU76g4k2cBO7744N",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 54000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778794704594000
+    },
+    {
+      "args": {
+        "call_id": "call_ZYZSknuIrDej5Jxrk6vrZuPv",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 54000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778794704594000
+    },
+    {
+      "args": {
+        "call_id": "call_N0N1Tgep0JX6Bg3ysN5B9y2X",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 61000,
+      "name": "apply_patch",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778795244123000
+    },
+    {
+      "args": {
+        "call_id": "call_9b1wKlO3NAmhZRCx0v5ELjCu",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 53000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778795270739000
+    },
+    {
+      "args": {
+        "call_id": "call_NaOKpUauONQWLCVtDW5sgMWL",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 53000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778795270739000
+    },
+    {
+      "args": {
+        "call_id": "call_fNxgsyK4tPHDJhWMIjoAlImW",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 51000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778795270742000
+    },
+    {
+      "args": {
+        "call_id": "call_vVsncptGzoOERh5rJwrLVaH0",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 471000,
+      "name": "apply_patch",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778795286992000
+    },
+    {
+      "args": {
+        "call_id": "call_kKZGNWe3yEqOTV0dTFCFX1aI",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 53000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778795290611000
+    },
+    {
+      "args": {
+        "call_id": "call_ZfktRXHXCO8hDm1ZUFM7zHbt",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 49000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778795290621000
+    },
+    {
+      "args": {
+        "call_id": "call_9BDM8IEzPNoyZFJDvQVgd5BP",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 45000,
+      "name": "exec_command",
+      "ph": "X",
+      "pid": 260683570,
+      "tid": 1,
+      "ts": 1778795290631000
+    }
+  ]
+}

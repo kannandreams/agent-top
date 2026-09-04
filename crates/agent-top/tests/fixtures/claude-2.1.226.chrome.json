@@ -1,0 +1,384 @@
+{
+  "displayTimeUnit": "ms",
+  "otherData": {
+    "cwd": "/Users/dev/code/example",
+    "generator": "agent-top",
+    "harness": "claude",
+    "harness_version": "2.1.226",
+    "model": "claude-fable-5",
+    "open_spans": 0,
+    "session_id": "00000000-1111-2222-3333-444444444444",
+    "spans": 25,
+    "tool_calls": 25
+  },
+  "traceEvents": [
+    {
+      "args": {
+        "name": "claude example"
+      },
+      "name": "process_name",
+      "ph": "M",
+      "pid": 2040797021,
+      "tid": 0
+    },
+    {
+      "args": {
+        "name": "agent"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 2040797021,
+      "tid": 1
+    },
+    {
+      "args": {
+        "call_id": "toolu_01AXMV4Ts139C3WEM4yNM8Ro",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 251000,
+      "name": "Bash",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279499040000
+    },
+    {
+      "args": {
+        "call_id": "toolu_012HVwo7GX77wTQihHKUYepY",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 42000,
+      "name": "Bash",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279507586000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01JUDAy3trzUb6u8ufoo9nmL",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 9000,
+      "name": "Read",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279508301000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01LyCUKn7rumd6eYSCbcjxds",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 5000,
+      "name": "Read",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279508305000
+    },
+    {
+      "args": {
+        "call_id": "toolu_012z7j6CQ8AMaoYsmcrnDxgZ",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 11000,
+      "name": "Read",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279508741000
+    },
+    {
+      "args": {
+        "call_id": "toolu_015GJzcrXQckCtWmMQKNnMPD",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 16000,
+      "name": "Agent",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279538109000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01Wh9SfawxVtFJCTxGmkd1pW",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 2000,
+      "name": "Agent",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279544539000
+    },
+    {
+      "args": {
+        "call_id": "toolu_0133gG2dYd18wzFKvWB3GUss",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 4000,
+      "name": "Agent",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279556600000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01PY3SnjrTy3dTBsbQwhcANq",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 7000,
+      "name": "Read",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279557300000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01BPSbBtYPqhEt5Pm2q8qNAq",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 7000,
+      "name": "Read",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279557729000
+    },
+    {
+      "args": {
+        "call_id": "toolu_018tN5V7XxY5YgqvvhfG45GB",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 37000,
+      "name": "Bash",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279569237000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01F87xHXmVYkM1VbX6b4TpxF",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 5000,
+      "name": "ToolSearch",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279569762000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01MutBUBjo5N6YCJBCYSz2Y6",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 11000,
+      "name": "TaskCreate",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279575793000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01VjVaMma5sSNQJ9XsSJTUbG",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 11000,
+      "name": "TaskCreate",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279578087000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01V1q2zynL32XQ8dRKTmFnSq",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 10000,
+      "name": "TaskCreate",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279580012000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01QsDZCuMvL7ZnAUj2UYBSco",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 82000,
+      "name": "TaskCreate",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279581083000
+    },
+    {
+      "args": {
+        "call_id": "toolu_015xn1EtmnYYGj5D9imJdQrf",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 9000,
+      "name": "TaskUpdate",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786279589505000
+    },
+    {
+      "args": {
+        "call_id": "toolu_012NWQAJHPFKo94C9GBEPw8p",
+        "error": true,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 13371000,
+      "name": "Bash",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786282916956000
+    },
+    {
+      "args": {
+        "call_id": "toolu_015RZErPwfsshk2fs2Q66XBQ",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 5559000,
+      "name": "Bash",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786282938934000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01RjAJLXjz29Ywxrt8HaTUcX",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 63000,
+      "name": "Bash",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786282947960000
+    },
+    {
+      "args": {
+        "call_id": "toolu_0153ign1Kq8jwT8wwuFP1v8M",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 7000,
+      "name": "TaskUpdate",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786283019415000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01FZmeKYKsguS71dtocJRjBA",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 26100000,
+      "name": "Write",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786283048911000
+    },
+    {
+      "args": {
+        "call_id": "toolu_014wSfE7BhCitt97wc4tjSCJ",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 28073000,
+      "name": "Write",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786283107723000
+    },
+    {
+      "args": {
+        "call_id": "toolu_01XDVc7brkzVAvNkUhePH8pX",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 20000,
+      "name": "TaskUpdate",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786283147958000
+    },
+    {
+      "args": {
+        "call_id": "toolu_017k8B9eptdJQBiFWNQJfMVk",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 31323000,
+      "name": "Write",
+      "ph": "X",
+      "pid": 2040797021,
+      "tid": 1,
+      "ts": 1786283186052000
+    }
+  ]
+}

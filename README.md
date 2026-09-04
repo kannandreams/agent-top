@@ -83,6 +83,7 @@ agent-top --interval-ms 500  # faster refresh
 agent-top --stopped-window-min 120
 agent-top --replay snap.json # render someone else's --json, keys and all
 agent-top --prices           # the effective price table, and where each row came from
+agent-top trace --session 662cda1f -o trace.json   # one session's tool calls, for Perfetto
 ```
 
 Homebrew installs shell completions for you. Otherwise, generate them with
@@ -130,6 +131,27 @@ transcript the harness already writes, by pairing each call with its result
 them. Only the call's name, id and timing are read, never its arguments or
 output. The spans are in `--json` as well, so they can be fed to a real tracing
 tool.
+
+### Exporting a trace
+
+```sh
+agent-top trace --session 662cda1f -o trace.json
+```
+
+writes every tool call in that session as a [Chrome trace event
+file](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview),
+which [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing` open
+directly. `--session` takes a session id, a unique prefix of one, or a path to
+a transcript file. The main agent's calls and its subagents' calls sit on
+separate tracks; a call that never returned is a slice with no end rather than
+an invented one.
+
+The live view keeps the newest 128 calls. The export reads the transcript again
+from the start and keeps all of them, so it works on a session that finished
+last week, and on a harness that has no telemetry of its own. Claude Code's
+OpenTelemetry has to be switched on before a session starts and emits metrics
+and logs rather than spans; this is retroactive and needs nothing enabled. It
+writes a file and never contacts a collector.
 
 ## Prices
 

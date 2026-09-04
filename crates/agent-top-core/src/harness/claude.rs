@@ -16,7 +16,7 @@
 //! * The registry file has `status: "busy" | "idle"`, which is the harness's
 //!   own opinion of its state and beats any transcript heuristic.
 
-use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, parse_rfc3339_utc};
+use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanRetention, parse_rfc3339_utc};
 use crate::jsonl::TailReader;
 use crate::model::{Activity, Harness, TokenUsage};
 use crate::pricing::{self, Table};
@@ -176,6 +176,12 @@ impl ClaudeTranscript {
     /// assert a cost without the developer's own price file changing it.
     pub fn with_prices(mut self, prices: &'static Table) -> Self {
         self.prices = prices;
+        self
+    }
+
+    /// Keep every span instead of the newest `MAX_SPANS`. See `SpanRetention`.
+    pub fn with_spans(mut self, retention: SpanRetention) -> Self {
+        self.summary.spans = retention.log();
         self
     }
 
