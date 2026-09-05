@@ -19,12 +19,17 @@
 //!   and the harness's own figure is the real one. So an OpenCode row's cost
 //!   is exact and never a floor, and `unpriced_tokens` is zero.
 //! * `message` is one row per message, `data` JSON with `role`
-//!   (`user` / `assistant`). Assistant messages are the turn count.
+//!   (`user` / `assistant`) and `time` `{created, completed}` in epoch ms. A
+//!   `user` message opens a turn; each `assistant` message is one inference,
+//!   from `created` to `completed`, and extends the turn it belongs to, which
+//!   ends at the last reply before the next prompt. A reply with no
+//!   `completed` is still in flight, so its inference and turn stay open.
+//!   Assistant messages are also the turn count.
 //! * `part` is one row per message part, `data` JSON with `type`. A `tool`
 //!   part has `tool` (the name), `callID` and `state` with `status`
 //!   (`completed` / `error` / ...) and `time` `{start,end}` in epoch ms, which
 //!   is one tool span. `step-start` / `step-finish`, `reasoning`, `text` and
-//!   `patch` parts are not read yet.
+//!   `patch` parts are not read.
 //! * MCP tool naming was not observable here (no MCP server is configured), so
 //!   per-server MCP counts are not produced for OpenCode yet; every tool part
 //!   is counted as a tool call and a span.
@@ -299,8 +304,9 @@ impl OpenCodeTranscript {
             summary.health.empty_usage_records = summary.health.usage_records;
         }
 
-        // Tool calls and their spans. For the live view only the newest
-        // MAX_SPANS matter, so bound the query; the export keeps them all.
+        // Tool calls and their spans, plus turns and inferences from the
+        // message times. For the live view only the newest `MAX_SPANS` matter,
+        // so the queries are bounded; an export keeps everything.
         for (sid, _is_sub) in &ids {
             summary.tool_calls +=
                 conn.query_row("SELECT count(*) FROM part WHERE session_id = ?1 AND json_extract(data,'$.type') = 'tool'", [sid], |r| {
@@ -312,8 +318,25 @@ impl OpenCodeTranscript {
             SpanRetention::Recent => super::MAX_SPANS as i64,
         };
         let sub_ids: HashSet<&str> = ids.iter().filter(|(_, s)| *s).map(|(i, _)| i.as_str()).collect();
+        let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+
+        // Every span this scan will add, so the bounded log can keep the newest
+        // across all three kinds rather than dropping one kind first.
+        struct Pending {
+            id: String,
+            name: String,
+            kind: SpanKind,
+            start: SystemTime,
+            /// `None` for a span still open: a tool with no end, an inference
+            /// whose message has not completed, a turn whose reply is not done.
+            end: Option<SystemTime>,
+            sidechain: bool,
+            error: bool,
+        }
+        let mut pending: Vec<Pending> = Vec::new();
+
+        // Tool spans, from `tool` parts.
         {
-            let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
             let sql = format!(
                 "SELECT session_id, json_extract(data,'$.tool'), json_extract(data,'$.callID'), \
                  json_extract(data,'$.state.status'), json_extract(data,'$.state.time.start'), \
@@ -326,43 +349,125 @@ impl OpenCodeTranscript {
             let params: Vec<&dyn rusqlite::ToSql> =
                 ids.iter().map(|(i, _)| i as &dyn rusqlite::ToSql).chain(std::iter::once(&limit as &dyn rusqlite::ToSql)).collect();
             let mut rows = stmt.query(params.as_slice())?;
-            #[derive(Clone)]
-            struct Row {
-                name: String,
-                id: String,
-                sidechain: bool,
-                error: bool,
-                start: SystemTime,
-                end: SystemTime,
-            }
-            let mut collected: Vec<Row> = Vec::new();
+            let mut i = 0;
             while let Some(r) = rows.next()? {
                 let sid: String = r.get(0)?;
                 let name: String = r.get::<_, Option<String>>(1)?.unwrap_or_else(|| "tool".into());
                 let call_id: String = r.get::<_, Option<String>>(2)?.unwrap_or_default();
                 let status: Option<String> = r.get(3)?;
                 let Some(start) = r.get::<_, Option<i64>>(4)?.and_then(from_ms) else { continue };
-                let end = r.get::<_, Option<i64>>(5)?.and_then(from_ms).unwrap_or(start);
-                collected.push(Row {
+                let end = r.get::<_, Option<i64>>(5)?.and_then(from_ms);
+                let id = if call_id.is_empty() { format!("oc-tool-{i}") } else { call_id };
+                i += 1;
+                pending.push(Pending {
+                    id,
                     name,
-                    id: call_id,
+                    kind: SpanKind::Tool,
+                    start,
+                    end: Some(end.unwrap_or(start).max(start)),
                     sidechain: sub_ids.contains(sid.as_str()),
                     error: status.as_deref() == Some("error"),
-                    start,
-                    end,
                 });
-            }
-            // The query returned newest first; a waterfall wants oldest first.
-            collected.sort_by_key(|r| r.start);
-            for (i, row) in collected.into_iter().enumerate() {
-                // A part without a callID still gets a unique, stable-per-scan id.
-                let id = if row.id.is_empty() { format!("oc-{i}") } else { row.id };
-                summary.spans.open_kind(id.clone(), row.name, row.start, row.sidechain, SpanKind::Tool);
-                summary.spans.close(&id, row.end.max(row.start), row.error);
             }
         }
 
-        summary.activity = Activity::Unknown;
+        // Turn and inference spans, from message times. A `user` message opens
+        // a turn; each `assistant` message is one inference (created to
+        // completed) and extends the turn it belongs to; the turn ends at the
+        // last assistant reply before the next user message. Built per session,
+        // since a subagent runs its own turns interleaved in time.
+        {
+            let sql = format!(
+                "SELECT session_id, json_extract(data,'$.role'), json_extract(data,'$.time.created'), \
+                 json_extract(data,'$.time.completed') FROM message WHERE session_id IN ({placeholders}) \
+                 ORDER BY json_extract(data,'$.time.created') DESC LIMIT ?{}",
+                ids.len() + 1
+            );
+            let mut stmt = conn.prepare(&sql)?;
+            let params: Vec<&dyn rusqlite::ToSql> =
+                ids.iter().map(|(i, _)| i as &dyn rusqlite::ToSql).chain(std::iter::once(&limit as &dyn rusqlite::ToSql)).collect();
+            let mut rows = stmt.query(params.as_slice())?;
+            struct Msg {
+                sid: String,
+                role: String,
+                created: SystemTime,
+                completed: Option<SystemTime>,
+            }
+            let mut msgs: Vec<Msg> = Vec::new();
+            while let Some(r) = rows.next()? {
+                let sid: String = r.get(0)?;
+                let role: String = r.get::<_, Option<String>>(1)?.unwrap_or_default();
+                let Some(created) = r.get::<_, Option<i64>>(2)?.and_then(from_ms) else { continue };
+                let completed = r.get::<_, Option<i64>>(3)?.and_then(from_ms);
+                msgs.push(Msg { sid, role, created, completed });
+            }
+            msgs.sort_by_key(|m| m.created);
+            // Newest message decides the live activity: a finished reply is
+            // waiting, an open reply or a fresh prompt is working.
+            match msgs.last() {
+                Some(m) if m.role == "assistant" && m.completed.is_some() => summary.activity = Activity::Waiting,
+                Some(_) => summary.activity = Activity::Working,
+                None => {}
+            }
+            // Per session, close a turn when the next user message arrives.
+            let sessions: Vec<String> = ids.iter().map(|(i, _)| i.clone()).collect();
+            for sess in &sessions {
+                let sidechain = sub_ids.contains(sess.as_str());
+                let mut turn_idx = 0u64;
+                let mut turn: Option<(String, SystemTime, Option<SystemTime>)> = None; // id, start, end
+                let mut inf_idx = 0u64;
+                let flush = |turn: &mut Option<(String, SystemTime, Option<SystemTime>)>, pending: &mut Vec<Pending>| {
+                    if let Some((id, start, end)) = turn.take() {
+                        pending.push(Pending { id, name: "turn".into(), kind: SpanKind::Turn, start, end, sidechain, error: false });
+                    }
+                };
+                for m in msgs.iter().filter(|m| &m.sid == sess) {
+                    if m.role == "user" {
+                        flush(&mut turn, &mut pending);
+                        turn_idx += 1;
+                        turn = Some((format!("turn:{sess}:{turn_idx}"), m.created, None));
+                    } else if m.role == "assistant" {
+                        inf_idx += 1;
+                        pending.push(Pending {
+                            id: format!("inf:{sess}:{inf_idx}"),
+                            name: "inference".into(),
+                            kind: SpanKind::Inference,
+                            start: m.created,
+                            end: m.completed,
+                            sidechain,
+                            error: false,
+                        });
+                        // Open a turn if the window began mid-reply, and move
+                        // its end to this reply's completion.
+                        let end = m.completed.unwrap_or(m.created);
+                        match &mut turn {
+                            Some((_, _, e)) => *e = Some(end),
+                            None => {
+                                turn_idx += 1;
+                                turn = Some((format!("turn:{sess}:{turn_idx}"), m.created, Some(end)));
+                            }
+                        }
+                    }
+                }
+                flush(&mut turn, &mut pending);
+            }
+        }
+
+        // Insert every span oldest first, so the bounded live log keeps the
+        // newest by time no matter which kind it is.
+        pending.sort_by_key(|p| p.start);
+        for p in pending {
+            summary.spans.open_kind(p.id.clone(), p.name, p.start, p.sidechain, p.kind);
+            if let Some(end) = p.end {
+                if p.error {
+                    summary.spans.close(&p.id, end.max(p.start), true);
+                } else {
+                    summary.spans.end_at(&p.id, end.max(p.start));
+                }
+            }
+        }
+
+        // If there were no messages at all, activity stays unknown.
         self.summary = summary;
         Ok(())
     }
@@ -424,15 +529,21 @@ mod tests {
             [],
         )
         .unwrap();
-        // Two assistant turns and one user in the parent, one assistant in the child.
-        for (i, sid, role) in
-            [(1, "ses_parent", "user"), (2, "ses_parent", "assistant"), (3, "ses_parent", "assistant"), (4, "ses_child", "assistant")]
-        {
-            conn.execute(
-                "INSERT INTO message VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![format!("m{i}"), sid, 1000 + i as i64, format!("{{\"role\":\"{role}\"}}")],
-            )
-            .unwrap();
+        // A user prompt and two assistant replies in the parent, one assistant
+        // reply in the subagent, with created/completed times so the turn and
+        // inference spans can be built.
+        let msg = |role: &str, created: i64, completed: Option<i64>| match completed {
+            Some(c) => format!("{{\"role\":\"{role}\",\"time\":{{\"created\":{created},\"completed\":{c}}}}}"),
+            None => format!("{{\"role\":\"{role}\",\"time\":{{\"created\":{created}}}}}"),
+        };
+        for (i, sid, data) in [
+            (1, "ses_parent", msg("user", 100, None)),
+            (2, "ses_parent", msg("assistant", 110, Some(200))),
+            (3, "ses_parent", msg("assistant", 210, Some(300))),
+            (4, "ses_child", msg("assistant", 150, Some(180))),
+        ] {
+            conn.execute("INSERT INTO message VALUES (?1, ?2, ?3, ?4)", rusqlite::params![format!("m{i}"), sid, 1000 + i as i64, data])
+                .unwrap();
         }
         // Tool parts: two in the parent (one failing), one in the child.
         let tool = |tool: &str, call: &str, status: &str, start: i64, end: i64| {
@@ -483,6 +594,21 @@ mod tests {
         assert!(bash.error);
         let grep = tools.iter().find(|sp| sp.name == "grep").unwrap();
         assert!(grep.sidechain, "the subagent's tool call is a sidechain");
+
+        // Inference spans: one per assistant message (created to completed).
+        let inf: Vec<_> = s.spans.iter().filter(|sp| sp.kind == SpanKind::Inference).collect();
+        assert_eq!(inf.len(), 3, "two in the parent, one in the subagent");
+        let parent_inf: Vec<_> = inf.iter().filter(|sp| !sp.sidechain).collect();
+        assert_eq!(parent_inf[0].duration_ms, Some(90), "110 to 200");
+        assert_eq!(parent_inf[1].duration_ms, Some(90), "210 to 300");
+        assert_eq!(inf.iter().find(|sp| sp.sidechain).unwrap().duration_ms, Some(30), "subagent inference 150 to 180");
+        // Turn spans: one per session. The parent's runs prompt to last reply.
+        let turns: Vec<_> = s.spans.iter().filter(|sp| sp.kind == SpanKind::Turn).collect();
+        assert_eq!(turns.len(), 2, "one parent turn, one subagent turn");
+        let parent_turn = turns.iter().find(|sp| !sp.sidechain).unwrap();
+        assert_eq!(parent_turn.duration_ms, Some(200), "user at 100 to the last reply completing at 300");
+        assert!(turns.iter().any(|sp| sp.sidechain), "the subagent has its own turn");
+        assert_eq!(s.activity, Activity::Waiting, "the newest message is a completed reply");
         assert!(!s.health.fields_unrecognised());
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -375,7 +375,7 @@ on each tick.
 
 ## Roadmap
 
-See [docs/roadmap.md](docs/roadmap.md). Next: turn and inference spans for OpenCode, and Aider. [docs/releasing.md](docs/releasing.md) is the release runbook.
+See [docs/roadmap.md](docs/roadmap.md). Next: an Aider adapter, and MCP counts for OpenCode. [docs/releasing.md](docs/releasing.md) is the release runbook.
 
 ## Development
 

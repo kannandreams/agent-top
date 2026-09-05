@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.7.1] - 2026-09-05
+
+### Added
+- **Turn and inference spans for OpenCode.** The OpenCode tool trace now has the same three span kinds as the other harnesses. Each assistant message is one inference span, from its `time.created` to its `time.completed`; a user message opens a turn that runs to the last reply before the next prompt; a reply still in flight leaves its inference and turn open. Built per session, so a subagent's turns sit on their own track. Verified against the real database: a 974-tool session exported 903 inference spans and 137 turn spans beside its tool spans, with the durations the message times give.
 ## [0.7.0] - 2026-09-05
 
 ### Added
