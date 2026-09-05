@@ -5,7 +5,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [0.10.2] - 2026-09-05
 
 ### Changed
-- The detail pane's facts column now leads with the headline numbers, cost, cache efficiency, tokens, turns and tool calls, and puts the per-token cost breakdown below them. On a short terminal the useful stats no longer scroll off the bottom of the pane.
+- The detail pane's facts column now leads with the headline numbers, cost, cache efficiency, tokens, turns and tool calls, and puts the per-token cost breakdown below them, so the useful stats no longer scroll off the bottom of a short pane.
+- With the detail pane open, the agents table now takes only the height its rows need (capped so a long list still scrolls) and the detail pane gets the rest of the screen. A few agents no longer leave the table half empty while the detail pane is cramped.
 ## [0.10.1] - 2026-09-05
 
 ### Changed

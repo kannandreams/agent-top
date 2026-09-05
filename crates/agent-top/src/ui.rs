@@ -186,9 +186,18 @@ fn dim(text: impl Into<String>) -> Span<'static> {
 
 pub fn draw(f: &mut Frame, app: &mut App) {
     let area = f.area();
-    let detail_h = if app.show_detail { Constraint::Percentage(40) } else { Constraint::Length(0) };
-    let [header, table, detail, footer] =
-        Layout::vertical([Constraint::Length(6), Constraint::Min(4), detail_h, Constraint::Length(1)]).areas(area);
+    // With the detail pane open, the agents table takes only the height its
+    // rows need (a border, a title, a header and one line each, capped so a
+    // long list still scrolls), and the detail pane gets the rest of the
+    // screen. A handful of agents no longer leaves the table half empty while
+    // the detail pane clips its own facts.
+    let (table_c, detail_c) = if app.show_detail {
+        let need = (app.rows.len() as u16).saturating_add(4).clamp(6, 22);
+        (Constraint::Length(need), Constraint::Min(10))
+    } else {
+        (Constraint::Min(4), Constraint::Length(0))
+    };
+    let [header, table, detail, footer] = Layout::vertical([Constraint::Length(6), table_c, detail_c, Constraint::Length(1)]).areas(area);
     draw_header(f, app, header);
     draw_table(f, app, table);
     if app.show_detail {
