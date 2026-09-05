@@ -15,6 +15,16 @@ Coding agents have become long-running processes, and you tend to keep several a
 
 <sub>Recorded from a synthetic snapshot (`docs/demo-snapshot.json`, replayed with `--replay`) rather than a live machine, because a recording of real sessions would publish real project names, working directories and session ids. Regenerate with `vhs docs/demo.tape`.</sub>
 
+## Key features
+
+- **Every harness in one view.** Claude Code, Codex, Gemini CLI and OpenCode sessions in a single table, live or recently stopped, so you never tab between four tools to see what is running.
+- **Real tokens and cost.** Counted from the harness's own transcript, never estimated, and priced from a table you can read and edit (Anthropic, OpenAI and Google list prices). Subagents are folded into their parent.
+- **[`agent-top report`](#what-it-all-costs-agent-top-report).** What all of it has cost, across every harness, from the transcripts on disk, grouped by harness, model, project or day. The one place that adds your agent spend up together.
+- **MCP leak detection.** One row per MCP server with its call count, and orphaned servers, the memory leak this tool exists to catch, flagged in red with the agent they were orphaned from.
+- **Tool trace.** A waterfall of every tool call, inference and turn, reconstructed from the transcript with no telemetry to switch on, and exportable to Perfetto or any OpenTelemetry collector.
+- **Signals the harnesses hide.** How close each agent is to its rate limit (Codex), and how much of each prompt is served from cheap cache versus paid at full price.
+- **Read-only and self-contained.** Reads the files the harnesses already write and the process table the OS already keeps. No daemon, no network, no configuration, one static binary; it never writes to or kills an agent.
+
 ## Quick start
 
 ```sh
@@ -47,15 +57,15 @@ agent-top --prices           # the price table in use, and where each row came f
 
 ## What the table shows
 
-| &nbsp;&nbsp;Column&nbsp;&nbsp; | Meaning |
-|---|---|
-| 🚦&nbsp; **STATE** | `running` = mid-turn (inference or tool execution), `idle` = alive and waiting for you, `stopped` = transcript with no live process (kept for 30 minutes) |
-| 🔢&nbsp; **TOKENS** | input + cache read + cache write + output, from the harness's own transcript |
-| 💰&nbsp; **COST** | USD at list price, from [the price table](#prices). `+` or `≥` means some tokens had no known price and the number is a floor; `n/a` means none of them did |
-| 🖥️&nbsp; **CPU% / MEM** | summed over the agent's whole process tree |
-| 🔧&nbsp; **TOOLS** | tool calls in the session |
-| 🧩&nbsp; **PROCS / MCP** | processes in the tree, and how many of them look like Model Context Protocol servers |
-| ⏱️&nbsp; **AGE** | process age, or time since the last transcript write for stopped sessions |
+| Column | Meaning |
+|:--|:--|
+| 🚦&nbsp;**STATE** | `running` = mid-turn (inference or tool execution), `idle` = alive and waiting for you, `stopped` = transcript with no live process (kept for 30 minutes) |
+| 🔢&nbsp;**TOKENS** | input + cache read + cache write + output, from the harness's own transcript |
+| 💰&nbsp;**COST** | USD at list price, from [the price table](#prices). `+` or `≥` means some tokens had no known price and the number is a floor; `n/a` means none of them did |
+| 🖥️&nbsp;**CPU%&nbsp;/&nbsp;MEM** | summed over the agent's whole process tree |
+| 🔧&nbsp;**TOOLS** | tool calls in the session |
+| 🧩&nbsp;**PROCS&nbsp;/&nbsp;MCP** | processes in the tree, and how many of them look like Model Context Protocol servers |
+| ⏱️&nbsp;**AGE** | process age, or time since the last transcript write for stopped sessions |
 
 A Claude Code session's subagents are folded into its row, the way Claude
 Code's own cost display counts them. Web searches the model ran are counted
