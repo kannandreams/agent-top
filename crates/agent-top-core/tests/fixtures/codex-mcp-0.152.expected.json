@@ -1,14 +1,14 @@
 {
   "activity": "Waiting",
   "cost_breakdown_micros": {
-    "cache_read": 0,
+    "cache_read": 40,
     "cache_write_1h": 0,
     "cache_write_5m": 0,
-    "input": 0,
-    "output": 0,
+    "input": 600,
+    "output": 360,
     "web_search": 0
   },
-  "cost_usd_micros": 0,
+  "cost_usd_micros": 1000,
   "cwd": "/tmp/p",
   "harness_version": "0.152.0",
   "last_activity_ms": 1788602411000,
@@ -104,7 +104,7 @@
   "subagent_turns": 0,
   "tool_calls": 3,
   "turns": 1,
-  "unpriced_tokens": 5300,
+  "unpriced_tokens": 0,
   "usage": {
     "cache_read": 2000,
     "cache_write_1h": 0,

@@ -1,14 +1,14 @@
 {
   "activity": "Working",
   "cost_breakdown_micros": {
-    "cache_read": 0,
+    "cache_read": 13306,
     "cache_write_1h": 0,
     "cache_write_5m": 0,
-    "input": 0,
-    "output": 0,
+    "input": 11876,
+    "output": 40685,
     "web_search": 0
   },
-  "cost_usd_micros": 0,
+  "cost_usd_micros": 65866,
   "cwd": "/Users/dev/code/example",
   "harness_version": "0.130.0",
   "last_activity_ms": 1778795294964,
@@ -93,7 +93,7 @@
   "subagent_turns": 0,
   "tool_calls": 16,
   "turns": 11,
-  "unpriced_tokens": 202284,
+  "unpriced_tokens": 0,
   "usage": {
     "cache_read": 177408,
     "cache_write_1h": 0,

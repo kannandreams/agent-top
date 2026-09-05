@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.9.1] - 2026-09-05
+
+### Added
+- **OpenAI prices in the built-in table**, so Codex sessions stop reading as free. The GPT-5 family (`gpt-5.6-sol` / `-terra` / `-luna`, `gpt-5.5` and `-pro`, `gpt-5.4` / `-mini` / `-nano` / `-pro`, `gpt-5.2` and `-pro`, `gpt-5.1`, `gpt-5` and `-mini` / `-nano` / `-pro`), at OpenAI's standard-tier list prices checked 2026-09-05, with the cached-input rate used for cache reads. A Codex model with no entry of its own (`gpt-5-codex`) resolves to its base model by the longest-prefix rule. In `agent-top report` over the build machine's history this turns 96 Codex sessions from `$0.00` into `$663.59`, and the cross-harness total from `$1770` into `$2441`.
+
+### Changed
+- The README is reorganised around a featured `agent-top report` section, with the longer "Why this exists" and "Where the numbers come from" material moved into [docs/why-this-exists.md](docs/why-this-exists.md) and [docs/accounting.md](docs/accounting.md).
 ## [0.9.0] - 2026-09-05
 
 ### Added

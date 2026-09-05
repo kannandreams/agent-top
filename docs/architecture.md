@@ -53,7 +53,7 @@ flowchart LR
 
 ## Pricing
 
-USD per million tokens: Anthropic list prices cached 2026-06-24 and Google paid-tier prices cached 2026-09-05. Anthropic cache writes are 1.25x input (5-minute TTL) and 2x input (1-hour TTL); cache reads are 0.1x input, except Claude Fable 5.1 at $0.25. Gemini rows use the under-200k-token tier and set cache writes to the input price. Any model not in the table contributes to `unpriced_tokens` and the row's cost is displayed as a floor (`≥`) or `n/a`.
+USD per million tokens: Anthropic list prices cached 2026-06-24, Google paid-tier and OpenAI standard-tier prices cached 2026-09-05. Anthropic cache writes are 1.25x input (5-minute TTL) and 2x input (1-hour TTL); cache reads are 0.1x input, except Claude Fable 5.1 at $0.25. Gemini rows use the under-200k-token tier and set cache writes to the input price. Any model not in the table contributes to `unpriced_tokens` and the row's cost is displayed as a floor (`≥`) or `n/a`.
 
 ## Non-goals of the current design
 

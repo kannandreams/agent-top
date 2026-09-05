@@ -259,7 +259,13 @@ mod tests {
         assert_eq!(t.lookup("claude-fable-5").unwrap().cache_read, 1.0);
         assert_eq!(t.lookup("claude-sonnet-4-6-20251114").unwrap().input, 3.0);
         assert_eq!(t.lookup("us.anthropic.claude-opus-5").unwrap().input, 5.0);
-        assert!(t.lookup("gpt-5-codex").is_none());
+        // OpenAI's rows: a named variant is exact, a versioned prefix beats the
+        // bare one, and a codex variant with no entry resolves to its base.
+        assert_eq!(t.lookup("gpt-5.6-luna").unwrap().output, 1.20);
+        assert_eq!(t.lookup("gpt-5.4-mini").unwrap().input, 0.75);
+        assert_eq!(t.lookup("gpt-5.4").unwrap().input, 2.50);
+        assert_eq!(t.lookup("gpt-5-codex").unwrap().input, 1.25, "resolves to gpt-5 by longest prefix");
+        assert!(t.lookup("llama-3-70b").is_none(), "a model from no vendor in the table is still unpriced");
         // Google's rows: the lite variant beats its parent prefix, and cache
         // writes are the input price rather than Anthropic's multipliers.
         assert_eq!(t.lookup("gemini-2.5-flash-lite").unwrap().output, 0.40);

@@ -39,6 +39,7 @@ Other ways to run it:
 agent-top --once             # print the table once and exit
 agent-top --json             # one snapshot as JSON, for scripts and bug reports
 agent-top trace --session 662cda1f -o trace.json   # one session as a trace file for Perfetto
+agent-top report --since 7d  # what every harness cost this week, in one place
 agent-top --prices           # the price table in use, and where each row came from
 ```
 
@@ -200,6 +201,42 @@ Everything left of the files runs on your machine and reads only local files.
 The files are yours to open in a browser or send on; the dotted line is the
 one case where agent-top sends one itself, because you gave it the address.
 
+## What it all costs (agent-top report)
+
+The live table is one moment. `agent-top report` reads the transcripts already
+on disk and totals cost and tokens over a window you choose, grouped by
+harness, model, project or day. It is the one place that adds Claude, Codex,
+Gemini and OpenCode into a single figure, priced the same way, so "what has all
+of this cost me, together" finally has an answer. Nothing is written and
+nothing leaves the machine; it reads the same files the live view does.
+
+```
+$ agent-top report --since all --by harness
+
+agent-top report · since the beginning · by harness
+
+HARNESS                SESSIONS     TOKENS       COST   UNPRICED
+claude                       43       2.1B   $1769.47          -
+codex                        96       1.6B    $663.59+       1.9M
+opencode                     39     704.1M      $8.45          -
+----------------------------------------------------------------
+total                       178       4.3B  $2441.51+       1.9M
+```
+
+```sh
+agent-top report --since 7d               # the last week
+agent-top report --since 2026-09-01       # since a date
+agent-top report --by project             # which repo cost the most
+agent-top report --by model               # which model cost the most
+agent-top report --by day                 # a daily spend column
+agent-top report --json                   # the same, structured
+```
+
+`--by project` turns it into a rough cost-per-repo view; `--by day` is a spend
+timeline. A model with no price in the table shows its tokens under `UNPRICED`
+and the cost carries a `+`, so an incomplete total is never read as a cheap
+one.
+
 ## Prices
 
 Prices are data, not code. The table shipped in the binary lives in
@@ -256,7 +293,7 @@ not a bill.
 | Harness | Discovery | Tokens and cost | State |
 |---|---|---|---|
 | Claude Code | process table + `~/.claude/sessions/<pid>.json` (exact) | transcript usage, priced per model, subagent transcripts folded into their parent | harness-reported |
-| Codex CLI / app-server | process table + the rollout files the process holds open (exact on macOS and Linux; `cwd` heuristic elsewhere) | transcript usage; priced once you add the model to [your price table](#prices) | transcript events |
+| Codex CLI / app-server | process table + the rollout files the process holds open (exact on macOS and Linux; `cwd` heuristic elsewhere) | transcript usage, priced per model (OpenAI list prices) | transcript events |
 | Gemini CLI | process table + `cwd` heuristic (the CLI keeps no registry and does not hold its transcript open) | transcript usage, priced per model, subagent transcripts folded into their parent | transcript events |
 | OpenCode | process table + `cwd` heuristic; reads its SQLite session store read-only | tokens and OpenCode's own computed cost, subagent sessions folded into their parent | transcript times |
 | Aider, Copilot CLI, cursor-agent | process table only | not yet | CPU heuristic |
@@ -286,117 +323,39 @@ agent-top trace --session <id|prefix|path> [--format chrome|otlp] [-o FILE] [--e
 agent-top report [--since 7d|all|YYYY-MM-DD] [--by harness|model|project|day] [--json]
 ```
 
-`agent-top report` reads the transcripts already on disk and totals cost and
-tokens across every harness at once, grouped how you ask. It is history, not
-the live snapshot, and the one place that adds Claude, Codex, Gemini and
-OpenCode into a single figure:
-
-```
-agent-top report · since the beginning · by harness
-
-HARNESS                SESSIONS     TOKENS       COST   UNPRICED
-claude                       43       2.1B   $1762.09          -
-opencode                     39     704.1M      $8.45          -
-codex                        96       1.6B     $0.00+       1.6B
-----------------------------------------------------------------
-total                       178       4.3B  $1770.54+       1.6B
-```
-
-A model with no price in the table shows its tokens under `UNPRICED` and the
-cost carries a `+`, so an incomplete total is never read as a cheap one.
+`report` is a feature in its own right; see [what it all costs](#what-it-all-costs-agent-top-report) below.
 
 `--replay` is for bug reports: attach a `--json` snapshot and the reader can
 inspect it exactly as you saw it.
 
 ## Why this exists
 
-The failure that motivated the tool is not hypothetical. Codex has a run of
-reports about leaked MCP process trees, three of them still open:
+The failure that motivated the tool is a leaked MCP process tree: helper
+processes a harness spawns and never reaps, piling up until they leak gigabytes.
+It is a real, still-open class of bug, and it is not one vendor's. `agent-top`
+watches for the symptom rather than the vendor, so a server left alive after its
+agent died shows as a red row with the agent it came from.
 
-| Report | State | What it describes |
-|---|---|---|
-| [#12491](https://github.com/openai/codex/issues/12491) | open | MCP children not reaped after a task completes: 1300+ zombies, 37 GB leaked |
-| [#17574](https://github.com/openai/codex/issues/17574) | open | Subagents leak stdio MCP helper trees, which accumulate indefinitely |
-| [#25015](https://github.com/openai/codex/issues/25015) | open | The app-server leaks a process stack per subagent, so memory grows linearly |
-| [#16256](https://github.com/openai/codex/issues/16256) | closed | MCP subagent processes never terminated when a session is stopped or suspended |
-| [#19753](https://github.com/openai/codex/pull/19753) | merged Apr 2026 | The fix for one of those paths: terminate stdio MCP servers on shutdown |
-
-Nothing about this is specific to Codex. Every harness that spawns helper
-processes has the same shape of bug available to it, which is why `agent-top`
-looks for the symptom rather than for one vendor's bug.
+See [docs/why-this-exists.md](docs/why-this-exists.md) for the specific reports
+that motivated it and what the tool will and will not do.
 
 ## Where the numbers come from
 
-The whole point of this tool is that its numbers are right, so it is explicit
-about which ones are exact and which are inferred.
+The whole point is that the numbers are right, so the tool is explicit about
+which are exact and which are inferred. In short:
 
-- **Tokens are counted, never estimated.** They come from the usage records the
-  harness writes itself, deduplicated per API message so a response split across
-  several transcript lines is counted once.
-- **Costs come from a table you can read and change.** `agent-top --prices`
-  shows it. A model with no price is reported as unpriced rather than guessed
-  at, which is why a total containing one is shown as a floor (`≥`, `+`) instead
-  of a number that looks more precise than it is.
-- **Attribution says how confident it is.** Claude Code publishes a per-pid
-  registry, so a session is matched to its process exactly. Codex has no
-  registry, but it keeps every live thread's rollout file open, and on macOS and
-  Linux agent-top reads which files a process holds, which is just as exact. On
-  a platform where it cannot, the match falls back to working directory and
-  start time, and the detail pane labels that row a heuristic rather than
-  presenting it as fact.
-- **Only metadata is read.** Token counts, model ids, tool names, timestamps.
-  Never a prompt, a tool input, or a tool result.
-- **Nothing is written, signalled, or sent anywhere.** `agent-top` never kills or
-  writes to an agent, and the only network call it can make is the one you ask
-  for by typing an address after `--endpoint`. Killing an orphaned MCP server
-  is your decision, with your own `kill`.
+- **Tokens are counted, not estimated**, from the harness's own usage records.
+- **Costs come from a table you can read and change** (`agent-top --prices`),
+  carrying Anthropic, OpenAI and Google list prices; a model with no price is
+  shown as a floor, never guessed at.
+- **Attribution says how sure it is** — exact from a registry or an open file,
+  or labelled a heuristic when it falls back to working directory and start time.
+- **Only metadata is read**, and **nothing is written, signalled, or sent** (bar
+  the one `--endpoint` you type).
 
-### If the cost does not match your harness
-
-It usually will not match to the cent, and that is not a bug in either tool.
-agent-top prices the harness's own token counts at the vendor's published list
-price. Harnesses keep their own price tables, and those can differ from the
-published page for a model, or lag behind a price change. Neither number is a
-bill: on a subscription plan nothing is charged per token, and both figures are
-"what this would have cost on the API".
-
-A real example. One Claude Code session, read at the same moment by both tools:
-
-| Line | Tokens | agent-top | Claude Code |
-|---|---|---|---|
-| input | 8.7k | $10 / M, $0.09 | $10 / M, $0.09 |
-| cache write (1h) | 1.0M | $20 / M, $20.30 | $20 / M, $20.30 |
-| cache read | 31.2M | $0.25 / M, $7.80 | $0.50 / M, $15.59 |
-| output | 318k | $50 / M, $15.90 | $50 / M, $15.90 |
-| total | | $44.12 | $51.91 |
-
-Three lines agree, the cache read line does not: the pricing page lists Fable
-5.1 cache hits at $0.25 per million, and Claude Code 2.1.259 charged $0.50.
-Because every turn re-sends the whole conversation from cache, that one line
-is most of a long session's cost, and a small difference on it becomes a large
-gap in the total.
-
-The detail pane shows this breakdown for every row, so the differing line can
-be found without arithmetic. If you would rather see the same figure as your
-harness, override that one price in your own table and the row will say
-"your price file":
-
-```toml
-# ~/.config/agent-top/prices.toml
-[[model]]
-prefix = "claude-fable-5-1"
-input = 10.0
-output = 50.0
-cache_read = 0.5
-```
-
-The built-in table stays at the published price. It is never adjusted to match
-a harness, because the harness's table is not published and changes without
-notice.
-
-[docs/architecture.md](docs/architecture.md) has the mechanism underneath: the
-process walk, the incremental transcript tail, and how a snapshot is assembled
-on each tick.
+The full account, including a worked example of why agent-top and your harness
+can disagree on cost and how to reconcile them, is in
+[docs/accounting.md](docs/accounting.md).
 
 ## Roadmap
 

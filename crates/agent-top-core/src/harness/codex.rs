@@ -719,7 +719,7 @@ mod tests {
         writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:25.000Z","type":"event_msg","payload":{{"type":"token_count","info":null}}}}"#)
             .unwrap();
         writeln!(f, r#"{{"timestamp":"2026-08-28T08:53:25.500Z","type":"response_item","payload":{{"type":"web_search_call","status":"completed"}}}}"#).unwrap();
-        let mut t = CodexTranscript::new(&path);
+        let mut t = CodexTranscript::new(&path).with_prices(pricing::builtin_table());
         t.refresh().unwrap();
         let s = t.summary();
         assert_eq!(s.session_id.as_deref(), Some("01a0"));
@@ -727,7 +727,10 @@ mod tests {
         assert_eq!(s.usage.input, 14778 - 12672);
         assert_eq!(s.usage.cache_read, 12672);
         assert_eq!(s.usage.total(), 15019);
-        assert_eq!(s.unpriced_tokens, 15019);
+        // gpt-5-codex has no entry of its own; it resolves to gpt-5 by the
+        // longest-prefix rule (input 1.25, cache read 0.125, output 10).
+        assert_eq!(s.unpriced_tokens, 0, "priced now that OpenAI's rows are in the table");
+        assert!((s.cost_usd - (2106.0 * 1.25 + 12672.0 * 0.125 + 241.0 * 10.0) / 1_000_000.0).abs() < 1e-9, "{}", s.cost_usd);
         assert_eq!(s.tool_calls, 1);
         assert_eq!(s.activity, Activity::Working);
         assert_eq!(read_meta(&path).unwrap().0, PathBuf::from("/tmp/p"));
