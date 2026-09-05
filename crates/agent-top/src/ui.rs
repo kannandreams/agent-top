@@ -351,7 +351,10 @@ fn draw_table(f: &mut Frame, app: &App, area: Rect) {
     if app.rows.is_empty() {
         let msg = Paragraph::new(Line::from(vec![
             Span::styled("no coding agents found. ", Style::default().fg(DIM)),
-            Span::styled("start claude / codex in another terminal, or run agent-top --json to debug discovery.", Style::default().fg(DIM)),
+            Span::styled(
+                "start claude, codex or gemini in another terminal, or run agent-top --json to debug discovery.",
+                Style::default().fg(DIM),
+            ),
         ]))
         .wrap(Wrap { trim: true });
         let inner = Rect { x: area.x + 2, y: area.y + 2, width: area.width.saturating_sub(4), height: 2 };

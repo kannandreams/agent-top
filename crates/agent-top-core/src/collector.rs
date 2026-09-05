@@ -1,10 +1,13 @@
 //! Joins the process table with the transcripts into a `Snapshot`.
+//!
+//! The collector knows no harness by name. Each one is a `HarnessAdapter`
+//! (RFC-101): it lists its transcripts, says which belong to which process,
+//! and opens a tracker for one. The collector walks the process forest, asks
+//! the adapter for each root, and builds the rows.
 
-use crate::harness::claude::{self, ClaudeTranscript, PidSession};
-use crate::harness::codex::{self, CodexTranscript};
-use crate::harness::{SessionSummary, SessionTracker};
+use crate::harness::{self, AttributeContext, HarnessAdapter, RegistryHints, SessionSummary, SessionTracker, SpanRetention};
 use crate::model::*;
-use crate::process::{ProcessScanner, RawProc, build_forest, session_id_from_args};
+use crate::process::{ProcessScanner, RawProc, build_forest};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -33,22 +36,14 @@ impl Default for CollectorOptions {
 pub struct Collector {
     opts: CollectorOptions,
     scanner: ProcessScanner,
+    adapters: Vec<Box<dyn HarnessAdapter>>,
     trackers: HashMap<PathBuf, Box<dyn SessionTracker>>,
     last_fs_scan: Option<Instant>,
-    recent_claude: Vec<PathBuf>,
-    recent_codex: Vec<(PathBuf, PathBuf, SystemTime)>,
 }
 
 impl Collector {
     pub fn new(opts: CollectorOptions) -> Self {
-        Collector {
-            opts,
-            scanner: ProcessScanner::new(),
-            trackers: HashMap::new(),
-            last_fs_scan: None,
-            recent_claude: Vec::new(),
-            recent_codex: Vec::new(),
-        }
+        Collector { opts, scanner: ProcessScanner::new(), adapters: harness::adapters(), trackers: HashMap::new(), last_fs_scan: None }
     }
 
     fn rescan_fs_if_due(&mut self) {
@@ -58,16 +53,22 @@ impl Collector {
         }
         self.last_fs_scan = Some(Instant::now());
         let since = SystemTime::now().checked_sub(self.opts.stopped_window).unwrap_or(UNIX_EPOCH);
-        self.recent_claude = claude::recent_transcripts(since);
-        self.recent_codex =
-            codex::recent_rollouts(since).into_iter().filter_map(|p| codex::read_meta(&p).map(|(cwd, ts)| (p, cwd, ts))).collect();
+        for a in &mut self.adapters {
+            a.rescan(since);
+        }
     }
 
-    fn tracker_for(&mut self, path: &Path, harness: Harness) -> &mut Box<dyn SessionTracker> {
-        self.trackers.entry(path.to_path_buf()).or_insert_with(|| match harness {
-            Harness::Codex => Box::new(CodexTranscript::new(path)),
-            _ => Box::new(ClaudeTranscript::new(path)),
-        })
+    fn adapter(&self, harness: Harness) -> Option<&dyn HarnessAdapter> {
+        self.adapters.iter().find(|a| a.harness() == harness).map(|a| a.as_ref())
+    }
+
+    /// The tracker for a transcript, opened on first sight.
+    fn tracker_for(&mut self, path: &Path, harness: Harness) -> Option<&mut Box<dyn SessionTracker>> {
+        if !self.trackers.contains_key(path) {
+            let tracker = self.adapter(harness)?.open(path, SpanRetention::Recent);
+            self.trackers.insert(path.to_path_buf(), tracker);
+        }
+        self.trackers.get_mut(path)
     }
 
     pub fn collect(&mut self) -> Snapshot {
@@ -77,62 +78,59 @@ impl Collector {
         let procs = self.scanner.processes();
         let by_pid: HashMap<u32, &RawProc> = procs.iter().map(|p| (p.pid, p)).collect();
         let (roots, orphans) = build_forest(&procs);
-        let registry: HashMap<u32, PidSession> = claude::read_pid_sessions().into_iter().map(|s| (s.pid, s)).collect();
+
+        // Each adapter sees all of its processes before any is attributed.
+        for a in &mut self.adapters {
+            let mine: Vec<&ProcNode> = roots.iter().filter(|r| r.harness == Some(a.harness())).collect();
+            a.prepare(&mine);
+        }
 
         let now = SystemTime::now();
         let mut agents = Vec::new();
         let mut attached: HashSet<PathBuf> = HashSet::new();
 
-        // Which rollouts each Codex process has open, gathered before any
-        // attribution so that no process's fallback can claim a thread
-        // another process is demonstrably writing.
-        let held: HashMap<u32, Option<Vec<PathBuf>>> =
-            roots.iter().filter(|r| r.harness == Some(Harness::Codex)).map(|r| (r.pid, codex::rollouts_open_by(r.pid))).collect();
-        let all_held: HashSet<PathBuf> = held.values().flatten().flatten().cloned().collect();
-
         for root in roots {
             let raw = by_pid.get(&root.pid).copied();
             let harness = root.harness.unwrap_or(Harness::Unknown);
             let proc_start = raw.map(|p| UNIX_EPOCH + Duration::from_secs(p.start_time)).unwrap_or(now);
-            let cwd = root.cwd.clone().or_else(|| registry.get(&root.pid).map(|r| r.cwd.clone()));
+            let hints = self.adapter(harness).and_then(|a| a.hints(root.pid));
+            let cwd = root.cwd.clone().or_else(|| hints.as_ref().and_then(|h| h.cwd.clone()));
 
             // One process can host several conversations. Claude Code runs one
             // per process; the Codex app-server runs many.
-            let (paths, attribution) = match harness {
-                Harness::Claude => {
-                    let (p, a) = attribute_claude(&root, raw, cwd.as_deref(), proc_start, &registry);
-                    (p.into_iter().collect::<Vec<_>>(), a)
+            let (paths, attribution) = match self.adapter(harness) {
+                Some(a) => {
+                    let ctx = AttributeContext {
+                        cwd: cwd.as_deref(),
+                        proc_start,
+                        now,
+                        attached: &attached,
+                        activity_timeout: self.opts.activity_timeout,
+                    };
+                    a.attribute(&root, raw, &ctx)
                 }
-                Harness::Codex => {
-                    let mine: Option<Vec<PathBuf>> = held
-                        .get(&root.pid)
-                        .and_then(|h| h.as_ref())
-                        .map(|h| h.iter().filter(|p| !attached.contains(*p)).cloned().collect());
-                    let taken: HashSet<PathBuf> = attached.union(&all_held).cloned().collect();
-                    attribute_codex(cwd.as_deref(), proc_start, mine.as_deref(), &self.recent_codex, &taken, now, &self.opts)
-                }
-                _ => (Vec::new(), Attribution::None),
+                None => (Vec::new(), Attribution::None),
             };
 
             let (cpu, rss, count, mcp) = root.totals();
-            let reg = registry.get(&root.pid);
+            let hints = hints.unwrap_or_default();
 
             // No transcript: the process still deserves a row.
             if paths.is_empty() {
                 let summary = SessionSummary::default();
-                let state = live_state(reg, summary.activity, None, cpu, &self.opts);
+                let state = live_state(&hints, summary.activity, None, cpu, &self.opts);
                 agents.push(Agent {
                     id: format!("pid:{}", root.pid),
-                    name: reg.and_then(|r| r.name.clone()).unwrap_or_else(|| display_name(harness, cwd.as_deref())),
+                    name: hints.name.clone().unwrap_or_else(|| display_name(harness, cwd.as_deref())),
                     harness,
                     state,
                     activity: summary.activity,
                     pid: Some(root.pid),
-                    session_id: reg.map(|r| r.session_id.clone()),
+                    session_id: hints.session_id.clone(),
                     session_path: None,
                     cwd,
                     model: None,
-                    harness_version: reg.and_then(|r| r.version.clone()),
+                    harness_version: hints.version.clone(),
                     usage: summary.usage,
                     cost_usd: 0.0,
                     cost_breakdown: Default::default(),
@@ -161,25 +159,23 @@ impl Collector {
                 // Only the first row carries the process, so that a machine's
                 // totals are not multiplied by the number of conversations.
                 let owns_process = i == 0;
-                let tr = self.tracker_for(path, harness);
+                let Some(tr) = self.tracker_for(path, harness) else { continue };
                 let _ = tr.refresh();
                 let mut summary = tr.summary().clone();
                 attached.insert(path.clone());
 
-                if let Some(reg) = reg {
-                    if summary.session_id.is_none() {
-                        summary.session_id = Some(reg.session_id.clone());
-                    }
-                    if summary.harness_version.is_none() {
-                        summary.harness_version = reg.version.clone();
-                    }
+                if summary.session_id.is_none() {
+                    summary.session_id = hints.session_id.clone();
+                }
+                if summary.harness_version.is_none() {
+                    summary.harness_version = hints.version.clone();
                 }
 
                 let idle_secs = summary.last_activity.and_then(|t| now.duration_since(t).ok()).map(|d| d.as_secs());
-                let state = live_state(reg, summary.activity, idle_secs, cpu, &self.opts);
+                let state = live_state(&hints, summary.activity, idle_secs, cpu, &self.opts);
                 // A thread names itself after its own working directory, which
                 // is the only thing distinguishing two rows on one app-server.
-                let name = match (reg.and_then(|r| r.name.clone()), paths.len()) {
+                let name = match (hints.name.clone(), paths.len()) {
                     (Some(n), 1) => n,
                     _ => display_name(harness, summary.cwd.as_deref().or(cwd.as_deref())),
                 };
@@ -225,19 +221,10 @@ impl Collector {
         }
 
         // Stopped agents: recently written transcripts nobody owns.
-        let mut stopped: Vec<(PathBuf, Harness)> = Vec::new();
-        for p in &self.recent_claude {
-            if !attached.contains(p) && !is_subagent_transcript(p) {
-                stopped.push((p.clone(), Harness::Claude));
-            }
-        }
-        for (p, _, _) in &self.recent_codex {
-            if !attached.contains(p) {
-                stopped.push((p.clone(), Harness::Codex));
-            }
-        }
+        let stopped: Vec<(PathBuf, Harness)> =
+            self.adapters.iter().flat_map(|a| a.unowned(&attached).into_iter().map(move |p| (p, a.harness()))).collect();
         for (p, harness) in stopped {
-            let tr = self.tracker_for(&p, harness);
+            let Some(tr) = self.tracker_for(&p, harness) else { continue };
             let _ = tr.refresh();
             let s = tr.summary().clone();
             if s.turns == 0 && s.usage.total() == 0 {
@@ -306,116 +293,10 @@ fn parse_warning(s: &SessionSummary, harness: Harness) -> Option<String> {
     ))
 }
 
-fn attribute_claude(
-    root: &ProcNode,
-    raw: Option<&RawProc>,
-    cwd: Option<&Path>,
-    proc_start: SystemTime,
-    registry: &HashMap<u32, PidSession>,
-) -> (Option<PathBuf>, Attribution) {
-    if let Some(reg) = registry.get(&root.pid)
-        && let Some(p) = claude::transcript_path(&reg.cwd, &reg.session_id)
-    {
-        return (Some(p), Attribution::HarnessRegistry);
-    }
-    if let (Some(raw), Some(cwd)) = (raw, cwd)
-        && let Some(id) = session_id_from_args(&raw.cmd)
-        && let Some(p) = claude::transcript_path(cwd, &id)
-        && p.exists()
-    {
-        return (Some(p), Attribution::CommandLine);
-    }
-    if let Some(cwd) = cwd
-        && let Some(p) = claude::guess_transcript(cwd, proc_start)
-    {
-        return (Some(p), Attribution::CwdHeuristic);
-    }
-    (None, Attribution::None)
-}
-
-/// Codex conversations belonging to one process, newest activity first.
-///
-/// `held` are the rollouts the process has open, which is not a guess: Codex
-/// opens a thread's rollout when the thread starts and closes it when the
-/// thread ends. When the platform can say (`Some`), that list is the answer,
-/// an empty one included: a process holding no rollout is hosting no thread,
-/// and a rollout nobody holds is a finished conversation for the stopped
-/// list. The heuristics below are for when it cannot (`None`).
-///
-/// A `codex` CLI runs one conversation from the directory it was started in, so
-/// a cwd match finds it. The VS Code app-server is a different shape: one
-/// long-lived process, running from `/`, hosting any number of conversations
-/// over its life. Returning a single rollout for it collapses every one of
-/// those into one row and attributes whichever happened to be newest, so this
-/// returns all of them that are currently live and lets the caller give each
-/// its own row.
-///
-/// A rollout in `taken` is skipped: one already claimed by another process,
-/// or one some process has open, so that two Codex processes cannot both
-/// show the same conversation and an older app-server cannot collect the
-/// threads of a newer one.
-fn attribute_codex(
-    cwd: Option<&Path>,
-    proc_start: SystemTime,
-    held: Option<&[PathBuf]>,
-    recent: &[(PathBuf, PathBuf, SystemTime)],
-    taken: &HashSet<PathBuf>,
-    now: SystemTime,
-    opts: &CollectorOptions,
-) -> (Vec<PathBuf>, Attribution) {
-    if let Some(held) = held {
-        let mut mine = held.to_vec();
-        mine.sort_by_key(|p| std::cmp::Reverse(written_at(p)));
-        mine.truncate(MAX_CODEX_THREADS);
-        let attribution = if mine.is_empty() { Attribution::None } else { Attribution::OpenFile };
-        return (mine, attribution);
-    }
-
-    let slack = Duration::from_secs(60);
-    let started_after = |ts: &SystemTime| *ts + slack >= proc_start;
-    let candidates = || recent.iter().filter(|(p, _, ts)| started_after(ts) && !taken.contains(p));
-
-    // The CLI case: the conversation runs where the process runs.
-    if let Some(cwd) = cwd {
-        let mut matched: Vec<&(PathBuf, PathBuf, SystemTime)> = candidates().filter(|(_, c, _)| c == cwd).collect();
-        if !matched.is_empty() {
-            matched.sort_by_key(|(p, _, _)| std::cmp::Reverse(written_at(p)));
-            return (matched.into_iter().map(|(p, _, _)| p.clone()).collect(), Attribution::CwdHeuristic);
-        }
-    }
-
-    // The app-server case: no cwd to match on, so take the conversations that
-    // are actually being written to. A rollout nobody has touched in a while is
-    // a finished conversation, not a thread of this process.
-    let mut live: Vec<&(PathBuf, PathBuf, SystemTime)> = candidates()
-        .filter(|(p, _, _)| written_at(p).map(|w| now.duration_since(w).unwrap_or_default() <= opts.activity_timeout).unwrap_or(false))
-        .collect();
-    live.sort_by_key(|(p, _, _)| std::cmp::Reverse(written_at(p)));
-    live.truncate(MAX_CODEX_THREADS);
-    let attribution = if live.is_empty() { Attribution::None } else { Attribution::CwdHeuristic };
-    (live.into_iter().map(|(p, _, _)| p.clone()).collect(), attribution)
-}
-
-/// One process is not plausibly running more conversations than this at once,
-/// and an unbounded fan-out would let a stale directory fill the table.
-const MAX_CODEX_THREADS: usize = 12;
-
-fn written_at(p: &Path) -> Option<SystemTime> {
-    std::fs::metadata(p).and_then(|m| m.modified()).ok()
-}
-
-/// Older Claude Code versions stored subagent transcripts as `agent-<id>.jsonl`
-/// next to the parent session; they are not sessions of their own. Current
-/// versions nest them under `<session>/subagents/`, where the directory walk
-/// does not look, and `ClaudeTranscript` folds them into the parent.
-fn is_subagent_transcript(p: &Path) -> bool {
-    p.file_name().and_then(|f| f.to_str()).map(|f| f.starts_with("agent-")).unwrap_or(false)
-}
-
-fn live_state(reg: Option<&PidSession>, activity: Activity, idle_secs: Option<u64>, cpu: f32, opts: &CollectorOptions) -> AgentState {
+fn live_state(hints: &RegistryHints, activity: Activity, idle_secs: Option<u64>, cpu: f32, opts: &CollectorOptions) -> AgentState {
     // Statuses observed in the registry so far (Claude Code 2.1.259): "busy",
     // "idle", "shell". Unknown values fall through to the transcript heuristic.
-    match reg.and_then(|r| r.status.as_deref()) {
+    match hints.status.as_deref() {
         Some("busy" | "running" | "working" | "shell" | "tool" | "thinking") => return AgentState::Running,
         Some("idle" | "waiting" | "paused" | "permission" | "blocked") => return AgentState::Idle,
         _ => {}
@@ -449,107 +330,35 @@ fn display_name(harness: Harness, cwd: Option<&Path>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
 
-    /// Write a rollout with an explicit modification time.
-    ///
-    /// Ordering must not be left to how finely the filesystem happens to
-    /// timestamp three writes microseconds apart: Linux gave all three the
-    /// same mtime, the stable sort preserved insertion order, and the test
-    /// failed there while passing on macOS.
-    fn rollout(dir: &Path, name: &str, written: SystemTime) -> PathBuf {
-        let p = dir.join(name);
-        fs::write(&p, b"x").unwrap();
-        let f = fs::File::options().write(true).open(&p).unwrap();
-        f.set_times(fs::FileTimes::new().set_accessed(written).set_modified(written)).unwrap();
-        p
+    #[test]
+    fn the_registry_status_beats_the_transcript_heuristic() {
+        let opts = CollectorOptions::default();
+        let busy = RegistryHints { status: Some("busy".into()), ..Default::default() };
+        assert_eq!(live_state(&busy, Activity::Waiting, Some(0), 0.0, &opts), AgentState::Running);
+        let idle = RegistryHints { status: Some("idle".into()), ..Default::default() };
+        assert_eq!(live_state(&idle, Activity::Working, Some(0), 90.0, &opts), AgentState::Idle);
+        // No registry, which is every harness but Claude Code: the transcript decides.
+        let none = RegistryHints::default();
+        assert_eq!(live_state(&none, Activity::Working, Some(1), 0.0, &opts), AgentState::Running);
+        assert_eq!(live_state(&none, Activity::Working, Some(opts.activity_timeout.as_secs() + 1), 0.0, &opts), AgentState::Idle);
+        assert_eq!(live_state(&none, Activity::Waiting, Some(1), 90.0, &opts), AgentState::Idle);
+        assert_eq!(live_state(&none, Activity::Unknown, Some(3), 0.0, &opts), AgentState::Running);
+        assert_eq!(live_state(&none, Activity::Unknown, Some(300), 0.0, &opts), AgentState::Idle);
     }
 
-    /// One app-server, several conversations. Every live one must get a row:
-    /// returning only the newest is what collapsed them into a single
-    /// mis-attributed row.
     #[test]
-    fn every_live_codex_thread_is_returned_newest_first() {
-        let dir = std::env::temp_dir().join(format!("agent-top-threads-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        let now = SystemTime::now();
-        let started = now - Duration::from_secs(600);
-        let opts = CollectorOptions::default();
-
-        // Distinct write times, oldest first, so "newest first" has a single
-        // correct answer.
-        let a = rollout(&dir, "a.jsonl", now - Duration::from_secs(300));
-        let b = rollout(&dir, "b.jsonl", now - Duration::from_secs(200));
-        let c = rollout(&dir, "c.jsonl", now - Duration::from_secs(100));
-        let recent: Vec<(PathBuf, PathBuf, SystemTime)> =
-            [&a, &b, &c].iter().map(|p| ((*p).clone(), PathBuf::from("/Users/dev/code/one"), started)).collect();
-
-        // The app-server case: the process cwd matches no conversation.
-        let (paths, attribution) = attribute_codex(Some(Path::new("/")), started, None, &recent, &HashSet::new(), now, &opts);
-        assert_eq!(paths.len(), 3, "all three conversations get a row");
-        assert_eq!(paths[0], c, "newest activity first");
-        assert_eq!(attribution, Attribution::CwdHeuristic, "still a heuristic, and still labelled one");
-
-        // A conversation already claimed by another process is not shown twice.
-        let taken: HashSet<PathBuf> = [c.clone()].into_iter().collect();
-        let (paths, _) = attribute_codex(Some(Path::new("/")), started, None, &recent, &taken, now, &opts);
-        assert_eq!(paths.len(), 2);
-        assert!(!paths.contains(&c));
-
-        // A conversation nobody has written to for longer than the activity
-        // window has finished; it belongs in the stopped list, not on this
-        // process.
-        let stale = now + opts.activity_timeout + Duration::from_secs(60);
-        let (paths, attribution) = attribute_codex(Some(Path::new("/")), started, None, &recent, &HashSet::new(), stale, &opts);
-        assert!(paths.is_empty());
-        assert_eq!(attribution, Attribution::None);
-
-        // The CLI case: one conversation, in the directory the process runs in.
-        let (paths, _) = attribute_codex(Some(Path::new("/Users/dev/code/one")), started, None, &recent, &HashSet::new(), now, &opts);
-        assert_eq!(paths.len(), 3, "a cwd match takes every conversation in that directory");
-        assert_eq!(paths[0], c);
-
-        // A rollout that predates the process is not this process's.
-        let (paths, _) = attribute_codex(Some(Path::new("/")), now + Duration::from_secs(3600), None, &recent, &HashSet::new(), now, &opts);
-        assert!(paths.is_empty());
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    /// Two app-servers at once, the VS Code one and a CLI-spawned one, both
-    /// running from `/`. Without the open-file signal the one asked first
-    /// took every live thread. The bug this guards was found live on
-    /// 2026-09-04: two threads of a fresh app-server were shown on the four
-    /// day old VS Code one.
-    #[test]
-    fn an_open_rollout_belongs_to_the_process_holding_it() {
-        let dir = std::env::temp_dir().join(format!("agent-top-held-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        let now = SystemTime::now();
-        let started = now - Duration::from_secs(600);
-        let opts = CollectorOptions::default();
-        let a = rollout(&dir, "a.jsonl", now - Duration::from_secs(200));
-        let b = rollout(&dir, "b.jsonl", now - Duration::from_secs(100));
-        let recent: Vec<(PathBuf, PathBuf, SystemTime)> =
-            [&a, &b].iter().map(|p| ((*p).clone(), PathBuf::from("/Users/dev/code/one"), started)).collect();
-
-        // The newer app-server holds both rollouts open. It started after the
-        // rollouts' recorded start, which the heuristic would reject; the open
-        // file settles it.
-        let held = vec![a.clone(), b.clone()];
-        let (paths, attribution) = attribute_codex(Some(Path::new("/")), now, Some(&held), &recent, &HashSet::new(), now, &opts);
-        assert_eq!(paths, vec![b.clone(), a.clone()], "held rollouts, newest written first");
-        assert_eq!(attribution, Attribution::OpenFile);
-
-        // The older app-server holds nothing. Its fallback would have taken
-        // both live rollouts; with them marked taken it gets no row.
-        let taken: HashSet<PathBuf> = held.iter().cloned().collect();
-        let (paths, attribution) = attribute_codex(Some(Path::new("/")), started, None, &recent, &taken, now, &opts);
-        assert!(paths.is_empty());
-        assert_eq!(attribution, Attribution::None);
-
-        let _ = fs::remove_dir_all(&dir);
+    fn every_adapter_is_a_distinct_harness_and_recognises_its_own_fixture() {
+        let adapters = harness::adapters();
+        let mut seen = HashSet::new();
+        for a in &adapters {
+            assert!(seen.insert(a.harness()), "two adapters for {:?}", a.harness());
+        }
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+        for (file, want) in
+            [("claude-2.1.226.jsonl", Harness::Claude), ("codex-0.130.jsonl", Harness::Codex), ("gemini-0.58.jsonl", Harness::Gemini)]
+        {
+            assert_eq!(harness::detect(&fixtures.join(file)), Some(want), "{file}");
+        }
     }
 }

@@ -30,13 +30,17 @@
 //! * The registry file has `status: "busy" | "idle"`, which is the harness's
 //!   own opinion of its state and beats any transcript heuristic.
 
-use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanLog, SpanRetention, parse_rfc3339_utc};
+use super::{
+    AttributeContext, HarnessAdapter, REFRESH_BUDGET_BYTES, RegistryHints, SessionSummary, SessionTracker, SpanLog, SpanRetention,
+    parse_rfc3339_utc,
+};
 use crate::jsonl::TailReader;
-use crate::model::{Activity, CostBreakdown, Harness, SpanKind, TokenUsage};
+use crate::model::{Activity, Attribution, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage};
 use crate::pricing::{self, Table};
+use crate::process::{RawProc, session_id_from_args};
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -165,6 +169,95 @@ pub fn guess_transcript(cwd: &Path, proc_start: SystemTime) -> Option<PathBuf> {
         }
     }
     best.map(|(_, p)| p)
+}
+
+/// Older Claude Code versions stored subagent transcripts as `agent-<id>.jsonl`
+/// next to the parent session; they are not sessions of their own. Current
+/// versions nest them under `<session>/subagents/`, where the directory walk
+/// does not look, and `ClaudeTranscript` folds them into the parent.
+pub fn is_subagent_transcript(p: &Path) -> bool {
+    p.file_name().and_then(|f| f.to_str()).map(|f| f.starts_with("agent-")).unwrap_or(false)
+}
+
+/// The Claude Code adapter: the registry first, then the command line, then
+/// the cwd heuristic. See the module notes for the layout it reads.
+#[derive(Default)]
+pub struct ClaudeAdapter {
+    recent: Vec<PathBuf>,
+    registry: HashMap<u32, PidSession>,
+}
+
+impl HarnessAdapter for ClaudeAdapter {
+    fn harness(&self) -> Harness {
+        Harness::Claude
+    }
+
+    fn rescan(&mut self, since: SystemTime) {
+        self.recent = recent_transcripts(since);
+    }
+
+    /// The registry is re-read every pass: it is a handful of small files and
+    /// its `status` is what the state column shows.
+    fn prepare(&mut self, _roots: &[&ProcNode]) {
+        self.registry = read_pid_sessions().into_iter().map(|s| (s.pid, s)).collect();
+    }
+
+    fn hints(&self, pid: u32) -> Option<RegistryHints> {
+        self.registry.get(&pid).map(|r| RegistryHints {
+            name: r.name.clone(),
+            session_id: Some(r.session_id.clone()),
+            cwd: Some(r.cwd.clone()),
+            version: r.version.clone(),
+            status: r.status.clone(),
+        })
+    }
+
+    fn attribute(&self, root: &ProcNode, raw: Option<&RawProc>, ctx: &AttributeContext) -> (Vec<PathBuf>, Attribution) {
+        if let Some(reg) = self.registry.get(&root.pid)
+            && let Some(p) = transcript_path(&reg.cwd, &reg.session_id)
+        {
+            return (vec![p], Attribution::HarnessRegistry);
+        }
+        if let (Some(raw), Some(cwd)) = (raw, ctx.cwd)
+            && let Some(id) = session_id_from_args(&raw.cmd)
+            && let Some(p) = transcript_path(cwd, &id)
+            && p.exists()
+        {
+            return (vec![p], Attribution::CommandLine);
+        }
+        if let Some(cwd) = ctx.cwd
+            && let Some(p) = guess_transcript(cwd, ctx.proc_start)
+            && !ctx.attached.contains(&p)
+        {
+            return (vec![p], Attribution::CwdHeuristic);
+        }
+        (Vec::new(), Attribution::None)
+    }
+
+    fn unowned(&self, attached: &HashSet<PathBuf>) -> Vec<PathBuf> {
+        self.recent.iter().filter(|p| !attached.contains(*p) && !is_subagent_transcript(p)).cloned().collect()
+    }
+
+    fn open(&self, path: &Path, spans: SpanRetention) -> Box<dyn SessionTracker> {
+        Box::new(ClaudeTranscript::new(path).with_spans(spans))
+    }
+
+    /// Every line carries `sessionId`; so does Gemini's metadata line, which
+    /// has a `projectHash` beside it that no Claude Code line has.
+    fn detect(&self, path: &Path) -> bool {
+        super::head_lines(path)
+            .iter()
+            .any(|v| (v.get("sessionId").is_some() || v.get("parentUuid").is_some()) && v.get("projectHash").is_none())
+    }
+
+    /// The session id is the file stem.
+    fn transcripts(&self) -> Vec<(String, PathBuf)> {
+        recent_transcripts(SystemTime::UNIX_EPOCH)
+            .into_iter()
+            .filter(|p| !is_subagent_transcript(p))
+            .map(|p| (p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(), p))
+            .collect()
+    }
 }
 
 /// Where Claude Code keeps a session's subagent transcripts: one

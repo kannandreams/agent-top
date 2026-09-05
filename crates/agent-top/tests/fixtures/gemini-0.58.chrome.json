@@ -1,0 +1,349 @@
+{
+  "displayTimeUnit": "ms",
+  "otherData": {
+    "cwd": null,
+    "generator": "agent-top",
+    "harness": "gemini",
+    "harness_version": null,
+    "inference_spans": 9,
+    "model": "gemini-2.5-pro",
+    "open_spans": 0,
+    "session_id": "0a1b2c3d-0000-4000-8000-000000000001",
+    "spans": 19,
+    "tool_calls": 5,
+    "tool_spans": 5,
+    "turn_spans": 5,
+    "web_searches": 1
+  },
+  "traceEvents": [
+    {
+      "args": {
+        "name": "gemini"
+      },
+      "name": "process_name",
+      "ph": "M",
+      "pid": 2031337853,
+      "tid": 0
+    },
+    {
+      "args": {
+        "name": "turns"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 2031337853,
+      "tid": 1
+    },
+    {
+      "args": {
+        "name": "tools"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 2031337853,
+      "tid": 2
+    },
+    {
+      "args": {
+        "name": "model"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 2031337853,
+      "tid": 3
+    },
+    {
+      "args": {
+        "name": "subagent turns"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 2031337853,
+      "tid": 4
+    },
+    {
+      "args": {
+        "name": "subagent tools"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 2031337853,
+      "tid": 5
+    },
+    {
+      "args": {
+        "name": "subagent model"
+      },
+      "name": "thread_name",
+      "ph": "M",
+      "pid": 2031337853,
+      "tid": 6
+    },
+    {
+      "args": {
+        "call_id": "turn:1",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "turn",
+      "dur": 12000000,
+      "name": "turn",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 1,
+      "ts": 1788598802000000
+    },
+    {
+      "args": {
+        "call_id": "inference:1",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 3000000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 3,
+      "ts": 1788598802000000
+    },
+    {
+      "args": {
+        "call_id": "call-1",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 4000000,
+      "name": "read_file",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 2,
+      "ts": 1788598805000000
+    },
+    {
+      "args": {
+        "call_id": "inference:2",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 4900000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 3,
+      "ts": 1788598809100000
+    },
+    {
+      "args": {
+        "call_id": "turn:2",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "turn",
+      "dur": 15000000,
+      "name": "turn",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 1,
+      "ts": 1788598860000000
+    },
+    {
+      "args": {
+        "call_id": "inference:3",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 3000000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 3,
+      "ts": 1788598860000000
+    },
+    {
+      "args": {
+        "call_id": "call-2",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 3000000,
+      "name": "google_web_search",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 2,
+      "ts": 1788598863000000
+    },
+    {
+      "args": {
+        "call_id": "call-3",
+        "error": true,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 7000000,
+      "name": "run_shell_command",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 2,
+      "ts": 1788598863000000
+    },
+    {
+      "args": {
+        "call_id": "inference:4",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 4900000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 3,
+      "ts": 1788598870100000
+    },
+    {
+      "args": {
+        "call_id": "turn:3",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "turn",
+      "dur": 20000000,
+      "name": "turn",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 1,
+      "ts": 1788598920000000
+    },
+    {
+      "args": {
+        "call_id": "inference:5",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 4000000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 3,
+      "ts": 1788598920000000
+    },
+    {
+      "args": {
+        "call_id": "call-4",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "tool",
+      "dur": 11000000,
+      "name": "codebase_investigator",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 2,
+      "ts": 1788598924000000
+    },
+    {
+      "args": {
+        "call_id": "turn:1",
+        "error": false,
+        "sidechain": true
+      },
+      "cat": "turn",
+      "dur": 9400000,
+      "name": "turn",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 4,
+      "ts": 1788598924600000
+    },
+    {
+      "args": {
+        "call_id": "inference:1",
+        "error": false,
+        "sidechain": true
+      },
+      "cat": "inference",
+      "dur": 3400000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 6,
+      "ts": 1788598924600000
+    },
+    {
+      "args": {
+        "call_id": "call-5",
+        "error": false,
+        "sidechain": true
+      },
+      "cat": "tool",
+      "dur": 2000000,
+      "name": "grep_search",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 5,
+      "ts": 1788598928000000
+    },
+    {
+      "args": {
+        "call_id": "inference:2",
+        "error": false,
+        "sidechain": true
+      },
+      "cat": "inference",
+      "dur": 3900000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 6,
+      "ts": 1788598930100000
+    },
+    {
+      "args": {
+        "call_id": "inference:6",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 4900000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 3,
+      "ts": 1788598935100000
+    },
+    {
+      "args": {
+        "call_id": "turn:4",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "turn",
+      "dur": 5000000,
+      "name": "turn",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 1,
+      "ts": 1788598981000000
+    },
+    {
+      "args": {
+        "call_id": "inference:7",
+        "error": false,
+        "sidechain": false
+      },
+      "cat": "inference",
+      "dur": 5000000,
+      "name": "inference",
+      "ph": "X",
+      "pid": 2031337853,
+      "tid": 3,
+      "ts": 1788598981000000
+    }
+  ]
+}

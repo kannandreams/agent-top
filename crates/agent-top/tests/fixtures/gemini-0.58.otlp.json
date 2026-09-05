@@ -1,0 +1,647 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "gemini-code-session"
+            }
+          },
+          {
+            "key": "agent_top.harness",
+            "value": {
+              "stringValue": "gemini"
+            }
+          },
+          {
+            "key": "agent_top.session_id",
+            "value": {
+              "stringValue": "0a1b2c3d-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "key": "agent_top.model",
+            "value": {
+              "stringValue": "gemini-2.5-pro"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "agent-top"
+          },
+          "spans": [
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:1"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598814000000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "55c826a170aa6b85",
+              "startTimeUnixNano": "1788598802000000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:1"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598805000000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "55c826a170aa6b85",
+              "spanId": "6410351f2bb446ab",
+              "startTimeUnixNano": "1788598802000000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call-1"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598809000000000",
+              "kind": 1,
+              "name": "read_file",
+              "parentSpanId": "55c826a170aa6b85",
+              "spanId": "42cfe88d9b6a8b96",
+              "startTimeUnixNano": "1788598805000000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:2"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598814000000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "55c826a170aa6b85",
+              "spanId": "6410361f2bb4485e",
+              "startTimeUnixNano": "1788598809100000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:2"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598875000000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "55c823a170aa666c",
+              "startTimeUnixNano": "1788598860000000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:3"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598863000000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "55c823a170aa666c",
+              "spanId": "6410371f2bb44a11",
+              "startTimeUnixNano": "1788598860000000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call-2"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598866000000000",
+              "kind": 1,
+              "name": "google_web_search",
+              "parentSpanId": "55c823a170aa666c",
+              "spanId": "42cfe78d9b6a89e3",
+              "startTimeUnixNano": "1788598863000000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call-3"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598870000000000",
+              "kind": 1,
+              "name": "run_shell_command",
+              "parentSpanId": "55c823a170aa666c",
+              "spanId": "42cfe68d9b6a8830",
+              "startTimeUnixNano": "1788598863000000000",
+              "status": {
+                "code": 2,
+                "message": "the harness reported an error"
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:4"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598875000000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "55c823a170aa666c",
+              "spanId": "6410381f2bb44bc4",
+              "startTimeUnixNano": "1788598870100000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:3"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598940000000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "55c824a170aa681f",
+              "startTimeUnixNano": "1788598920000000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:5"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598924000000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "55c824a170aa681f",
+              "spanId": "6410391f2bb44d77",
+              "startTimeUnixNano": "1788598920000000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call-4"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598935000000000",
+              "kind": 1,
+              "name": "codebase_investigator",
+              "parentSpanId": "55c824a170aa681f",
+              "spanId": "42cfed8d9b6a9415",
+              "startTimeUnixNano": "1788598924000000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:1"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": true
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598934000000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "55c826a170aa6b85",
+              "startTimeUnixNano": "1788598924600000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:1"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": true
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598928000000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "55c826a170aa6b85",
+              "spanId": "6410351f2bb446ab",
+              "startTimeUnixNano": "1788598924600000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "call-5"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": true
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598930000000000",
+              "kind": 1,
+              "name": "grep_search",
+              "parentSpanId": "55c826a170aa6b85",
+              "spanId": "42cfec8d9b6a9262",
+              "startTimeUnixNano": "1788598928000000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:2"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": true
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598934000000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "55c826a170aa6b85",
+              "spanId": "6410361f2bb4485e",
+              "startTimeUnixNano": "1788598930100000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:6"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598940000000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "55c824a170aa681f",
+              "spanId": "64103a1f2bb44f2a",
+              "startTimeUnixNano": "1788598935100000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "turn"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "turn:4"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598986000000000",
+              "kind": 1,
+              "name": "turn",
+              "spanId": "55c821a170aa6306",
+              "startTimeUnixNano": "1788598981000000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "agent_top.kind",
+                  "value": {
+                    "stringValue": "inference"
+                  }
+                },
+                {
+                  "key": "agent_top.call_id",
+                  "value": {
+                    "stringValue": "inference:7"
+                  }
+                },
+                {
+                  "key": "agent_top.sidechain",
+                  "value": {
+                    "boolValue": false
+                  }
+                }
+              ],
+              "endTimeUnixNano": "1788598986000000000",
+              "kind": 1,
+              "name": "inference",
+              "parentSpanId": "55c821a170aa6306",
+              "spanId": "64103b1f2bb450dd",
+              "startTimeUnixNano": "1788598981000000000",
+              "status": {
+                "code": 0
+              },
+              "traceId": "afe4971b56f75666c6c1e627b8716de3"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

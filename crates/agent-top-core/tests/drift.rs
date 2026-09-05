@@ -7,7 +7,7 @@
 //! eventually will.
 
 use agent_top_core::harness::claude::ClaudeTranscript;
-use agent_top_core::harness::{SessionTracker, codex::CodexTranscript};
+use agent_top_core::harness::{SessionTracker, codex::CodexTranscript, gemini::GeminiTranscript};
 use agent_top_core::pricing;
 use std::path::{Path, PathBuf};
 
@@ -103,4 +103,23 @@ fn codex_drift_is_caught_too() {
     t.refresh().unwrap();
     assert_eq!(t.summary().usage.total(), 0);
     assert!(t.summary().health.fields_unrecognised(), "the same rename in the other harness");
+}
+
+#[test]
+fn gemini_drift_is_caught_too() {
+    let body = fixture("gemini-0.58.jsonl").replace("\"tokens\":", "\"usage\":");
+    let p = write_temp("gemini", &body);
+    let mut t = GeminiTranscript::new(&p).with_prices(pricing::builtin_table());
+    t.refresh().unwrap();
+    assert_eq!(t.summary().usage.total(), 0);
+    assert!(t.summary().health.fields_unrecognised(), "the same rename in the third harness");
+    // And the fixture itself, unaltered, is healthy.
+    let mut t = GeminiTranscript::new(fixture_path("gemini-0.58.jsonl")).with_prices(pricing::builtin_table());
+    t.refresh().unwrap();
+    assert!(t.summary().usage.total() > 100_000);
+    assert!(!t.summary().health.fields_unrecognised());
+}
+
+fn fixture_path(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
 }

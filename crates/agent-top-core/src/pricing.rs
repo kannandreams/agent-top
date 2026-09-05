@@ -245,7 +245,7 @@ mod tests {
     fn ships_a_valid_builtin_table() {
         let t = builtin();
         assert!(t.warnings.is_empty(), "{:?}", t.warnings);
-        assert_eq!(t.updated.as_deref(), Some("2026-06-24"));
+        assert_eq!(t.updated.as_deref(), Some("2026-09-05"));
         assert_eq!(t.web_search_per_1k, Some(10.0));
         assert!((t.web_search_cost(3) - 0.03).abs() < 1e-12);
         assert!(t.entries.len() >= 11);
@@ -260,6 +260,12 @@ mod tests {
         assert_eq!(t.lookup("claude-sonnet-4-6-20251114").unwrap().input, 3.0);
         assert_eq!(t.lookup("us.anthropic.claude-opus-5").unwrap().input, 5.0);
         assert!(t.lookup("gpt-5-codex").is_none());
+        // Google's rows: the lite variant beats its parent prefix, and cache
+        // writes are the input price rather than Anthropic's multipliers.
+        assert_eq!(t.lookup("gemini-2.5-flash-lite").unwrap().output, 0.40);
+        assert_eq!(t.lookup("gemini-2.5-flash").unwrap().output, 2.50);
+        assert_eq!(t.lookup("gemini-2.5-pro").unwrap().cache_write_1h, 1.25);
+        assert_eq!(t.lookup("gemini-3.1-pro-preview").unwrap().input, 2.0);
         assert!(t.lookup("<synthetic>").is_none());
     }
 

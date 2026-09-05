@@ -1,0 +1,10 @@
+{"sessionId":"b2c3d4e5-0000-4000-8000-000000000002","projectHash":"604d4331967fb6b76ad7112ac89983c76dd7208b059b54a7df4fc4ab34c4ddf9","startTime":"2026-09-05T09:02:04.500Z","lastUpdated":"2026-09-05T09:02:04.500Z","kind":"subagent","directories":["/Users/dev/code/example"]}
+{"id":"bc0aecfb-9af3-48f7-9629-41d08d50e8d8","timestamp":"2026-09-05T09:02:04.600Z","type":"user","content":[{"text":"task"}]}
+{"$set":{"lastUpdated":"2026-09-05T09:02:04.600Z"}}
+{"id":"26eb1b24-6680-41ed-b032-ed28632ba410","timestamp":"2026-09-05T09:02:08.000Z","type":"gemini","content":"","thoughts":[],"tokens":{"input":3000,"output":20,"cached":0,"thoughts":80,"tool":0,"total":3100},"model":"gemini-2.5-flash"}
+{"$set":{"lastUpdated":"2026-09-05T09:02:08.000Z"}}
+{"id":"26eb1b24-6680-41ed-b032-ed28632ba410","timestamp":"2026-09-05T09:02:08.000Z","type":"gemini","content":"","thoughts":[],"tokens":{"input":3000,"output":20,"cached":0,"thoughts":80,"tool":0,"total":3100},"model":"gemini-2.5-flash","toolCalls":[{"id":"call-5","name":"grep_search","args":{},"result":null,"status":"success","timestamp":"2026-09-05T09:02:10.000Z","displayName":"grep_search","description":"","renderOutputAsMarkdown":false}]}
+{"id":"ac6729ae-a353-4383-b0e2-e1feb4db1bfa","timestamp":"2026-09-05T09:02:10.100Z","type":"user","content":[{"functionResponse":{"id":"call-5","name":"grep_search","response":{"output":""}}}]}
+{"$set":{"lastUpdated":"2026-09-05T09:02:10.100Z"}}
+{"id":"b73ffe15-8dfb-4a7b-8bb7-39a9b5d3739a","timestamp":"2026-09-05T09:02:14.000Z","type":"gemini","content":"done","thoughts":[],"tokens":{"input":3600,"output":300,"cached":3000,"thoughts":60,"tool":0,"total":3960},"model":"gemini-2.5-flash"}
+{"$set":{"lastUpdated":"2026-09-05T09:02:14.000Z"}}

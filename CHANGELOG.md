@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-09-05
+
+### Added
+- **Gemini CLI adapter.** Gemini CLI sessions now get the same row as Claude Code and Codex: tokens, cost, turns, tool calls, web searches, the tool trace and the trace export. It reads `~/.gemini/tmp/<project>/chats/session-*.jsonl` (the layout of Gemini CLI 0.58), folds a subagent's transcript under `chats/<session id>/` into its parent, counts thinking tokens as output and tool-use prompt tokens as input the way Google bills them, and dedupes messages by id so a rewind or a checkpoint cannot count a response twice. A process is matched to its conversation by working directory and start time, and the row is labelled as that heuristic; Gemini CLI keeps no registry and does not hold the file open. Legacy single-document `session-*.json` files are not read.
+- **Gemini prices** in the built-in table: `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-3-flash`, `gemini-3.1-pro`, `gemini-3.1-flash-lite`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.6-flash`, `gemini-3.7-flash` and `gemini-3.8-flash`, at Google's paid-tier rate for prompts under 200k tokens, checked 2026-09-05. Cache writes are the input price, since Gemini CLI's implicit caching has no write charge. A prompt over 200k tokens is priced at the lower tier rather than guessed at.
+- A golden fixture for Gemini CLI 0.58, written by the CLI's own recorder driven with a scripted conversation, with the exact numbers it must produce, plus Chrome and OTLP trace goldens and a drift test.
+
+### Changed
+- **The harness adapter contract (RFC-101).** Each harness is now a `HarnessAdapter` in `agent-top-core`: it lists its transcripts, says which belong to which process, opens a tracker and recognises its own files. The collector holds a list of adapters and names no harness. `harness::adapters()` lists them; `harness::detect` and `agent-top trace --session <id>` resolve through them. `harness::open_transcript` returns `None` for a harness with no adapter instead of falling back to the Claude parser. The `--json` shape is unchanged.
+- The Codex attribution logic and its tests moved from the collector into the Codex adapter; `harness::codex::rollout_id` is public.
+- The price table's `updated` field is `2026-09-05`.
+
 ## [0.3.5] - 2026-09-04
 
 ### Added

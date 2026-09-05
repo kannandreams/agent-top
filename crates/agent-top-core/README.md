@@ -42,8 +42,10 @@ servers, shells or tools. An MCP server whose agent has exited is reported as an
 orphan, which is a common way for these tools to leak memory.
 
 **Attribution.** Matches each process to its transcript file. Where a harness
-publishes a registry of its own sessions, that is used and the result is exact.
-Otherwise the match is made on working directory and start time. Every agent
+publishes a registry of its own sessions or holds its transcript open, that is
+used and the result is exact. Otherwise the match is made on working directory
+and start time. Each harness is a `HarnessAdapter` in `harness::adapters()`;
+Claude Code, Codex and Gemini CLI have one. Every agent
 records which method was used, so a caller never has to guess how much to trust
 a row.
 

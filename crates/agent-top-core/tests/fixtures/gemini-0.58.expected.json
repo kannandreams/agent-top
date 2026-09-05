@@ -1,0 +1,104 @@
+{
+  "activity": "Waiting",
+  "cost_breakdown_micros": {
+    "cache_read": 11165,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "input": 10230,
+    "output": 29050,
+    "web_search": 0
+  },
+  "cost_usd_micros": 50445,
+  "cwd": null,
+  "harness_version": null,
+  "last_activity_ms": 1788598986000,
+  "model": "gemini-2.5-pro",
+  "session_id": "0a1b2c3d-0000-4000-8000-000000000001",
+  "spans": {
+    "by_kind": [
+      {
+        "count": 5,
+        "kind": "tool",
+        "open": 0,
+        "total_duration_ms": 27000
+      },
+      {
+        "count": 9,
+        "kind": "inference",
+        "open": 0,
+        "total_duration_ms": 37000
+      },
+      {
+        "count": 5,
+        "kind": "turn",
+        "open": 0,
+        "total_duration_ms": 61400
+      }
+    ],
+    "count": 19,
+    "errors": 1,
+    "first": [
+      {
+        "duration_ms": 12000,
+        "error": false,
+        "kind": "turn",
+        "name": "turn",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 3000,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 4000,
+        "error": false,
+        "kind": "tool",
+        "name": "read_file",
+        "sidechain": false
+      }
+    ],
+    "last": [
+      {
+        "duration_ms": 5000,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 5000,
+        "error": false,
+        "kind": "turn",
+        "name": "turn",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 4900,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      }
+    ],
+    "open": 0,
+    "sidechain": 4,
+    "total_duration_ms": 125400
+  },
+  "started_at_ms": 1788598800000,
+  "subagent_turns": 2,
+  "tool_calls": 5,
+  "turns": 9,
+  "unpriced_tokens": 0,
+  "usage": {
+    "cache_read": 91600,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "input": 10920,
+    "output": 3250,
+    "total": 105770
+  },
+  "web_searches": 1
+}

@@ -20,13 +20,15 @@
 //! Codex model prices are not in the static table, so cost is reported as
 //! unpriced tokens.
 
-use super::{REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanRetention, parse_rfc3339_utc};
+use super::{AttributeContext, HarnessAdapter, REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanRetention, parse_rfc3339_utc};
 use crate::jsonl::TailReader;
-use crate::model::{Activity, Harness, SpanKind, TokenUsage};
+use crate::model::{Activity, Attribution, Harness, ProcNode, SpanKind, TokenUsage};
 use crate::pricing::{self, Table};
+use crate::process::RawProc;
 use serde_json::Value;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 pub fn codex_dir() -> Option<PathBuf> {
     if let Some(d) = std::env::var_os("CODEX_HOME") {
@@ -107,6 +109,138 @@ pub fn read_meta(path: &Path) -> Option<(PathBuf, SystemTime)> {
     let cwd = v.pointer("/payload/cwd").and_then(Value::as_str).map(PathBuf::from)?;
     let ts = v.get("timestamp").and_then(Value::as_str).and_then(parse_rfc3339_utc)?;
     Some((cwd, ts))
+}
+
+/// The Codex adapter: a process is matched to the rollouts it holds open,
+/// and only where the platform cannot say to the cwd and activity heuristics.
+/// See DEC-006.
+#[derive(Default)]
+pub struct CodexAdapter {
+    /// Recent rollouts with the cwd and start time from their header.
+    recent: Vec<(PathBuf, PathBuf, SystemTime)>,
+    /// Which rollouts each Codex process has open, gathered before any
+    /// attribution so that no process's fallback can claim a thread another
+    /// process is demonstrably writing. `None` when the platform cannot say.
+    held: HashMap<u32, Option<Vec<PathBuf>>>,
+    all_held: HashSet<PathBuf>,
+}
+
+impl HarnessAdapter for CodexAdapter {
+    fn harness(&self) -> Harness {
+        Harness::Codex
+    }
+
+    fn rescan(&mut self, since: SystemTime) {
+        self.recent = recent_rollouts(since).into_iter().filter_map(|p| read_meta(&p).map(|(cwd, ts)| (p, cwd, ts))).collect();
+    }
+
+    fn prepare(&mut self, roots: &[&ProcNode]) {
+        self.held = roots.iter().map(|r| (r.pid, rollouts_open_by(r.pid))).collect();
+        self.all_held = self.held.values().flatten().flatten().cloned().collect();
+    }
+
+    fn attribute(&self, root: &ProcNode, _raw: Option<&RawProc>, ctx: &AttributeContext) -> (Vec<PathBuf>, Attribution) {
+        let mine: Option<Vec<PathBuf>> =
+            self.held.get(&root.pid).and_then(|h| h.as_ref()).map(|h| h.iter().filter(|p| !ctx.attached.contains(*p)).cloned().collect());
+        let taken: HashSet<PathBuf> = ctx.attached.union(&self.all_held).cloned().collect();
+        attribute(ctx.cwd, ctx.proc_start, mine.as_deref(), &self.recent, &taken, ctx.now, ctx.activity_timeout)
+    }
+
+    fn unowned(&self, attached: &HashSet<PathBuf>) -> Vec<PathBuf> {
+        self.recent.iter().map(|(p, _, _)| p).filter(|p| !attached.contains(*p)).cloned().collect()
+    }
+
+    fn open(&self, path: &Path, spans: SpanRetention) -> Box<dyn SessionTracker> {
+        Box::new(CodexTranscript::new(path).with_spans(spans))
+    }
+
+    /// Every rollout opens with a `session_meta` record.
+    fn detect(&self, path: &Path) -> bool {
+        super::head_lines(path).iter().any(|v| v.get("type").and_then(Value::as_str) == Some("session_meta"))
+    }
+
+    fn transcripts(&self) -> Vec<(String, PathBuf)> {
+        recent_rollouts(SystemTime::UNIX_EPOCH).into_iter().map(|p| (rollout_id(&p), p)).collect()
+    }
+}
+
+/// The id in `rollout-2026-05-14T21-37-50-<id>`: what follows the fixed-width
+/// timestamp. A file named some other way is matched on its whole stem.
+pub fn rollout_id(p: &Path) -> String {
+    const TS_LEN: usize = "2026-05-14T21-37-50-".len();
+    let stem = p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    stem.strip_prefix("rollout-").and_then(|s| s.get(TS_LEN..)).map(str::to_string).unwrap_or(stem)
+}
+
+/// Codex conversations belonging to one process, newest activity first.
+///
+/// `held` are the rollouts the process has open, which is not a guess: Codex
+/// opens a thread's rollout when the thread starts and closes it when the
+/// thread ends. When the platform can say (`Some`), that list is the answer,
+/// an empty one included: a process holding no rollout is hosting no thread,
+/// and a rollout nobody holds is a finished conversation for the stopped
+/// list. The heuristics below are for when it cannot (`None`).
+///
+/// A `codex` CLI runs one conversation from the directory it was started in, so
+/// a cwd match finds it. The VS Code app-server is a different shape: one
+/// long-lived process, running from `/`, hosting any number of conversations
+/// over its life. Returning a single rollout for it collapses every one of
+/// those into one row and attributes whichever happened to be newest, so this
+/// returns all of them that are currently live and lets the caller give each
+/// its own row.
+///
+/// A rollout in `taken` is skipped: one already claimed by another process,
+/// or one some process has open, so that two Codex processes cannot both
+/// show the same conversation and an older app-server cannot collect the
+/// threads of a newer one.
+pub(crate) fn attribute(
+    cwd: Option<&Path>,
+    proc_start: SystemTime,
+    held: Option<&[PathBuf]>,
+    recent: &[(PathBuf, PathBuf, SystemTime)],
+    taken: &HashSet<PathBuf>,
+    now: SystemTime,
+    activity_timeout: Duration,
+) -> (Vec<PathBuf>, Attribution) {
+    if let Some(held) = held {
+        let mut mine = held.to_vec();
+        mine.sort_by_key(|p| std::cmp::Reverse(written_at(p)));
+        mine.truncate(MAX_THREADS);
+        let attribution = if mine.is_empty() { Attribution::None } else { Attribution::OpenFile };
+        return (mine, attribution);
+    }
+
+    let slack = Duration::from_secs(60);
+    let started_after = |ts: &SystemTime| *ts + slack >= proc_start;
+    let candidates = || recent.iter().filter(|(p, _, ts)| started_after(ts) && !taken.contains(p));
+
+    // The CLI case: the conversation runs where the process runs.
+    if let Some(cwd) = cwd {
+        let mut matched: Vec<&(PathBuf, PathBuf, SystemTime)> = candidates().filter(|(_, c, _)| c == cwd).collect();
+        if !matched.is_empty() {
+            matched.sort_by_key(|(p, _, _)| std::cmp::Reverse(written_at(p)));
+            return (matched.into_iter().map(|(p, _, _)| p.clone()).collect(), Attribution::CwdHeuristic);
+        }
+    }
+
+    // The app-server case: no cwd to match on, so take the conversations that
+    // are actually being written to. A rollout nobody has touched in a while is
+    // a finished conversation, not a thread of this process.
+    let mut live: Vec<&(PathBuf, PathBuf, SystemTime)> = candidates()
+        .filter(|(p, _, _)| written_at(p).map(|w| now.duration_since(w).unwrap_or_default() <= activity_timeout).unwrap_or(false))
+        .collect();
+    live.sort_by_key(|(p, _, _)| std::cmp::Reverse(written_at(p)));
+    live.truncate(MAX_THREADS);
+    let attribution = if live.is_empty() { Attribution::None } else { Attribution::CwdHeuristic };
+    (live.into_iter().map(|(p, _, _)| p.clone()).collect(), attribution)
+}
+
+/// One process is not plausibly running more conversations than this at once,
+/// and an unbounded fan-out would let a stale directory fill the table.
+const MAX_THREADS: usize = 12;
+
+fn written_at(p: &Path) -> Option<SystemTime> {
+    std::fs::metadata(p).and_then(|m| m.modified()).ok()
 }
 
 pub struct CodexTranscript {
@@ -333,6 +467,117 @@ mod tests {
     /// The bug this guards: the year and month directories were last touched
     /// when a child directory was created, long before the rollout of
     /// interest was written.
+    /// Write a rollout with an explicit modification time.
+    ///
+    /// Ordering must not be left to how finely the filesystem happens to
+    /// timestamp three writes microseconds apart: Linux gave all three the
+    /// same mtime, the stable sort preserved insertion order, and the test
+    /// failed there while passing on macOS.
+    fn rollout(dir: &Path, name: &str, written: SystemTime) -> PathBuf {
+        let p = dir.join(name);
+        std::fs::write(&p, b"x").unwrap();
+        let f = std::fs::File::options().write(true).open(&p).unwrap();
+        f.set_times(std::fs::FileTimes::new().set_accessed(written).set_modified(written)).unwrap();
+        p
+    }
+
+    const TIMEOUT: Duration = Duration::from_secs(15 * 60);
+
+    /// One app-server, several conversations. Every live one must get a row:
+    /// returning only the newest is what collapsed them into a single
+    /// mis-attributed row.
+    #[test]
+    fn every_live_codex_thread_is_returned_newest_first() {
+        let dir = std::env::temp_dir().join(format!("agent-top-threads-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let now = SystemTime::now();
+        let started = now - Duration::from_secs(600);
+
+        // Distinct write times, oldest first, so "newest first" has a single
+        // correct answer.
+        let a = rollout(&dir, "a.jsonl", now - Duration::from_secs(300));
+        let b = rollout(&dir, "b.jsonl", now - Duration::from_secs(200));
+        let c = rollout(&dir, "c.jsonl", now - Duration::from_secs(100));
+        let recent: Vec<(PathBuf, PathBuf, SystemTime)> =
+            [&a, &b, &c].iter().map(|p| ((*p).clone(), PathBuf::from("/Users/dev/code/one"), started)).collect();
+
+        // The app-server case: the process cwd matches no conversation.
+        let (paths, attribution) = attribute(Some(Path::new("/")), started, None, &recent, &HashSet::new(), now, TIMEOUT);
+        assert_eq!(paths.len(), 3, "all three conversations get a row");
+        assert_eq!(paths[0], c, "newest activity first");
+        assert_eq!(attribution, Attribution::CwdHeuristic, "still a heuristic, and still labelled one");
+
+        // A conversation already claimed by another process is not shown twice.
+        let taken: HashSet<PathBuf> = [c.clone()].into_iter().collect();
+        let (paths, _) = attribute(Some(Path::new("/")), started, None, &recent, &taken, now, TIMEOUT);
+        assert_eq!(paths.len(), 2);
+        assert!(!paths.contains(&c));
+
+        // A conversation nobody has written to for longer than the activity
+        // window has finished; it belongs in the stopped list, not on this
+        // process.
+        let stale = now + TIMEOUT + Duration::from_secs(60);
+        let (paths, attribution) = attribute(Some(Path::new("/")), started, None, &recent, &HashSet::new(), stale, TIMEOUT);
+        assert!(paths.is_empty());
+        assert_eq!(attribution, Attribution::None);
+
+        // The CLI case: one conversation, in the directory the process runs in.
+        let (paths, _) = attribute(Some(Path::new("/Users/dev/code/one")), started, None, &recent, &HashSet::new(), now, TIMEOUT);
+        assert_eq!(paths.len(), 3, "a cwd match takes every conversation in that directory");
+        assert_eq!(paths[0], c);
+
+        // A rollout that predates the process is not this process's.
+        let (paths, _) = attribute(Some(Path::new("/")), now + Duration::from_secs(3600), None, &recent, &HashSet::new(), now, TIMEOUT);
+        assert!(paths.is_empty());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Two app-servers at once, the VS Code one and a CLI-spawned one, both
+    /// running from `/`. Without the open-file signal the one asked first
+    /// took every live thread. The bug this guards was found live on
+    /// 2026-09-04: two threads of a fresh app-server were shown on the four
+    /// day old VS Code one.
+    #[test]
+    fn an_open_rollout_belongs_to_the_process_holding_it() {
+        let dir = std::env::temp_dir().join(format!("agent-top-held-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let now = SystemTime::now();
+        let started = now - Duration::from_secs(600);
+        let a = rollout(&dir, "a.jsonl", now - Duration::from_secs(200));
+        let b = rollout(&dir, "b.jsonl", now - Duration::from_secs(100));
+        let recent: Vec<(PathBuf, PathBuf, SystemTime)> =
+            [&a, &b].iter().map(|p| ((*p).clone(), PathBuf::from("/Users/dev/code/one"), started)).collect();
+
+        // The newer app-server holds both rollouts open. It started after the
+        // rollouts' recorded start, which the heuristic would reject; the open
+        // file settles it.
+        let held = vec![a.clone(), b.clone()];
+        let (paths, attribution) = attribute(Some(Path::new("/")), now, Some(&held), &recent, &HashSet::new(), now, TIMEOUT);
+        assert_eq!(paths, vec![b.clone(), a.clone()], "held rollouts, newest written first");
+        assert_eq!(attribution, Attribution::OpenFile);
+
+        // The older app-server holds nothing. Its fallback would have taken
+        // both live rollouts; with them marked taken it gets no row.
+        let taken: HashSet<PathBuf> = held.iter().cloned().collect();
+        let (paths, attribution) = attribute(Some(Path::new("/")), started, None, &recent, &taken, now, TIMEOUT);
+        assert!(paths.is_empty());
+        assert_eq!(attribution, Attribution::None);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_rollout_id_follows_the_timestamp() {
+        assert_eq!(
+            rollout_id(Path::new("/x/2026/05/14/rollout-2026-05-14T21-37-50-01000000-0000-7000-0000-000000000000.jsonl")),
+            "01000000-0000-7000-0000-000000000000"
+        );
+        assert_eq!(rollout_id(Path::new("/x/odd.jsonl")), "odd");
+    }
+
     #[test]
     fn finds_a_fresh_rollout_under_stale_directories() {
         let root = std::env::temp_dir().join(format!("agent-top-rollouts-{}", std::process::id()));

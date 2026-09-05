@@ -18,10 +18,11 @@ Each phase ships on its own, and the order matters more than any date.
 - Server-side web searches priced per search, the one per-call charge Anthropic adds on top of tokens.
 - `--format otlp` for the trace export, with deterministic trace and span ids and tool calls parented to their turn. Any direct push to a collector stays opt-in behind an explicit `--endpoint`, because a network call contradicts the default posture in [vision.md](vision.md), and none is built.
 - Prebuilt macOS and Linux binaries, a Homebrew tap and `cargo binstall` support, cut by tag (see [releasing.md](releasing.md)).
+- Gemini CLI transcript adapter, on the harness adapter contract that keeps the collector free of harness names.
 
 ## v0.2 — trust the numbers
 
-- Gemini CLI and OpenCode transcript adapters.
+- OpenCode transcript adapter.
 - Per-agent history sparkline (tokens per minute) and cost rate ($/hour).
 - Linux `/proc` verification against a real Linux desktop, not only CI.
 - Golden transcript fixtures: small real transcripts per harness version, checked in with the exact numbers they should produce. These catch regressions in our own parsing. They cannot catch an upstream format change, because a fixture recorded at version X keeps passing forever after the harness moves to version Y.

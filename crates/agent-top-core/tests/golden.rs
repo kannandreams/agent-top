@@ -16,6 +16,7 @@
 use agent_top_core::SpanKind;
 use agent_top_core::harness::claude::ClaudeTranscript;
 use agent_top_core::harness::codex::CodexTranscript;
+use agent_top_core::harness::gemini::GeminiTranscript;
 use agent_top_core::harness::{SessionSummary, SessionTracker};
 use agent_top_core::pricing;
 use serde_json::{Value, json};
@@ -137,4 +138,15 @@ fn claude_2_1_226() {
 fn codex_0_130() {
     let p = fixtures().join("codex-0.130.jsonl");
     check("codex-0.130", Box::new(CodexTranscript::new(p).with_prices(pricing::builtin_table())));
+}
+
+/// Written by Gemini CLI 0.58.0's own recorder, driven with a scripted
+/// conversation (see the fixture README), so the layout is the harness's and
+/// the numbers are known: three turns on `gemini-2.5-pro`, one subagent turn
+/// on `gemini-2.5-flash` folded in, a failed tool call, a web search, and a
+/// rewind that must not change what was spent.
+#[test]
+fn gemini_0_58() {
+    let p = fixtures().join("gemini-0.58.jsonl");
+    check("gemini-0.58", Box::new(GeminiTranscript::new(p).with_prices(pricing::builtin_table())));
 }

@@ -47,13 +47,15 @@ pub fn resolve(what: &str) -> Result<Source> {
     let as_path = Path::new(what);
     if as_path.is_file() {
         let harness = harness::detect(as_path)
-            .with_context(|| format!("{what}: not a transcript agent-top knows how to read (Claude Code or Codex JSONL)"))?;
+            .with_context(|| format!("{what}: not a transcript agent-top knows how to read (Claude Code, Codex or Gemini CLI JSONL)"))?;
         return Ok(Source { path: as_path.to_path_buf(), harness });
     }
     if what.is_empty() {
         bail!("a session id or transcript path is required");
     }
-    let candidates = candidates(what, &harness::claude::recent_transcripts(UNIX_EPOCH), &harness::codex::recent_rollouts(UNIX_EPOCH));
+    let known: Vec<(Harness, String, PathBuf)> =
+        harness::adapters().iter().flat_map(|a| a.transcripts().into_iter().map(move |(id, p)| (a.harness(), id, p))).collect();
+    let candidates = candidates(what, &known);
     match candidates.len() {
         1 => Ok(candidates.into_iter().next().unwrap()),
         0 => bail!("no session id starts with {what:?}, and it is not a file"),
@@ -67,31 +69,19 @@ pub fn resolve(what: &str) -> Result<Source> {
     }
 }
 
-fn candidates(prefix: &str, claude: &[PathBuf], codex: &[PathBuf]) -> Vec<Source> {
-    let mut out = Vec::new();
-    for p in claude {
-        if stem(p).starts_with(prefix) {
-            out.push(Source { path: p.clone(), harness: Harness::Claude });
-        }
-    }
-    for p in codex {
-        if codex_id(&stem(p)).starts_with(prefix) {
-            out.push(Source { path: p.clone(), harness: Harness::Codex });
-        }
-    }
+/// Every transcript whose id starts with `prefix`, in path order. Each
+/// adapter says what the id of a file is: Claude Code names the file after it,
+/// Codex puts it after a timestamp, Gemini keeps only its first eight
+/// characters in the name and the whole id in the header.
+fn candidates(prefix: &str, known: &[(Harness, String, PathBuf)]) -> Vec<Source> {
+    let mut out: Vec<Source> =
+        known.iter().filter(|(_, id, _)| id.starts_with(prefix)).map(|(h, _, p)| Source { path: p.clone(), harness: *h }).collect();
     out.sort_by(|a, b| a.path.cmp(&b.path));
     out
 }
 
 fn stem(p: &Path) -> String {
     p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
-}
-
-/// The id in `rollout-2026-05-14T21-37-50-<id>`: what follows the fixed-width
-/// timestamp. A file named some other way is matched on its whole stem.
-fn codex_id(stem: &str) -> &str {
-    const TS_LEN: usize = "2026-05-14T21-37-50-".len();
-    stem.strip_prefix("rollout-").and_then(|s| s.get(TS_LEN..)).unwrap_or(stem)
 }
 
 /// POST an OTLP/JSON document to a collector's traces URL and return the
@@ -108,7 +98,8 @@ pub fn post(url: &str, doc: &str) -> Result<u16> {
 
 /// Read the whole transcript with every span kept.
 pub fn read(src: &Source) -> Result<SessionSummary> {
-    let mut tracker = harness::open_transcript(&src.path, src.harness, SpanRetention::All);
+    let mut tracker = harness::open_transcript(&src.path, src.harness, SpanRetention::All)
+        .with_context(|| format!("{} has no transcript adapter", src.harness.label()))?;
     tracker.refresh_all().with_context(|| format!("reading {}", src.path.display()))?;
     Ok(tracker.summary().clone())
 }
@@ -359,23 +350,44 @@ mod tests {
     }
 
     #[test]
-    fn matches_ids_by_prefix_in_both_layouts() {
-        let claude = vec![PathBuf::from("/c/p/00000000-1111-2222-3333-444444444444.jsonl"), PathBuf::from("/c/p/agent-0000aaaa.jsonl")];
-        let codex = vec![
-            PathBuf::from("/x/2026/05/14/rollout-2026-05-14T21-37-50-01000000-0000-7000-0000-000000000000.jsonl"),
-            PathBuf::from("/x/2026/05/15/rollout-2026-05-15T09-00-00-0f000000-0000-7000-0000-000000000000.jsonl"),
+    fn matches_ids_by_prefix_across_harnesses() {
+        let known = vec![
+            (
+                Harness::Claude,
+                "00000000-1111-2222-3333-444444444444".to_string(),
+                PathBuf::from("/c/p/00000000-1111-2222-3333-444444444444.jsonl"),
+            ),
+            (
+                Harness::Codex,
+                "01000000-0000-7000-0000-000000000000".to_string(),
+                PathBuf::from("/x/2026/05/14/rollout-2026-05-14T21-37-50-01000000-0000-7000-0000-000000000000.jsonl"),
+            ),
+            (
+                Harness::Codex,
+                "0f000000-0000-7000-0000-000000000000".to_string(),
+                PathBuf::from("/x/2026/05/15/rollout-2026-05-15T09-00-00-0f000000-0000-7000-0000-000000000000.jsonl"),
+            ),
+            (
+                Harness::Gemini,
+                "0a1b2c3d-0000-4000-8000-000000000001".to_string(),
+                PathBuf::from("/g/tmp/p/chats/session-2026-09-05T09-00-0a1b2c3d.jsonl"),
+            ),
         ];
-        let one = candidates("0100", &claude, &codex);
+        let one = candidates("0100", &known);
         assert_eq!(one.len(), 1);
         assert_eq!(one[0].harness, Harness::Codex);
-        let one = candidates("00000000-1111", &claude, &codex);
+        let one = candidates("00000000-1111", &known);
         assert_eq!(one.len(), 1);
         assert_eq!(one[0].harness, Harness::Claude);
-        // "0" is a prefix of three of them: one Claude, two Codex.
-        assert_eq!(candidates("0", &claude, &codex).len(), 3);
-        // The timestamp part of a rollout name is not an id.
-        assert!(candidates("2026-05", &claude, &codex).is_empty());
-        assert!(candidates("zzz", &claude, &codex).is_empty());
+        // The Gemini file name holds eight characters of the id; the header holds the rest.
+        let one = candidates("0a1b2c3d-0000", &known);
+        assert_eq!(one.len(), 1);
+        assert_eq!(one[0].harness, Harness::Gemini);
+        // "0" is a prefix of all four.
+        assert_eq!(candidates("0", &known).len(), 4);
+        // The timestamp part of a file name is not an id.
+        assert!(candidates("2026-05", &known).is_empty());
+        assert!(candidates("zzz", &known).is_empty());
     }
 
     #[test]

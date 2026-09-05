@@ -19,8 +19,10 @@
 # A model with no entry is not guessed at. Its tokens are counted and reported
 # as unpriced, and any total containing them is shown as a floor.
 
-updated = "2026-06-24"
-source = "https://www.anthropic.com/pricing"
+# Anthropic rows checked 2026-06-24 (cache reads re-checked 2026-09-04),
+# Google rows 2026-09-05.
+updated = "2026-09-05"
+source = "https://www.anthropic.com/pricing and https://ai.google.dev/gemini-api/docs/pricing"
 
 # Server-side tools billed per call, on top of the tokens they produce, in US
 # dollars per 1,000 calls. Anthropic charges for web search only; web fetch and
@@ -95,3 +97,103 @@ prefix = "claude-haiku-4-5"
 input = 1.0
 output = 5.0
 cache_read = 0.1
+
+# Google, paid tier, text input, checked 2026-09-05 at
+# https://ai.google.dev/gemini-api/docs/pricing. Gemini bills thinking
+# tokens as output, and the Gemini CLI adapter folds them in there. Pro
+# models cost more on prompts over 200k tokens; these are the rates under
+# that, which is where a coding session lives; a longer prompt is under-
+# priced here rather than guessed at. Cache writes are set to the input
+# price: Gemini CLI uses implicit caching, which has no write charge and
+# reports no write tokens, so the figure never applies. Grounded web
+# searches are counted but not priced; Google's rate is per request with a
+# free monthly quota and differs by model. The 3.6, 3.7 and 3.8 flash
+# prices are promotional through 2026-12-31 and double after.
+
+[[model]]
+prefix = "gemini-2.5-pro"
+input = 1.25
+output = 10.0
+cache_read = 0.125
+cache_write_5m = 1.25
+cache_write_1h = 1.25
+
+[[model]]
+prefix = "gemini-2.5-flash"
+input = 0.30
+output = 2.50
+cache_read = 0.03
+cache_write_5m = 0.30
+cache_write_1h = 0.30
+
+[[model]]
+prefix = "gemini-2.5-flash-lite"
+input = 0.10
+output = 0.40
+cache_read = 0.01
+cache_write_5m = 0.10
+cache_write_1h = 0.10
+
+[[model]]
+prefix = "gemini-3-flash"
+input = 0.50
+output = 3.0
+cache_read = 0.05
+cache_write_5m = 0.50
+cache_write_1h = 0.50
+
+[[model]]
+prefix = "gemini-3.1-pro"
+input = 2.0
+output = 12.0
+cache_read = 0.20
+cache_write_5m = 2.0
+cache_write_1h = 2.0
+
+[[model]]
+prefix = "gemini-3.1-flash-lite"
+input = 0.25
+output = 1.50
+cache_read = 0.025
+cache_write_5m = 0.25
+cache_write_1h = 0.25
+
+[[model]]
+prefix = "gemini-3.5-flash"
+input = 1.50
+output = 9.0
+cache_read = 0.15
+cache_write_5m = 1.50
+cache_write_1h = 1.50
+
+[[model]]
+prefix = "gemini-3.5-flash-lite"
+input = 0.30
+output = 2.50
+cache_read = 0.03
+cache_write_5m = 0.30
+cache_write_1h = 0.30
+
+[[model]]
+prefix = "gemini-3.6-flash"
+input = 0.75
+output = 3.75
+cache_read = 0.075
+cache_write_5m = 0.75
+cache_write_1h = 0.75
+
+[[model]]
+prefix = "gemini-3.7-flash"
+input = 0.75
+output = 3.75
+cache_read = 0.075
+cache_write_5m = 0.75
+cache_write_1h = 0.75
+
+[[model]]
+prefix = "gemini-3.8-flash"
+input = 0.75
+output = 3.75
+cache_read = 0.075
+cache_write_5m = 0.75
+cache_write_1h = 0.75

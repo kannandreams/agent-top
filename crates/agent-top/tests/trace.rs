@@ -100,6 +100,11 @@ fn codex_0_130_chrome() {
     check("codex-0.130");
 }
 
+#[test]
+fn gemini_0_58_chrome() {
+    check("gemini-0.58");
+}
+
 /// The document is what Perfetto expects: complete events on a shared pid,
 /// every span accounted for, every span in a thread that has a name.
 #[test]

@@ -8,6 +8,17 @@ The scripts that produced them are not checked in because they are not meant to
 be re-run against someone else's machine; regenerate by hand if a new harness
 version needs covering, then audit the result before committing it.
 
+The Gemini fixture is the exception to "real": no Gemini CLI session had ever
+run on the machine that added the adapter, so `gemini-0.58.jsonl` and the
+subagent file under `0a1b2c3d-0000-4000-8000-000000000001/` were written by
+Gemini CLI 0.58.0's own recorder (`ChatRecordingService` in
+`@google/gemini-cli-core`), driven by `gemini-0.58.drive.mjs` with a scripted
+conversation and a fake clock. The layout is the harness's; the token counts
+are chosen. Placeholder prompts, empty tool arguments and a made-up project
+path, so there is nothing to sanitise. Rerun the script against a newer
+`@google/gemini-cli-core` to see whether the layout moved; replace the fixture
+with a reduced real transcript when one exists.
+
 Each `.expected.json` next to a fixture is the parse the current code produces
 from it. `tests/golden.rs` asserts the two match.
 

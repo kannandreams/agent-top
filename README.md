@@ -218,8 +218,14 @@ A model with no entry anywhere is never guessed at. Its tokens are counted and
 reported as unpriced, and any total containing them is shown as a floor.
 
 Web searches are billed per search, on top of tokens, and the rate is in the
-same file under `[server_tools]`. Codex web searches are counted but not
-priced, because OpenAI's rate is not in the table.
+same file under `[server_tools]`. Codex and Gemini web searches are counted but
+not priced, because OpenAI's and Google's rates are not in the table.
+
+Gemini models are priced at Google's paid-tier rate for prompts under 200k
+tokens, with thinking tokens counted as output the way Google bills them. A
+Gemini CLI signed in with a Google account rather than an API key is on a free
+quota, so its cost here is what the same session would have cost at list price,
+not a bill.
 
 ## Supported harnesses
 
@@ -227,7 +233,8 @@ priced, because OpenAI's rate is not in the table.
 |---|---|---|---|
 | Claude Code | process table + `~/.claude/sessions/<pid>.json` (exact) | transcript usage, priced per model, subagent transcripts folded into their parent | harness-reported |
 | Codex CLI / app-server | process table + the rollout files the process holds open (exact on macOS and Linux; `cwd` heuristic elsewhere) | transcript usage; priced once you add the model to [your price table](#prices) | transcript events |
-| Gemini CLI, OpenCode, Aider, Copilot CLI, cursor-agent | process table only | not yet | CPU heuristic |
+| Gemini CLI | process table + `cwd` heuristic (the CLI keeps no registry and does not hold its transcript open) | transcript usage, priced per model, subagent transcripts folded into their parent | transcript events |
+| OpenCode, Aider, Copilot CLI, cursor-agent | process table only | not yet | CPU heuristic |
 
 ## Install
 
@@ -348,7 +355,7 @@ on each tick.
 
 ## Roadmap
 
-See [docs/roadmap.md](docs/roadmap.md). Next: a Gemini CLI adapter and per-MCP-server rows. [docs/releasing.md](docs/releasing.md) is the release runbook.
+See [docs/roadmap.md](docs/roadmap.md). Next: per-MCP-server rows and an OpenCode adapter. [docs/releasing.md](docs/releasing.md) is the release runbook.
 
 ## Development
 

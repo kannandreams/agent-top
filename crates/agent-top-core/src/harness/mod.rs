@@ -5,11 +5,13 @@
 
 pub mod claude;
 pub mod codex;
+pub mod gemini;
 
-use crate::model::{Activity, CostBreakdown, Harness, SpanKind, TokenUsage, ToolSpan};
-use std::collections::VecDeque;
+use crate::model::{Activity, Attribution, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage, ToolSpan};
+use crate::process::RawProc;
+use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 /// Evidence that the parser still understands the file it is reading.
 ///
@@ -225,30 +227,106 @@ pub trait SessionTracker {
     }
 }
 
-/// Which harness wrote a transcript, judged from its first few lines. Codex
-/// opens every rollout with a `session_meta` record; Claude Code lines carry
-/// `sessionId`. Anything else is not a transcript agent-top reads.
-pub fn detect(path: &Path) -> Option<Harness> {
-    use std::io::{BufRead, BufReader};
-    let f = std::fs::File::open(path).ok()?;
-    for line in BufReader::new(f).lines().map_while(Result::ok).take(5) {
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else { continue };
-        if v.get("type").and_then(serde_json::Value::as_str) == Some("session_meta") {
-            return Some(Harness::Codex);
-        }
-        if v.get("sessionId").is_some() || v.get("parentUuid").is_some() {
-            return Some(Harness::Claude);
-        }
-    }
-    None
+/// What a harness's own registry says about one of its processes, when it
+/// keeps one (Claude Code's `~/.claude/sessions/<pid>.json`). Every field is
+/// optional; a harness with no registry returns none of this.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RegistryHints {
+    pub name: Option<String>,
+    pub session_id: Option<String>,
+    pub cwd: Option<PathBuf>,
+    pub version: Option<String>,
+    /// The harness's own word for its state (`busy`, `idle`, ...), which beats
+    /// any transcript heuristic.
+    pub status: Option<String>,
 }
 
-/// A tracker for a transcript whose harness is already known.
-pub fn open_transcript(path: &Path, harness: Harness, spans: SpanRetention) -> Box<dyn SessionTracker> {
-    match harness {
-        Harness::Codex => Box::new(codex::CodexTranscript::new(path).with_spans(spans)),
-        _ => Box::new(claude::ClaudeTranscript::new(path).with_spans(spans)),
+/// What the collector knows about a process when it asks an adapter which
+/// transcript is the process's.
+pub struct AttributeContext<'a> {
+    pub cwd: Option<&'a Path>,
+    pub proc_start: SystemTime,
+    pub now: SystemTime,
+    /// Transcripts already given to another process this pass. An adapter
+    /// must not hand one out twice.
+    pub attached: &'a HashSet<PathBuf>,
+    /// A transcript idle for longer than this is a finished conversation, not
+    /// a thread of a process that cannot otherwise be matched.
+    pub activity_timeout: Duration,
+}
+
+/// One harness, as the collector sees it: where its transcripts are, which
+/// belongs to which process, and how to read one. The collector holds a list
+/// of these and never names a harness itself, so adding a harness is one
+/// module and one line in `adapters()`. Process recognition stays in
+/// `process::classify_agent`, which also knows the harnesses that have no
+/// transcript adapter yet.
+pub trait HarnessAdapter {
+    fn harness(&self) -> Harness;
+
+    /// Re-list the transcripts written since `since`. Called every
+    /// `fs_scan_interval`, not every tick.
+    fn rescan(&mut self, since: SystemTime);
+
+    /// Called once per pass with this harness's root processes, before any
+    /// of them is attributed. For work that must see every process at once:
+    /// Codex reads which rollouts each process holds open here, so that no
+    /// process's fallback can claim a thread another is demonstrably writing.
+    fn prepare(&mut self, _roots: &[&ProcNode]) {}
+
+    /// The harness's own registry entry for a process, if it keeps one.
+    fn hints(&self, _pid: u32) -> Option<RegistryHints> {
+        None
     }
+
+    /// The transcripts this process is writing, newest activity first, and
+    /// how sure the adapter is. One per conversation: a Codex app-server hosts
+    /// many, a CLI runs one, a process with none gets an empty list.
+    fn attribute(&self, root: &ProcNode, raw: Option<&RawProc>, ctx: &AttributeContext) -> (Vec<PathBuf>, Attribution);
+
+    /// Recently written transcripts no process owns: the stopped list.
+    fn unowned(&self, attached: &HashSet<PathBuf>) -> Vec<PathBuf>;
+
+    /// A tracker for one transcript.
+    fn open(&self, path: &Path, spans: SpanRetention) -> Box<dyn SessionTracker>;
+
+    /// Whether this harness wrote the file, judged from its first few lines.
+    fn detect(&self, path: &Path) -> bool;
+
+    /// Every transcript on disk, however old, with the id a user would type
+    /// to name it. For `agent-top trace --session <id>`.
+    fn transcripts(&self) -> Vec<(String, PathBuf)>;
+}
+
+/// Every harness that has a transcript adapter, in the order they are asked.
+/// The order matters to `detect` alone: Gemini's metadata line carries a
+/// `sessionId` like Claude Code's lines do, so it is asked first.
+pub fn adapters() -> Vec<Box<dyn HarnessAdapter>> {
+    vec![Box::new(codex::CodexAdapter::default()), Box::new(gemini::GeminiAdapter::default()), Box::new(claude::ClaudeAdapter::default())]
+}
+
+/// The adapter for one harness, or none when it has only a process table entry.
+pub fn adapter_for(harness: Harness) -> Option<Box<dyn HarnessAdapter>> {
+    adapters().into_iter().find(|a| a.harness() == harness)
+}
+
+/// Which harness wrote a transcript, judged from its first few lines. Anything
+/// no adapter recognises is not a transcript agent-top reads.
+pub fn detect(path: &Path) -> Option<Harness> {
+    adapters().iter().find(|a| a.detect(path)).map(|a| a.harness())
+}
+
+/// A tracker for a transcript whose harness is already known, or none when
+/// that harness has no transcript adapter.
+pub fn open_transcript(path: &Path, harness: Harness, spans: SpanRetention) -> Option<Box<dyn SessionTracker>> {
+    adapter_for(harness).map(|a| a.open(path, spans))
+}
+
+/// The first few lines of a file, parsed, for `HarnessAdapter::detect`.
+pub(crate) fn head_lines(path: &Path) -> Vec<serde_json::Value> {
+    use std::io::{BufRead, BufReader};
+    let Ok(f) = std::fs::File::open(path) else { return Vec::new() };
+    BufReader::new(f).lines().map_while(Result::ok).take(5).filter_map(|l| serde_json::from_str(&l).ok()).collect()
 }
 
 /// Bytes ingested per tracker per refresh. Keeps a cold start on a 100 MB
