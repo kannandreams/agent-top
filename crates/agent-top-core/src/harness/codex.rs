@@ -359,6 +359,11 @@ impl CodexTranscript {
                             }
                         }
                     }
+                    // The rate-limit snapshot rides on every token_count; the
+                    // latest one is the current state.
+                    if let Some(rl) = payload.and_then(|p| p.get("rate_limits")).filter(|v| v.is_object()) {
+                        self.summary.rate_limit = Some(parse_rate_limits(rl));
+                    }
                 }
                 "task_started" => {
                     self.summary.activity = Activity::Working;
@@ -455,6 +460,31 @@ impl CodexTranscript {
             },
             _ => {}
         }
+    }
+}
+
+/// Codex's `rate_limits`: a short window (`primary`) and a long one
+/// (`secondary`), each a used-percent, a window length and a reset time in
+/// epoch seconds, plus the plan and whether the limit is currently hit.
+fn parse_rate_limits(v: &Value) -> crate::model::RateLimit {
+    use crate::model::{RateLimit, RateWindow};
+    let window = |w: Option<&Value>| -> Option<RateWindow> {
+        let w = w?;
+        Some(RateWindow {
+            used_percent: w.get("used_percent").and_then(Value::as_f64).unwrap_or(0.0),
+            window_minutes: w.get("window_minutes").and_then(Value::as_u64).unwrap_or(0),
+            resets_at: w
+                .get("resets_at")
+                .and_then(Value::as_i64)
+                .filter(|s| *s > 0)
+                .map(|s| std::time::UNIX_EPOCH + std::time::Duration::from_secs(s as u64)),
+        })
+    };
+    RateLimit {
+        primary: window(v.get("primary")),
+        secondary: window(v.get("secondary")),
+        plan: v.get("plan_type").and_then(Value::as_str).map(str::to_string),
+        reached: v.get("rate_limit_reached_type").map(|x| !x.is_null()).unwrap_or(false),
     }
 }
 
@@ -619,6 +649,28 @@ mod tests {
         let found = rollouts_under(&root, now - Duration::from_secs(1800));
         assert_eq!(found, vec![fresh], "the fresh file is found through directories nobody has touched in weeks");
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn reads_the_latest_rate_limit_snapshot() {
+        let dir = std::env::temp_dir().join(format!("agent-top-codex-rl-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rollout.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-06-16T20:45:04.000Z","type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":10,"output_tokens":1,"total_tokens":11}}}},"rate_limits":{{"limit_id":"codex","primary":{{"used_percent":1.0,"window_minutes":300,"resets_at":1781660699}},"secondary":{{"used_percent":27.0,"window_minutes":10080,"resets_at":1782080576}},"plan_type":"plus","rate_limit_reached_type":null}}}}}}"#).unwrap();
+        // A later snapshot with higher usage; the latest wins.
+        writeln!(f, r#"{{"timestamp":"2026-06-16T20:50:00.000Z","type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":20,"output_tokens":2,"total_tokens":22}}}},"rate_limits":{{"limit_id":"codex","primary":{{"used_percent":42.0,"window_minutes":300,"resets_at":1781660999}},"secondary":{{"used_percent":28.0,"window_minutes":10080,"resets_at":1782080576}},"plan_type":"plus","rate_limit_reached_type":"primary"}}}}}}"#).unwrap();
+        let mut t = CodexTranscript::new(&path);
+        t.refresh().unwrap();
+        let rl = t.summary().rate_limit.as_ref().expect("rate limit parsed");
+        assert_eq!(rl.plan.as_deref(), Some("plus"));
+        assert!(rl.reached, "the latest snapshot reports the primary window hit");
+        let p = rl.primary.expect("primary window");
+        assert_eq!(p.used_percent, 42.0, "the latest value, not the first");
+        assert_eq!(p.window_minutes, 300);
+        assert_eq!(rl.secondary.unwrap().used_percent, 28.0);
+        assert_eq!(rl.tightest().map(|w| w.used_percent), Some(42.0));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

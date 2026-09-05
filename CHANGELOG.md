@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-09-05
+
+### Added
+- **Rate-limit view.** Codex writes a `rate_limits` block on every usage record, a short rolling window (5 hours) and a long one (weekly), each with a used-percent and a reset time, plus the plan and whether the limit is currently hit. agent-top reads the latest one and shows it. The detail pane has a `rate limit` section with each window's usage, coloured green through amber to red as it fills, and the reset countdown; a hit limit is flagged `LIMIT REACHED`. `--once` and the plain output add a `RATE LIMITS (near or at limit)` section listing live and idle agents at or above 75 percent, so a session about to be throttled is visible without opening the detail pane. `--json` carries it as `rate_limit` on each agent. Only harnesses that write the figure populate it; Codex does today. A stopped session's snapshot is from when it last ran, so the plain-output warning is limited to agents whose limit still applies. Verified against the real rollouts on the build machine, including a session at 100 percent of its weekly window.
 ## [0.7.1] - 2026-09-05
 
 ### Added

@@ -172,6 +172,7 @@ impl Collector {
                     attribution,
                     shares_process: false,
                     parse_warning: None,
+                    rate_limit: None,
                 });
                 continue;
             }
@@ -238,6 +239,7 @@ impl Collector {
                     attribution,
                     shares_process: !owns_process,
                     parse_warning: parse_warning(&summary, harness),
+                    rate_limit: summary.rate_limit.clone(),
                 });
             }
         }
@@ -287,6 +289,7 @@ impl Collector {
                 attribution: Attribution::TranscriptOnly,
                 shares_process: false,
                 parse_warning: parse_warning(&s, harness),
+                rate_limit: s.rate_limit.clone(),
             });
         }
 
@@ -640,6 +643,7 @@ mod tests {
             attribution: Attribution::HarnessRegistry,
             shares_process: false,
             parse_warning: None,
+            rate_limit: None,
         };
         let procs = [raw(10, 5), raw(11, 6), raw(99, 7)];
         let by_pid: HashMap<u32, &RawProc> = procs.iter().map(|p| (p.pid, p)).collect();

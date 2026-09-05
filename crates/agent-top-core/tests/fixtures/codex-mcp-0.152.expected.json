@@ -25,6 +25,7 @@
     }
   ],
   "model": "gpt-5.6-luna",
+  "rate_limit": null,
   "session_id": "01000000-0000-7000-0000-0000000000mc",
   "spans": {
     "by_kind": [

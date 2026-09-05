@@ -14,6 +14,7 @@
   "last_activity_ms": 1786283224243,
   "mcp": [],
   "model": "claude-fable-5",
+  "rate_limit": null,
   "session_id": "00000000-1111-2222-3333-444444444444",
   "spans": {
     "by_kind": [

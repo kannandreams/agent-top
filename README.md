@@ -101,7 +101,12 @@ it was priced from:
 ```
 
 If another tool shows a different figure for the same session, this is where
-to look: three lines will match and one will not. See
+to look: three lines will match and one will not.
+
+For a harness that reports it (Codex today), a **rate limit** section shows how
+much of each usage window is spent, coloured as it fills, with the reset
+countdown; `agent-top --once` lists any live agent at or above 75 percent under
+`RATE LIMITS`. See
 [If the cost does not match your harness](#if-the-cost-does-not-match-your-harness).
 
 **Tool trace.** A waterfall of the session's recent activity on a shared time
@@ -375,7 +380,7 @@ on each tick.
 
 ## Roadmap
 
-See [docs/roadmap.md](docs/roadmap.md). Next: an Aider adapter, and MCP counts for OpenCode. [docs/releasing.md](docs/releasing.md) is the release runbook.
+See [docs/roadmap.md](docs/roadmap.md). Next: an Aider adapter, and a non-interactive `watch --alert` mode. [docs/releasing.md](docs/releasing.md) is the release runbook.
 
 ## Development
 

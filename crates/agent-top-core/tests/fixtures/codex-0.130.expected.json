@@ -14,6 +14,7 @@
   "last_activity_ms": 1778795294964,
   "mcp": [],
   "model": "gpt-5.4-mini",
+  "rate_limit": null,
   "session_id": "01000000-0000-7000-0000-000000000000",
   "spans": {
     "by_kind": [

@@ -379,6 +379,47 @@ pub struct Agent {
     /// means this row's tokens and cost are not to be believed. Almost always a
     /// harness that changed its format under us.
     pub parse_warning: Option<String>,
+    /// How close the session is to its rate limit, when the harness reports it.
+    #[serde(default)]
+    pub rate_limit: Option<RateLimit>,
+}
+
+/// One rolling usage window a harness reports against a rate limit: how much
+/// of it is spent and when it rolls over. Codex writes two, a short window and
+/// a long one, on every usage record.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+pub struct RateWindow {
+    /// Percent of the window used, 0..=100.
+    pub used_percent: f64,
+    /// The window length in minutes (Codex: 300 for the short one, 10080 weekly).
+    pub window_minutes: u64,
+    /// When the window rolls over and the usage resets, if the harness says.
+    pub resets_at: Option<SystemTime>,
+}
+
+/// What a harness reports about how close a session is to its rate limit. Only
+/// the harnesses that write it (Codex today) populate this; the rest leave it
+/// `None`. Read-only, like everything else: a number the harness already wrote.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct RateLimit {
+    /// The short rolling window.
+    pub primary: Option<RateWindow>,
+    /// The long rolling window.
+    pub secondary: Option<RateWindow>,
+    /// The plan the limit is for (Codex: `plus`, `pro`, ...).
+    pub plan: Option<String>,
+    /// True when the harness says the limit is currently hit.
+    pub reached: bool,
+}
+
+impl RateLimit {
+    /// The window closest to its limit, for a one-glance figure.
+    pub fn tightest(&self) -> Option<&RateWindow> {
+        [self.primary.as_ref(), self.secondary.as_ref()]
+            .into_iter()
+            .flatten()
+            .max_by(|a, b| a.used_percent.partial_cmp(&b.used_percent).unwrap_or(std::cmp::Ordering::Equal))
+    }
 }
 
 /// USD by kind of token, accumulated message by message at each message's

@@ -74,6 +74,8 @@ pub struct SessionSummary {
     pub activity: Activity,
     pub started_at: Option<SystemTime>,
     pub last_activity: Option<SystemTime>,
+    /// How close the session is to its rate limit, when the harness writes it.
+    pub rate_limit: Option<crate::model::RateLimit>,
 }
 
 /// What a transcript says about one MCP server: how often it was called,

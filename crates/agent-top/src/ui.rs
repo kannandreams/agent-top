@@ -372,7 +372,7 @@ fn draw_detail(f: &mut Frame, app: &App, area: Rect) {
     let inner = outer.inner(area);
     f.render_widget(outer, area);
     let [left, right] = Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)]).areas(inner);
-    f.render_widget(Paragraph::new(agent_facts(a)).wrap(Wrap { trim: false }), left);
+    f.render_widget(Paragraph::new(agent_facts(a, app.snapshot.taken_at)).wrap(Wrap { trim: false }), left);
     let panel = match app.detail {
         DetailView::Tree => {
             process_tree(a, &app.snapshot.orphans, &app.snapshot.orphan_origins, app.snapshot.taken_at, right.width as usize)
@@ -413,7 +413,44 @@ fn price_basis(a: &Agent) -> String {
     }
 }
 
-fn agent_facts(a: &Agent) -> Text<'static> {
+/// A window's label from its length: `5h`, `weekly`, `24h`.
+pub fn window_label(minutes: u64) -> String {
+    match minutes {
+        0 => "window".into(),
+        10080 => "weekly".into(),
+        m if m % 1440 == 0 => format!("{}d", m / 1440),
+        m if m % 60 == 0 => format!("{}h", m / 60),
+        m => format!("{m}m"),
+    }
+}
+
+/// One rate-limit window: how much is used and when it resets, coloured by
+/// how close it is to the limit.
+fn rate_window_line(kind: &str, w: &agent_top_core::RateWindow, now: SystemTime) -> Line<'static> {
+    let pct = w.used_percent;
+    let colour = if pct >= 90.0 {
+        Color::Red
+    } else if pct >= 75.0 {
+        Color::Rgb(220, 160, 40)
+    } else {
+        Color::Green
+    };
+    let resets = match w.resets_at {
+        Some(t) => match t.duration_since(now) {
+            Ok(d) => format!("resets in {}", age(d.as_secs())),
+            Err(_) => "resetting now".to_string(),
+        },
+        None => String::new(),
+    };
+    Line::from(vec![
+        Span::styled(format!("  {:<9}", window_label(w.window_minutes)), Style::default().fg(DIM)),
+        Span::styled(format!("{pct:>4.0}% used"), Style::default().fg(colour)),
+        dim(format!("   {kind}")),
+        if resets.is_empty() { Span::raw(String::new()) } else { dim(format!("   {resets}")) },
+    ])
+}
+
+fn agent_facts(a: &Agent, now: SystemTime) -> Text<'static> {
     let u = &a.usage;
     let b = &a.cost_breakdown;
     let price = a.model.as_deref().and_then(agent_top_core::pricing::price_for);
@@ -464,6 +501,23 @@ fn agent_facts(a: &Agent) -> Text<'static> {
     if a.web_searches > 0 {
         let priced = if b.web_search > 0.0 { format!(" (${:.2})", b.web_search) } else { " (not priced)".to_string() };
         lines.push(kv("web searches", format!("{}{priced}", a.web_searches)));
+    }
+    if let Some(rl) = &a.rate_limit {
+        lines.push(Line::raw(""));
+        let head = match &rl.plan {
+            Some(plan) => format!("rate limit ({plan})"),
+            None => "rate limit".to_string(),
+        };
+        let mut spans = vec![Span::styled(format!("{head:<20}"), Style::default().fg(ACCENT).bold())];
+        if rl.reached {
+            spans.push(Span::styled("LIMIT REACHED", Style::default().fg(Color::Red).bold()));
+        }
+        lines.push(Line::from(spans));
+        for (label, w) in [("primary", &rl.primary), ("secondary", &rl.secondary)] {
+            if let Some(w) = w {
+                lines.push(rate_window_line(label, w, now));
+            }
+        }
     }
     if let Some(p) = &a.session_path {
         lines.push(kv("transcript", tilde(p)));
@@ -880,6 +934,7 @@ mod tests {
             attribution: Attribution::HarnessRegistry,
             shares_process: false,
             parse_warning: None,
+            rate_limit: None,
         }
     }
 
@@ -1022,6 +1077,33 @@ mod tests {
         assert!(out.contains("linear"), "{out}");
         assert!(out.lines().any(|l| l.contains("linear") && l.contains("-     3   0")), "a server with no process: {out}");
         assert!(out.contains("orphaned from tuff-25 (pid 4242) 2m ago"), "{out}");
+    }
+
+    #[test]
+    fn detail_pane_shows_the_rate_limit() {
+        use agent_top_core::{RateLimit, RateWindow};
+        let mut a = agent("throttled", Vec::new());
+        a.rate_limit = Some(RateLimit {
+            primary: Some(RateWindow {
+                used_percent: 92.0,
+                window_minutes: 300,
+                resets_at: Some(SystemTime::UNIX_EPOCH + Duration::from_secs(160 + 3600)),
+            }),
+            secondary: Some(RateWindow { used_percent: 27.0, window_minutes: 10080, resets_at: None }),
+            plan: Some("plus".into()),
+            reached: true,
+        });
+        let mut app = App::new(snapshot(vec![a]));
+        app.show_detail = true;
+        app.detail = DetailView::Tree;
+        // A tall pane so the facts column shows the rate limit near its foot.
+        let out = render(&mut app, 120, 110);
+        assert!(out.contains("rate limit (plus)"), "{out}");
+        assert!(out.contains("LIMIT REACHED"), "{out}");
+        assert!(out.contains("92% used"), "{out}");
+        assert!(out.contains("5h"), "{out}");
+        assert!(out.contains("weekly"), "{out}");
+        assert!(out.contains("resets in 1h"), "{out}");
     }
 
     #[test]

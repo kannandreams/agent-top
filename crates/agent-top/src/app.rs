@@ -281,6 +281,7 @@ mod tests {
             attribution: Attribution::HarnessRegistry,
             shares_process: false,
             parse_warning: None,
+            rate_limit: None,
         };
         let mut s = Snapshot {
             schema_version: agent_top_core::SNAPSHOT_SCHEMA_VERSION,

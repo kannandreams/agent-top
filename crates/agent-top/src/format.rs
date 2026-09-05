@@ -1,7 +1,7 @@
 //! Number and text formatting shared by the TUI and `--once`.
 
 use agent_top_core::pricing::{Origin, Table};
-use agent_top_core::{Agent, ProcNode, Snapshot};
+use agent_top_core::{Agent, AgentState, ProcNode, Snapshot};
 
 /// CPU and memory belong to the process, and several conversations can share
 /// one. Showing 0.0% on the rows that do not own it would read as an idle
@@ -187,6 +187,30 @@ pub fn plain_table(snap: &Snapshot) -> String {
             if let Some(origin) = snap.orphan_origins.iter().find(|x| x.pid == o.pid) {
                 out.push_str(&format!("          {}\n", crate::ui::orphan_origin(origin, snap.taken_at)));
             }
+        }
+    }
+    // A stopped session's rate-limit snapshot is from when it last ran, so it
+    // is not a current warning; only live and idle agents carry a limit that
+    // still applies. The detail pane still shows the figure for any session.
+    let mut throttled: Vec<(&Agent, &agent_top_core::RateWindow)> = snap
+        .agents
+        .iter()
+        .filter(|a| a.state != AgentState::Stopped)
+        .filter_map(|a| a.rate_limit.as_ref().and_then(|rl| rl.tightest()).map(|w| (a, w)))
+        .filter(|(a, w)| w.used_percent >= 75.0 || a.rate_limit.as_ref().map(|rl| rl.reached).unwrap_or(false))
+        .collect();
+    if !throttled.is_empty() {
+        throttled.sort_by(|(_, a), (_, b)| b.used_percent.partial_cmp(&a.used_percent).unwrap_or(std::cmp::Ordering::Equal));
+        out.push_str("\nRATE LIMITS (near or at limit)\n");
+        for (a, w) in throttled {
+            let reached = a.rate_limit.as_ref().map(|rl| rl.reached).unwrap_or(false);
+            out.push_str(&format!(
+                "  {:<24} {:>3.0}% of its {} window{}\n",
+                truncate(&a.name, 24),
+                w.used_percent,
+                crate::ui::window_label(w.window_minutes),
+                if reached { "  LIMIT REACHED" } else { "" }
+            ));
         }
     }
     let t = &snap.totals;

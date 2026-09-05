@@ -37,7 +37,7 @@ Each phase ships on its own, and the order matters more than any date.
 ## v0.4 — signals
 
 - Optional `agent-top hook` subcommand that harnesses with hook support can call on session start/stop to register pid, session id and transcript path exactly.
-- Rate-limit view for harnesses that log it (Codex `rate_limits` is already in the transcript).
+- Rate-limit view for harnesses that log it (shipped v0.8.0): Codex's short and weekly windows in the detail pane and a `RATE LIMITS` section in `--once`.
 - Configurable thresholds and a non-TUI `agent-top watch --alert` for orphan or cost spikes.
 - Detecting a partial format change, where a rename leaves some fields readable and the totals merely wrong. Needs a notion of which fields ought to be present that does not cry wolf every time a harness adds one.
 
