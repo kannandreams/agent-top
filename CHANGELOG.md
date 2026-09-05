@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [0.13.0] - 2026-09-05
 
 ### Added
+- **Burn rate: live spend velocity across every agent.** The header shows dollars-per-hour beside the total cost, the rate at which cost is climbing over the last minute across all agents at once, coloured dim, green, amber and red as it rises. It answers "how fast am I spending right now," which the running total cannot, and it catches a runaway loop early. Cost only ever climbs, so an idle machine reads `$0.00/h`; it is smoothed over a minute so a single expensive turn does not make it jump. No cross-task comparison is implied: it is one machine-wide velocity, not a per-model figure.
 - **A once-a-day update check, the one call agent-top makes on its own.** It asks crates.io for the latest published version and nothing else: no data about you, your agents or your machine is ever sent, only a generic User-Agent. When a newer version exists the footer version badge turns amber and shows the arrow to it (`v0.12.2 → v0.13.0`); the upgrade command is in the `?` help popup. The result is cached, so it hits the network at most once a day and most launches make no call at all; it runs on a background thread so the UI never waits; it is silent when offline; and `AGENT_TOP_NO_UPDATE_CHECK=1` turns it off. The promise is reworded from "no network" to the thing that actually matters: your data never leaves the machine.
 
 ### Changed

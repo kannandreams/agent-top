@@ -328,6 +328,21 @@ fn draw_tool_panel(f: &mut Frame, area: Rect, snap: &agent_top_core::Snapshot, p
     f.render_widget(Paragraph::new(Text::from(lines)).block(block), popup);
 }
 
+/// The spend velocity, coloured by how fast: dim near zero, then amber and red
+/// as the dollars-per-hour climbs. It reads the rate the header already keeps.
+fn burn_span(per_hour: f64) -> Span<'static> {
+    let colour = if per_hour >= 20.0 {
+        Color::Red
+    } else if per_hour >= 5.0 {
+        Color::Rgb(220, 160, 40)
+    } else if per_hour >= 0.005 {
+        Color::Green
+    } else {
+        DIM
+    };
+    Span::styled(format!("${per_hour:.2}/h"), Style::default().fg(colour))
+}
+
 fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     let snap = &app.snapshot;
     let host = &snap.host;
@@ -387,7 +402,8 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
                     format!("${:.2}{}", t.cost_usd, if t.unpriced_tokens > 0 { "+" } else { "" }),
                     Style::default().fg(Color::Magenta).bold(),
                 ),
-                if t.unpriced_tokens > 0 { dim(format!("  ({} unpriced)", tokens(t.unpriced_tokens))) } else { Span::raw("") },
+                dim("   burn "),
+                burn_span(app.burn_per_hour),
             ],
         ),
         stat_line(

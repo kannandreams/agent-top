@@ -73,6 +73,9 @@ const HISTORY: usize = 120;
 /// deltas are zeros with spikes between them; ten seconds smooths a turn into
 /// a rate and still drops back to zero soon after the agents go quiet.
 const RATE_WINDOW: Duration = Duration::from_secs(10);
+/// Burn rate is smoothed over a longer window than the token rate, because
+/// cost arrives in per-turn lumps that a short window would make jump around.
+const BURN_WINDOW: Duration = Duration::from_secs(60);
 
 /// Which full-screen popup, if any, is over the table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,6 +106,10 @@ pub struct App {
     pub cost_history: Vec<u64>,
     /// (when, output tokens across every agent) for the last `RATE_WINDOW`.
     rate_samples: VecDeque<(Instant, u64)>,
+    /// (when, cumulative cost in micro-dollars) for the last `BURN_WINDOW`.
+    cost_samples: VecDeque<(Instant, u64)>,
+    /// Current spend velocity across every agent, US dollars per hour.
+    pub burn_per_hour: f64,
     /// The latest published version when it is newer than this build, filled by
     /// the update check; `None` otherwise. The footer reads it each frame.
     pub update: std::sync::Arc<std::sync::Mutex<Option<String>>>,
@@ -126,6 +133,8 @@ impl App {
             output_rate: Vec::new(),
             cost_history: Vec::new(),
             rate_samples: VecDeque::new(),
+            cost_samples: VecDeque::new(),
+            burn_per_hour: 0.0,
             update: std::sync::Arc::new(std::sync::Mutex::new(None)),
         };
         app.rebuild_rows();
@@ -152,6 +161,14 @@ impl App {
         }
         push(&mut self.output_rate, output_per_second(&self.rate_samples));
         push(&mut self.cost_history, (snapshot.totals.cost_usd * 100.0) as u64);
+        // Spend velocity: the cost added over the burn window, projected to an
+        // hour. Cost only climbs, so an idle machine reads zero.
+        let cost_micros = (snapshot.totals.cost_usd * 1_000_000.0) as u64;
+        self.cost_samples.push_back((now, cost_micros));
+        while self.cost_samples.len() > 2 && self.cost_samples[1].0 + BURN_WINDOW <= now {
+            self.cost_samples.pop_front();
+        }
+        self.burn_per_hour = burn_per_hour(&self.cost_samples);
         self.snapshot = snapshot;
         self.rebuild_rows();
     }
@@ -256,6 +273,19 @@ fn output_per_second(samples: &VecDeque<(Instant, u64)>) -> u64 {
     (n1.saturating_sub(*n0) as f64 / secs).round() as u64
 }
 
+/// US dollars per hour from cumulative-cost samples: the cost added across the
+/// window, scaled to an hour. Needs a few seconds of history so a cold start
+/// does not read a wild rate off a one-second window.
+fn burn_per_hour(samples: &VecDeque<(Instant, u64)>) -> f64 {
+    let (Some((t0, c0)), Some((t1, c1))) = (samples.front(), samples.back()) else { return 0.0 };
+    let secs = t1.duration_since(*t0).as_secs_f64();
+    if secs < 3.0 {
+        return 0.0;
+    }
+    let micros = c1.saturating_sub(*c0) as f64;
+    micros / 1_000_000.0 / secs * 3600.0
+}
+
 fn push(v: &mut Vec<u64>, x: u64) {
     v.push(x);
     if v.len() > HISTORY {
@@ -317,6 +347,22 @@ mod tests {
         };
         s.compute_totals();
         s
+    }
+
+    #[test]
+    fn burn_rate_is_dollars_per_hour_over_the_window() {
+        use std::collections::VecDeque;
+        let t0 = Instant::now();
+        // $0.60 spent over 60 seconds → $36/hour.
+        let mut s: VecDeque<(Instant, u64)> = VecDeque::new();
+        s.push_back((t0, 1_000_000)); // $1.00
+        s.push_back((t0 + Duration::from_secs(60), 1_600_000)); // $1.60
+        assert!((burn_per_hour(&s) - 36.0).abs() < 1e-6, "{}", burn_per_hour(&s));
+        // Too little history reads zero rather than a wild number.
+        let mut s: VecDeque<(Instant, u64)> = VecDeque::new();
+        s.push_back((t0, 1_000_000));
+        s.push_back((t0 + Duration::from_secs(1), 2_000_000));
+        assert_eq!(burn_per_hour(&s), 0.0);
     }
 
     #[test]
