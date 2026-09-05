@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.9.2] - 2026-09-05
+
+### Changed
+- The README opens with a proper introduction of what agent-top is, rather than a scenario, and now names all four supported harnesses. The "What the table shows" columns each carry an icon. Documentation only; no behaviour change.
 ## [0.9.1] - 2026-09-05
 
 ### Added
