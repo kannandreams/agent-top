@@ -88,6 +88,22 @@ impl TokenUsage {
         self.input + self.cache_write() + self.cache_read + self.output
     }
 
+    /// The input side: everything sent to the model as the prompt, fresh input
+    /// plus cache writes plus cache reads, but not the output it produced.
+    pub fn prompt(&self) -> u64 {
+        self.input + self.cache_write() + self.cache_read
+    }
+
+    /// The share of the prompt served from cache (the cheap reads), in `0..=1`.
+    /// A high number means most of the re-sent conversation was billed at the
+    /// cache-read rate rather than full input; a low one on a long session is
+    /// money left on the table. `None` when there was no prompt to judge, or
+    /// the model does not cache at all.
+    pub fn cache_hit_rate(&self) -> Option<f64> {
+        let p = self.prompt();
+        (p > 0).then(|| self.cache_read as f64 / p as f64)
+    }
+
     pub fn add(&mut self, other: &TokenUsage) {
         self.input += other.input;
         self.cache_write_5m += other.cache_write_5m;
@@ -573,5 +589,23 @@ impl Snapshot {
         }
         t.orphaned_mcp = self.orphans.len();
         self.totals = t;
+    }
+}
+
+#[cfg(test)]
+mod usage_tests {
+    use super::TokenUsage;
+
+    #[test]
+    fn cache_hit_rate_is_reads_over_the_prompt() {
+        let u = TokenUsage { input: 200, cache_read: 800, cache_write_5m: 0, cache_write_1h: 0, output: 50 };
+        // Prompt is 1000 (output excluded); 800 of it from cache.
+        assert_eq!(u.prompt(), 1000);
+        assert!((u.cache_hit_rate().unwrap() - 0.8).abs() < 1e-9);
+        // A cache write counts as prompt input, not as a hit.
+        let u = TokenUsage { input: 100, cache_read: 0, cache_write_5m: 900, cache_write_1h: 0, output: 0 };
+        assert_eq!(u.cache_hit_rate(), Some(0.0));
+        // Nothing to judge.
+        assert_eq!(TokenUsage::default().cache_hit_rate(), None);
     }
 }

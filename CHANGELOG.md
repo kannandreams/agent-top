@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-09-05
+
+### Added
+- **Cache efficiency.** Every turn re-sends the conversation, and most of it can be billed at the cheap cache-read rate instead of full input price; how much is a real cost lever that no harness surfaces. agent-top already knows the split, so the detail pane now shows a `cache` line, the share of the prompt served from cache, coloured green when it is high and red when it is low, with a "full price most turns" note on a wasteful session. `agent-top report` gains a `CACHE` column, so you can see which harness or model is caching well. It is computed from the token counts already read, so it needed no new parsing; a session with too small a prompt to judge shows `-` rather than a misleading `0%`.
 ## [0.9.2] - 2026-09-05
 
 ### Changed

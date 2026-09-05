@@ -90,6 +90,16 @@ struct Bucket {
     unpriced: u64,
     turns: u64,
     tool_calls: u64,
+    prompt: u64,
+    cache_read: u64,
+}
+
+impl Bucket {
+    /// Share of the prompt served from cache across the group, when there is a
+    /// meaningful amount of prompt to judge.
+    fn cache_hit(&self) -> Option<f64> {
+        (self.prompt >= 5_000).then(|| self.cache_read as f64 / self.prompt as f64)
+    }
 }
 
 impl Bucket {
@@ -100,6 +110,8 @@ impl Bucket {
         self.unpriced += s.unpriced_tokens;
         self.turns += s.turns;
         self.tool_calls += s.tool_calls;
+        self.prompt += s.usage.prompt();
+        self.cache_read += s.usage.cache_read;
     }
 }
 
@@ -185,11 +197,12 @@ impl Report {
         let mut out = String::new();
         out.push_str(&format!("agent-top report · since {} · by {}\n\n", format_date(self.since), self.by.label()));
         out.push_str(&format!(
-            "{:<22} {:>8} {:>10} {:>10} {:>10}\n",
+            "{:<22} {:>8} {:>10} {:>10} {:>7} {:>10}\n",
             self.by.label().to_uppercase(),
             "SESSIONS",
             "TOKENS",
             "COST",
+            "CACHE",
             "UNPRICED"
         ));
 
@@ -197,22 +210,24 @@ impl Report {
         rows.sort_by(|a, b| b.1.cost.partial_cmp(&a.1.cost).unwrap_or(std::cmp::Ordering::Equal).then(b.1.tokens.cmp(&a.1.tokens)));
         for (k, b) in rows {
             out.push_str(&format!(
-                "{:<22} {:>8} {:>10} {:>10} {:>10}\n",
+                "{:<22} {:>8} {:>10} {:>10} {:>7} {:>10}\n",
                 truncate(k, 22),
                 b.sessions,
                 tokens(b.tokens),
                 cost(b.cost, b.unpriced),
+                b.cache_hit().map(|r| format!("{:.0}%", r * 100.0)).unwrap_or_else(|| "-".into()),
                 if b.unpriced > 0 { tokens(b.unpriced) } else { "-".into() }
             ));
         }
-        out.push_str(&format!("{:-<64}\n", ""));
+        out.push_str(&format!("{:-<72}\n", ""));
         let t = &self.total;
         out.push_str(&format!(
-            "{:<22} {:>8} {:>10} {:>10} {:>10}\n",
+            "{:<22} {:>8} {:>10} {:>10} {:>7} {:>10}\n",
             "total",
             t.sessions,
             tokens(t.tokens),
             cost(t.cost, t.unpriced),
+            t.cache_hit().map(|r| format!("{:.0}%", r * 100.0)).unwrap_or_else(|| "-".into()),
             if t.unpriced > 0 { tokens(t.unpriced) } else { "-".into() }
         ));
         if t.unpriced > 0 {
@@ -230,6 +245,8 @@ impl Report {
             serde_json::json!({
                 "sessions": b.sessions, "tokens": b.tokens, "cost_usd": b.cost,
                 "unpriced_tokens": b.unpriced, "turns": b.turns, "tool_calls": b.tool_calls,
+                "prompt_tokens": b.prompt, "cache_read_tokens": b.cache_read,
+                "cache_hit_rate": b.cache_hit(),
             })
         };
         serde_json::json!({

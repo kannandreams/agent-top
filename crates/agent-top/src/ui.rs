@@ -450,6 +450,31 @@ fn rate_window_line(kind: &str, w: &agent_top_core::RateWindow, now: SystemTime)
     ])
 }
 
+/// How much of the prompt is being served from cache, coloured by how good
+/// that is. Blank on a session too small to judge, so it does not cry "0%" on
+/// a two-turn session that never built a cache.
+fn cache_line(a: &Agent) -> Line<'static> {
+    // Under a few thousand prompt tokens there is nothing meaningful to say.
+    let prompt = a.usage.prompt();
+    let Some(rate) = a.usage.cache_hit_rate().filter(|_| prompt >= 5_000) else {
+        return kv("cache", "-".into());
+    };
+    let pct = rate * 100.0;
+    let colour = if pct >= 70.0 {
+        Color::Green
+    } else if pct >= 40.0 {
+        Color::Rgb(220, 160, 40)
+    } else {
+        Color::Red
+    };
+    let note = if pct < 40.0 { "   full price most turns" } else { "" };
+    Line::from(vec![
+        Span::styled(format!("{:<11}", "cache"), Style::default().fg(DIM)),
+        Span::styled(format!("{pct:.0}% from cache"), Style::default().fg(colour)),
+        dim(note.to_string()),
+    ])
+}
+
 fn agent_facts(a: &Agent, now: SystemTime) -> Text<'static> {
     let u = &a.usage;
     let b = &a.cost_breakdown;
@@ -495,6 +520,7 @@ fn agent_facts(a: &Agent, now: SystemTime) -> Text<'static> {
             Span::styled(cost(a), Style::default().bold()),
             dim(format!("   {}", price_basis(a))),
         ]),
+        cache_line(a),
         kv("turns", format!("{} ({} subagent)", a.turns, a.subagent_turns)),
         kv("tool calls", a.tool_calls.to_string()),
     ]);
@@ -1104,6 +1130,29 @@ mod tests {
         assert!(out.contains("5h"), "{out}");
         assert!(out.contains("weekly"), "{out}");
         assert!(out.contains("resets in 1h"), "{out}");
+    }
+
+    #[test]
+    fn detail_pane_shows_cache_efficiency() {
+        // A wasteful session: a big prompt, almost none of it from cache.
+        let mut a = agent("cold-cache", Vec::new());
+        a.usage = TokenUsage { input: 90_000, cache_read: 10_000, cache_write_5m: 0, cache_write_1h: 0, output: 500 };
+        let mut app = App::new(snapshot(vec![a]));
+        app.show_detail = true;
+        app.detail = DetailView::Tree;
+        let out = render(&mut app, 120, 110);
+        assert!(out.contains("10% from cache"), "{out}");
+        assert!(out.contains("full price most turns"), "{out}");
+
+        // A healthy session says the percentage without the warning.
+        let mut a = agent("warm-cache", Vec::new());
+        a.usage = TokenUsage { input: 10_000, cache_read: 90_000, cache_write_5m: 0, cache_write_1h: 0, output: 500 };
+        let mut app = App::new(snapshot(vec![a]));
+        app.show_detail = true;
+        app.detail = DetailView::Tree;
+        let out = render(&mut app, 120, 110);
+        assert!(out.contains("90% from cache"), "{out}");
+        assert!(!out.contains("full price"), "{out}");
     }
 
     #[test]

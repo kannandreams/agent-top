@@ -104,7 +104,10 @@ it was priced from:
 ```
 
 If another tool shows a different figure for the same session, this is where
-to look: three lines will match and one will not.
+to look: three lines will match and one will not. A **cache** line shows what
+share of the prompt is being served from cache, green when most of the
+re-sent conversation is billed at the cheap cache-read rate and red when a
+session is paying full input price every turn.
 
 For a harness that reports it (Codex today), a **rate limit** section shows how
 much of each usage window is spent, coloured as it fills, with the reset
@@ -217,13 +220,16 @@ $ agent-top report --since all --by harness
 
 agent-top report · since the beginning · by harness
 
-HARNESS                SESSIONS     TOKENS       COST   UNPRICED
-claude                       43       2.1B   $1769.47          -
-codex                        96       1.6B    $663.59+       1.9M
-opencode                     39     704.1M      $8.45          -
-----------------------------------------------------------------
-total                       178       4.3B  $2441.51+       1.9M
+HARNESS                SESSIONS     TOKENS       COST   CACHE   UNPRICED
+claude                       43       2.1B   $1769.47     99%          -
+codex                        96       1.6B    $663.59+    95%       1.9M
+opencode                     39     704.1M      $8.45     98%          -
+------------------------------------------------------------------------
+total                       178       4.3B  $2441.51+     97%       1.9M
 ```
+
+The `CACHE` column is the share of the prompt served from cache: high is
+efficient, a low number on a long-running model is money left on the table.
 
 ```sh
 agent-top report --since 7d               # the last week
