@@ -67,7 +67,8 @@ Press `t` to open it and `Tab` to switch between two views.
 line per **MCP server** the agent uses: the server's pid, how many times the
 agent has called it, how many of those calls failed, when it was last called,
 and its CPU and memory. The calls are counted from the transcript (Claude Code
-names an MCP tool `mcp__<server>__<tool>`), the process comes from the tree,
+names an MCP tool `mcp__<server>__<tool>`, Gemini `mcp_<server>_<tool>`, and
+Codex records the server name directly), the process comes from the tree,
 and the two are joined by name; when the join is a guess the pid carries a `?`.
 A server the agent calls but that has no process, an HTTP server or one that
 has exited, shows with no pid.

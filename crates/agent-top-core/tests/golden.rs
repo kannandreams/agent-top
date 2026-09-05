@@ -151,3 +151,14 @@ fn gemini_0_58() {
     let p = fixtures().join("gemini-0.58.jsonl");
     check("gemini-0.58", Box::new(GeminiTranscript::new(p).with_prices(pricing::builtin_table())));
 }
+
+/// A redacted real Codex session (0.152) whose only point is the MCP calls:
+/// two to `codex_apps` (one failing) and one to `node_repl`, each recorded as
+/// a `response_item` function call plus an `mcp_tool_call_end` that names the
+/// server. The end lines feed the per-server map; the tool count and spans
+/// come from the function-call pairs, so the MCP lines must not double them.
+#[test]
+fn codex_mcp_0_152() {
+    let p = fixtures().join("codex-mcp-0.152.jsonl");
+    check("codex-mcp-0.152", Box::new(CodexTranscript::new(p).with_prices(pricing::builtin_table())));
+}

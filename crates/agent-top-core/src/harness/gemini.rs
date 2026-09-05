@@ -441,9 +441,15 @@ impl Parser {
                 self.summary.web_searches += 1;
             }
             let ended = c.get("timestamp").and_then(Value::as_str).and_then(parse_rfc3339_utc);
+            let error = c.get("status").and_then(Value::as_str) == Some("error");
+            if let Some(server) = mcp_server_of(name) {
+                let u = self.summary.mcp.entry(server.to_string()).or_default();
+                u.calls += 1;
+                u.errors += u64::from(error);
+                u.last_call = u.last_call.max(ended.or(msg_ts));
+            }
             let Some(started) = msg_ts.or(ended) else { continue };
             let ended = ended.unwrap_or(started);
-            let error = c.get("status").and_then(Value::as_str) == Some("error");
             self.summary.spans.open(id.to_string(), name.to_string(), started.min(ended), self.subagent);
             self.summary.spans.close(id, ended, error);
             if self.summary.last_activity.is_none_or(|l| ended > l) {
@@ -484,6 +490,19 @@ impl Parser {
 /// Only the keys are inspected.
 fn is_tool_result(m: &Value) -> bool {
     m.get("content").and_then(Value::as_array).is_some_and(|parts| parts.iter().any(|p| p.get("functionResponse").is_some()))
+}
+
+/// The server behind a Gemini MCP tool name. Gemini registers an MCP tool as
+/// `mcp_<server>_<tool>` (the `mcp_` prefix is forced, and characters the
+/// Gemini API rejects become `_`). Gemini's own parser takes the first
+/// underscore-separated segment after the prefix as the server, so this does
+/// the same; a server name that itself contains an underscore is split the
+/// same (wrong) way Gemini splits it, which keeps the grouping consistent
+/// with what the CLI shows.
+pub fn mcp_server_of(tool_name: &str) -> Option<&str> {
+    let rest = tool_name.strip_prefix("mcp_")?;
+    let server = rest.split_once('_').map(|(a, _)| a).unwrap_or(rest);
+    if server.is_empty() { None } else { Some(server) }
 }
 
 /// Gemini's usage, folded the way Google bills it: thoughts are output,
@@ -629,6 +648,37 @@ mod tests {
     }
 
     const META: &str = r#"{"sessionId":"0a1b2c3d-0000-4000-8000-000000000001","projectHash":"604d","startTime":"2026-09-05T09:00:00.000Z","lastUpdated":"2026-09-05T09:00:00.000Z","kind":"main"}"#;
+
+    #[test]
+    fn names_the_server_behind_a_gemini_mcp_tool() {
+        assert_eq!(mcp_server_of("mcp_filesystem_read_file"), Some("filesystem"));
+        assert_eq!(mcp_server_of("mcp_chrome-devtools_take_screenshot"), Some("chrome-devtools"));
+        // Gemini flattens with single underscores and splits on the first, so a
+        // server whose name has an underscore is split its way, not ours.
+        assert_eq!(mcp_server_of("mcp_google_workspace_search"), Some("google"));
+        assert_eq!(mcp_server_of("read_file"), None);
+        assert_eq!(mcp_server_of("mcp_"), None);
+    }
+
+    #[test]
+    fn counts_gemini_mcp_calls_per_server() {
+        let dir = scratch("mcp");
+        let path = dir.join("session.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "{META}").unwrap();
+        writeln!(f, r#"{{"id":"u1","timestamp":"2026-09-05T09:00:00.000Z","type":"user","content":[{{"text":"p"}}]}}"#).unwrap();
+        writeln!(f, r#"{{"id":"g1","timestamp":"2026-09-05T09:00:03.000Z","type":"gemini","content":"","tokens":{{"input":10,"output":1,"cached":0,"thoughts":0,"tool":0,"total":11}},"model":"gemini-2.5-pro","toolCalls":[{{"id":"c1","name":"mcp_filesystem_read_file","status":"success","timestamp":"2026-09-05T09:00:05.000Z"}},{{"id":"c2","name":"mcp_filesystem_list_directory","status":"error","timestamp":"2026-09-05T09:00:06.000Z"}},{{"id":"c3","name":"google_web_search","status":"success","timestamp":"2026-09-05T09:00:07.000Z"}}]}}"#).unwrap();
+        let mut t = GeminiTranscript::new(&path).with_prices(pricing::builtin_table());
+        t.refresh().unwrap();
+        let s = t.summary();
+        assert_eq!(s.tool_calls, 3);
+        assert_eq!(s.web_searches, 1);
+        assert_eq!(s.mcp.len(), 1, "the web search is not an MCP server");
+        let fs = &s.mcp["filesystem"];
+        assert_eq!((fs.calls, fs.errors), (2, 1));
+        assert_eq!(fs.last_call, parse_rfc3339_utc("2026-09-05T09:00:06.000Z"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn folds_tokens_the_way_google_bills_them_and_dedupes_by_id() {

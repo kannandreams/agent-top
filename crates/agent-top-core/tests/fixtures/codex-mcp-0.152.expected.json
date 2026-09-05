@@ -1,0 +1,116 @@
+{
+  "activity": "Waiting",
+  "cost_breakdown_micros": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "input": 0,
+    "output": 0,
+    "web_search": 0
+  },
+  "cost_usd_micros": 0,
+  "cwd": "/tmp/p",
+  "harness_version": "0.152.0",
+  "last_activity_ms": 1788602411000,
+  "mcp": [
+    {
+      "calls": 2,
+      "errors": 1,
+      "server": "codex_apps"
+    },
+    {
+      "calls": 1,
+      "errors": 0,
+      "server": "node_repl"
+    }
+  ],
+  "model": "gpt-5.6-luna",
+  "session_id": "01000000-0000-7000-0000-0000000000mc",
+  "spans": {
+    "by_kind": [
+      {
+        "count": 3,
+        "kind": "tool",
+        "open": 0,
+        "total_duration_ms": 3000
+      },
+      {
+        "count": 3,
+        "kind": "inference",
+        "open": 0,
+        "total_duration_ms": 5000
+      },
+      {
+        "count": 1,
+        "kind": "turn",
+        "open": 0,
+        "total_duration_ms": 10000
+      }
+    ],
+    "count": 7,
+    "errors": 0,
+    "first": [
+      {
+        "duration_ms": 10000,
+        "error": false,
+        "kind": "turn",
+        "name": "turn",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 1000,
+        "error": false,
+        "kind": "tool",
+        "name": "github_fetch_file",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 2000,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      }
+    ],
+    "last": [
+      {
+        "duration_ms": 1000,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 1000,
+        "error": false,
+        "kind": "tool",
+        "name": "js",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 2000,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      }
+    ],
+    "open": 0,
+    "sidechain": 0,
+    "total_duration_ms": 18000
+  },
+  "started_at_ms": 1788602400000,
+  "subagent_turns": 0,
+  "tool_calls": 3,
+  "turns": 1,
+  "unpriced_tokens": 5300,
+  "usage": {
+    "cache_read": 2000,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "input": 3000,
+    "output": 300,
+    "total": 5300
+  },
+  "web_searches": 0
+}

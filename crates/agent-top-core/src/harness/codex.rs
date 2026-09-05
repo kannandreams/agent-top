@@ -370,6 +370,29 @@ impl CodexTranscript {
                     }
                 }
                 "user_message" => self.summary.activity = Activity::Working,
+                // An MCP tool call. Codex records the call as a `response_item`
+                // `function_call` too, which the block below counts as a tool
+                // call and turns into a span; this line is the only one that
+                // names the server, so it feeds the per-server map and nothing
+                // else, to avoid double counting. `mcp_tool_call_begin` carries
+                // the same `invocation`; the pair brackets the call, but the
+                // `end` alone is enough for a count and is the one always
+                // present in the versions seen.
+                "mcp_tool_call_end" => {
+                    if let Some(inv) = payload.and_then(|p| p.get("invocation"))
+                        && let Some(server) = inv.get("server").and_then(Value::as_str).filter(|s| !s.is_empty())
+                    {
+                        let error = payload
+                            .and_then(|p| p.get("result"))
+                            .and_then(Value::as_object)
+                            .map(|r| !r.contains_key("Ok"))
+                            .unwrap_or(false);
+                        let u = self.summary.mcp.entry(server.to_string()).or_default();
+                        u.calls += 1;
+                        u.errors += u64::from(error);
+                        u.last_call = u.last_call.max(ts);
+                    }
+                }
                 "task_complete" | "turn_aborted" | "error" => {
                     self.summary.activity = Activity::Waiting;
                     if let (Some(ts), Some(id)) = (ts, self.turn.take()) {
@@ -596,6 +619,34 @@ mod tests {
         let found = rollouts_under(&root, now - Duration::from_secs(1800));
         assert_eq!(found, vec![fresh], "the fresh file is found through directories nobody has touched in weeks");
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn counts_mcp_calls_per_server_from_the_end_event() {
+        let dir = std::env::temp_dir().join(format!("agent-top-codex-mcp-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rollout.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        // Two MCP servers, one call failing. The matching response_item
+        // function_call/output pair is what makes the tool-call count and span;
+        // the mcp_tool_call_end is the only line naming the server.
+        writeln!(f, r#"{{"timestamp":"2026-05-27T09:00:01.000Z","type":"response_item","payload":{{"type":"function_call","call_id":"c1","name":"github_fetch_file"}}}}"#).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-05-27T09:00:02.000Z","type":"response_item","payload":{{"type":"function_call_output","call_id":"c1"}}}}"#).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-05-27T09:00:02.100Z","type":"event_msg","payload":{{"type":"mcp_tool_call_end","call_id":"c1","invocation":{{"server":"codex_apps","tool":"github_fetch_file"}},"duration":{{"secs":1,"nanos":0}},"result":{{"Ok":{{}}}}}}}}"#).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-05-27T09:00:05.000Z","type":"event_msg","payload":{{"type":"mcp_tool_call_end","call_id":"c2","invocation":{{"server":"codex_apps","tool":"github_search"}},"duration":{{"secs":0,"nanos":0}},"result":{{"Err":"boom"}}}}}}"#).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-05-27T09:00:07.000Z","type":"event_msg","payload":{{"type":"mcp_tool_call_end","call_id":"c3","invocation":{{"server":"node_repl","tool":"js"}},"duration":{{"secs":0,"nanos":0}},"result":{{"Ok":{{}}}}}}}}"#).unwrap();
+        let mut t = CodexTranscript::new(&path);
+        t.refresh().unwrap();
+        let s = t.summary();
+        assert_eq!(s.mcp.len(), 2);
+        let apps = &s.mcp["codex_apps"];
+        assert_eq!((apps.calls, apps.errors), (2, 1));
+        assert_eq!(apps.last_call, parse_rfc3339_utc("2026-05-27T09:00:05.000Z"));
+        assert_eq!(s.mcp["node_repl"].calls, 1);
+        // The one call with a response_item pair is one tool call and one span;
+        // the mcp_tool_call_end lines do not add to that.
+        assert_eq!(s.tool_calls, 1, "mcp_tool_call_end must not double-count tool calls");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

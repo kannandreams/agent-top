@@ -19,7 +19,7 @@ Each phase ships on its own, and the order matters more than any date.
 - `--format otlp` for the trace export, with deterministic trace and span ids and tool calls parented to their turn. Any direct push to a collector stays opt-in behind an explicit `--endpoint`, because a network call contradicts the default posture in [vision.md](vision.md), and none is built.
 - Prebuilt macOS and Linux binaries, a Homebrew tap and `cargo binstall` support, cut by tag (see [releasing.md](releasing.md)).
 - Gemini CLI transcript adapter, on the harness adapter contract that keeps the collector free of harness names.
-- One row per MCP server with its owner, call count and last call, and an orphan list that says which agent a leaked server came from (Claude Code call counts; Codex needs its config's server names first).
+- One row per MCP server with its owner, call count and last call, and an orphan list that says which agent a leaked server came from. Call counts for all three harnesses: Claude Code and Gemini from `mcp__`/`mcp_` tool names, Codex from the server named in each `mcp_tool_call_end`.
 
 ## v0.2 — trust the numbers
 

@@ -1,0 +1,15 @@
+{"timestamp":"2026-09-05T10:00:00.000Z","type":"session_meta","payload":{"type":null,"id":"01000000-0000-7000-0000-0000000000mc","cwd":"/tmp/p","cli_version":"0.152.0","originator":"codex-tui"}}
+{"timestamp":"2026-09-05T10:00:00.500Z","type":"turn_context","payload":{"model":"gpt-5.6-luna"}}
+{"timestamp":"2026-09-05T10:00:01.000Z","type":"event_msg","payload":{"type":"task_started"}}
+{"timestamp":"2026-09-05T10:00:02.000Z","type":"response_item","payload":{"type":"function_call","call_id":"c1","name":"github_fetch_file"}}
+{"timestamp":"2026-09-05T10:00:03.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"c1","output":""}}
+{"timestamp":"2026-09-05T10:00:03.100Z","type":"event_msg","payload":{"type":"mcp_tool_call_end","call_id":"c1","invocation":{"server":"codex_apps","tool":"github_fetch_file","arguments":{}},"duration":{"secs":1,"nanos":0},"result":{"Ok":{}}}}
+{"timestamp":"2026-09-05T10:00:05.000Z","type":"response_item","payload":{"type":"function_call","call_id":"c2","name":"github_search"}}
+{"timestamp":"2026-09-05T10:00:06.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"c2","output":""}}
+{"timestamp":"2026-09-05T10:00:06.100Z","type":"event_msg","payload":{"type":"mcp_tool_call_end","call_id":"c2","invocation":{"server":"codex_apps","tool":"github_search","arguments":{}},"duration":{"secs":0,"nanos":500000000},"result":{"Err":"not found"}}}
+{"timestamp":"2026-09-05T10:00:08.000Z","type":"response_item","payload":{"type":"function_call","call_id":"c3","name":"js"}}
+{"timestamp":"2026-09-05T10:00:09.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"c3","output":""}}
+{"timestamp":"2026-09-05T10:00:09.100Z","type":"event_msg","payload":{"type":"mcp_tool_call_end","call_id":"c3","invocation":{"server":"node_repl","tool":"js","arguments":{}},"duration":{"secs":0,"nanos":0},"result":{"Ok":{}}}}
+{"timestamp":"2026-09-05T10:00:10.000Z","type":"response_item","payload":{"type":"message","role":"assistant"}}
+{"timestamp":"2026-09-05T10:00:10.500Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":5000,"cached_input_tokens":2000,"output_tokens":300,"total_tokens":5300}}}}
+{"timestamp":"2026-09-05T10:00:11.000Z","type":"event_msg","payload":{"type":"task_complete"}}

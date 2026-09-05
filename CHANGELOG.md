@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-09-05
+
+### Added
+- **MCP call counts for Codex and Gemini CLI.** The per-server rows added for Claude Code in v0.5.0 now populate for the other two harnesses. Codex records each MCP call as an `mcp_tool_call_end` event carrying `invocation.server` and `invocation.tool` and a `result` of `Ok` or `Err`, so the server name is exact and needs no config; the call is also a `response_item` function call, which is where the tool-call count and span already come from, so the MCP line only feeds the per-server map and never double counts. Gemini names an MCP tool `mcp_<server>_<tool>` and splits the server off the first segment the way the CLI itself does, with a failed call taken from the tool call's `error` status. Verified against real Codex rollouts on this machine (servers `codex_apps` and `node_repl`); the Gemini side is read from the CLI's tool registry source, as the adapter itself was.
+- A redacted real-data golden fixture, `codex-mcp-0.152.jsonl`, locking the Codex MCP line shape.
+
+### Notes
+- The process-to-server join is unchanged: a server's transcript name is matched to a process by name, then by elimination, so most single-server rows read as a labelled guess. Matching a server alias to its command exactly still wants the harness's MCP config, which is the remaining step.
 ## [0.5.0] - 2026-09-05
 
 ### Added
