@@ -5,10 +5,10 @@
 //! and opens a tracker for one. The collector walks the process forest, asks
 //! the adapter for each root, and builds the rows.
 
-use crate::harness::{self, AttributeContext, HarnessAdapter, RegistryHints, SessionSummary, SessionTracker, SpanRetention};
+use crate::harness::{self, AttributeContext, HarnessAdapter, McpUsage, RegistryHints, SessionSummary, SessionTracker, SpanRetention};
 use crate::model::*;
 use crate::process::{ProcessScanner, RawProc, build_forest};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -39,11 +39,31 @@ pub struct Collector {
     adapters: Vec<Box<dyn HarnessAdapter>>,
     trackers: HashMap<PathBuf, Box<dyn SessionTracker>>,
     last_fs_scan: Option<Instant>,
+    /// What is known about every MCP process seen this run, by pid, so that
+    /// an orphan can say which agent it used to belong to. See `OrphanOrigin`.
+    mcp_memory: HashMap<u32, McpMemory>,
+}
+
+/// One MCP process's history for the run.
+#[derive(Debug, Clone)]
+struct McpMemory {
+    /// The process start time, so a reused pid is not mistaken for the same process.
+    start_time: u64,
+    first_seen: SystemTime,
+    parent: Option<OrphanParent>,
+    orphaned_at: Option<SystemTime>,
 }
 
 impl Collector {
     pub fn new(opts: CollectorOptions) -> Self {
-        Collector { opts, scanner: ProcessScanner::new(), adapters: harness::adapters(), trackers: HashMap::new(), last_fs_scan: None }
+        Collector {
+            opts,
+            scanner: ProcessScanner::new(),
+            adapters: harness::adapters(),
+            trackers: HashMap::new(),
+            last_fs_scan: None,
+            mcp_memory: HashMap::new(),
+        }
     }
 
     fn rescan_fs_if_due(&mut self) {
@@ -147,6 +167,7 @@ impl Collector {
                     rss_bytes: rss,
                     process_count: count,
                     mcp_count: mcp,
+                    mcp_servers: mcp_rows(Some(&root), &BTreeMap::new()),
                     tree: Some(root),
                     attribution,
                     shares_process: false,
@@ -212,6 +233,7 @@ impl Collector {
                     rss_bytes: if owns_process { rss } else { 0 },
                     process_count: if owns_process { count } else { 0 },
                     mcp_count: if owns_process { mcp } else { 0 },
+                    mcp_servers: mcp_rows(if owns_process { Some(&root) } else { None }, &summary.mcp),
                     tree: if owns_process { Some(root.clone()) } else { None },
                     attribution,
                     shares_process: !owns_process,
@@ -260,6 +282,7 @@ impl Collector {
                 rss_bytes: 0,
                 process_count: 0,
                 mcp_count: 0,
+                mcp_servers: mcp_rows(None, &s.mcp),
                 tree: None,
                 attribution: Attribution::TranscriptOnly,
                 shares_process: false,
@@ -271,11 +294,149 @@ impl Collector {
         let keep: HashSet<&PathBuf> = agents.iter().filter_map(|a| a.session_path.as_ref()).collect();
         self.trackers.retain(|p, _| keep.contains(p));
 
-        let mut snap =
-            Snapshot { schema_version: SNAPSHOT_SCHEMA_VERSION, taken_at: now, host, agents, orphans, totals: Totals::default() };
+        let orphan_origins = self.remember_mcp(&agents, &orphans, &by_pid, now);
+
+        let mut snap = Snapshot {
+            schema_version: SNAPSHOT_SCHEMA_VERSION,
+            taken_at: now,
+            host,
+            agents,
+            orphans,
+            orphan_origins,
+            totals: Totals::default(),
+        };
         snap.compute_totals();
         snap
     }
+
+    /// Note which agent each MCP process is under this tick, and which of the
+    /// orphans used to be under one. A process seen under an agent at one
+    /// tick and among the orphans at the next is reported as orphaned from
+    /// that agent; one that was already an orphan when the run started has
+    /// no parent on record. Memory is per run and per process start time, so
+    /// a reused pid starts over.
+    fn remember_mcp(
+        &mut self,
+        agents: &[Agent],
+        orphans: &[ProcNode],
+        by_pid: &HashMap<u32, &RawProc>,
+        now: SystemTime,
+    ) -> Vec<OrphanOrigin> {
+        let start_of = |pid: u32| by_pid.get(&pid).map(|p| p.start_time).unwrap_or(0);
+        for a in agents {
+            let Some(tree) = &a.tree else { continue };
+            let parent = OrphanParent { pid: tree.pid, agent_id: a.id.clone(), name: a.name.clone() };
+            let under: Vec<u32> = tree.mcp_roots().iter().map(|n| n.pid).collect();
+            for pid in under {
+                let m = touch(&mut self.mcp_memory, pid, start_of(pid), now);
+                m.parent = Some(parent.clone());
+                m.orphaned_at = None;
+            }
+        }
+        let mut origins = Vec::with_capacity(orphans.len());
+        for o in orphans {
+            let m = touch(&mut self.mcp_memory, o.pid, start_of(o.pid), now);
+            if m.parent.is_some() && m.orphaned_at.is_none() {
+                m.orphaned_at = Some(now);
+            }
+            origins.push(OrphanOrigin { pid: o.pid, first_seen: m.first_seen, orphaned_at: m.orphaned_at, parent: m.parent.clone() });
+        }
+        // A process that has exited is forgotten, so the map does not grow
+        // with every server ever started.
+        self.mcp_memory.retain(|pid, _| by_pid.contains_key(pid));
+        origins
+    }
+}
+
+/// The memory entry for a process, fresh if the pid is new or has been
+/// reused by a process with a different start time.
+fn touch(memory: &mut HashMap<u32, McpMemory>, pid: u32, start_time: u64, now: SystemTime) -> &mut McpMemory {
+    let entry = memory.entry(pid).or_insert(McpMemory { start_time, first_seen: now, parent: None, orphaned_at: None });
+    if entry.start_time != start_time {
+        *entry = McpMemory { start_time, first_seen: now, parent: None, orphaned_at: None };
+    }
+    entry
+}
+
+/// One row per MCP server, from the processes under the agent and the servers
+/// its transcript names, joined where they can be.
+///
+/// The transcript knows a server by the name the harness configured
+/// (`filesystem`, `chrome-devtools`); the process table knows a command line
+/// (`npx -y @modelcontextprotocol/server-filesystem /tmp`). Neither side
+/// carries the other's key, so the join is a name test: a server whose
+/// normalised name appears in a process's normalised command line is that
+/// process. When exactly one process and one server are left over, they are
+/// taken to be the same, and the row says so. Anything else stays a row of
+/// its own: a process the agent has not called yet, or a server with no
+/// process, which is an HTTP server or one that has exited.
+pub fn mcp_rows(tree: Option<&ProcNode>, usage: &BTreeMap<String, McpUsage>) -> Vec<McpServer> {
+    let procs: Vec<&ProcNode> = tree.map(|t| t.mcp_roots()).unwrap_or_default();
+    let mut rows = Vec::new();
+    let mut unmatched_procs: Vec<&ProcNode> = Vec::new();
+    let mut unmatched_servers: Vec<(&String, &McpUsage)> = Vec::new();
+    let mut claimed: HashSet<u32> = HashSet::new();
+
+    for (name, u) in usage {
+        let key = normalise(name);
+        let hit = procs.iter().find(|p| !claimed.contains(&p.pid) && !key.is_empty() && subtree_mentions(p, &key));
+        match hit {
+            Some(p) => {
+                claimed.insert(p.pid);
+                rows.push(row(name.clone(), Some(p), Some(u), McpMatch::Name));
+            }
+            None => unmatched_servers.push((name, u)),
+        }
+    }
+    for p in &procs {
+        if !claimed.contains(&p.pid) {
+            unmatched_procs.push(p);
+        }
+    }
+    if let ([p], [(name, u)]) = (unmatched_procs.as_slice(), unmatched_servers.as_slice()) {
+        rows.push(row((*name).clone(), Some(p), Some(u), McpMatch::Sole));
+        return rows;
+    }
+    for (name, u) in unmatched_servers {
+        rows.push(row(name.clone(), None, Some(u), McpMatch::TranscriptOnly));
+    }
+    for p in unmatched_procs {
+        rows.push(row(p.name.clone(), Some(p), None, McpMatch::ProcessOnly));
+    }
+    rows
+}
+
+/// Whether the server's normalised name appears in the command line of the
+/// process or of anything under it: `npx` names the package, its `node`
+/// child names the binary, and the configured name may match either.
+fn subtree_mentions(p: &ProcNode, key: &str) -> bool {
+    let mut found = false;
+    p.walk(0, &mut |n, _| found |= normalise(&n.cmdline).contains(key));
+    found
+}
+
+fn row(name: String, p: Option<&ProcNode>, u: Option<&McpUsage>, matched_by: McpMatch) -> McpServer {
+    let u = u.copied().unwrap_or_default();
+    // CPU and memory are the server's whole subtree, as the process count is.
+    let totals = p.map(|p| p.totals());
+    McpServer {
+        name,
+        pid: p.map(|p| p.pid),
+        cmdline: p.map(|p| p.cmdline.clone()),
+        cpu_percent: totals.map(|t| t.0).unwrap_or(0.0),
+        rss_bytes: totals.map(|t| t.1).unwrap_or(0),
+        age_secs: p.map(|p| p.age_secs),
+        calls: u.calls,
+        errors: u.errors,
+        last_call: u.last_call,
+        matched_by,
+    }
+}
+
+/// Lowercase, letters and digits only, so `chrome-devtools` finds
+/// `chrome-devtools-mcp` and `server_filesystem` finds `server-filesystem`.
+fn normalise(s: &str) -> String {
+    s.chars().filter(|c| c.is_ascii_alphanumeric()).map(|c| c.to_ascii_lowercase()).collect()
 }
 
 /// A transcript that parsed while its usage records did not is a format change,
@@ -345,6 +506,170 @@ mod tests {
         assert_eq!(live_state(&none, Activity::Waiting, Some(1), 90.0, &opts), AgentState::Idle);
         assert_eq!(live_state(&none, Activity::Unknown, Some(3), 0.0, &opts), AgentState::Running);
         assert_eq!(live_state(&none, Activity::Unknown, Some(300), 0.0, &opts), AgentState::Idle);
+    }
+
+    fn node(pid: u32, kind: ProcKind, cmd: &str) -> ProcNode {
+        ProcNode {
+            pid,
+            ppid: Some(1),
+            name: cmd.split(' ').next().unwrap().to_string(),
+            cmdline: cmd.to_string(),
+            kind,
+            harness: None,
+            cpu_percent: 0.5,
+            rss_bytes: 10 << 20,
+            age_secs: 60,
+            cwd: None,
+            children: Vec::new(),
+        }
+    }
+
+    fn used(calls: u64) -> McpUsage {
+        McpUsage { calls, errors: 0, last_call: Some(UNIX_EPOCH) }
+    }
+
+    #[test]
+    fn mcp_rows_join_processes_to_servers_by_name_then_by_elimination() {
+        let mut root = node(10, ProcKind::Agent, "claude");
+        root.children = vec![
+            node(11, ProcKind::Mcp, "npx -y @modelcontextprotocol/server-filesystem /tmp"),
+            node(12, ProcKind::Mcp, "node /opt/chrome-devtools-mcp/build/index.js"),
+            node(13, ProcKind::Shell, "zsh -c cargo test"),
+        ];
+        let mut usage = BTreeMap::new();
+        usage.insert("chrome-devtools".to_string(), used(3));
+        usage.insert("filesystem".to_string(), used(7));
+        usage.insert("linear".to_string(), used(1));
+        let rows = mcp_rows(Some(&root), &usage);
+        assert_eq!(rows.len(), 3);
+        let by_name: HashMap<&str, &McpServer> = rows.iter().map(|r| (r.name.as_str(), r)).collect();
+        assert_eq!(by_name["filesystem"].pid, Some(11));
+        assert_eq!(by_name["filesystem"].calls, 7);
+        assert_eq!(by_name["filesystem"].matched_by, McpMatch::Name);
+        assert_eq!(by_name["chrome-devtools"].pid, Some(12));
+        // An HTTP server, or one that exited: called, but no process.
+        assert_eq!(by_name["linear"].pid, None);
+        assert_eq!(by_name["linear"].matched_by, McpMatch::TranscriptOnly);
+
+        // One process whose command never mentions its configured name, and
+        // one server: taken to be the same, and labelled as a guess.
+        root.children = vec![node(14, ProcKind::Mcp, "uvx some-tool serve --stdio")];
+        let mut usage = BTreeMap::new();
+        usage.insert("tickets".to_string(), used(2));
+        let rows = mcp_rows(Some(&root), &usage);
+        assert_eq!(rows.len(), 1);
+        assert_eq!((rows[0].name.as_str(), rows[0].pid, rows[0].calls, rows[0].matched_by), ("tickets", Some(14), 2, McpMatch::Sole));
+
+        // An npx wrapper and its node child are one server, found through
+        // the child's command line, with the wrapper's pid.
+        let mut wrapper = node(16, ProcKind::Mcp, "npm exec @modelcontextprotocol/server-filesystem /tmp");
+        wrapper.children = vec![node(17, ProcKind::Mcp, "node /x/.bin/mcp-server-filesystem /tmp")];
+        root.children = vec![wrapper];
+        let mut usage = BTreeMap::new();
+        usage.insert("filesystem".to_string(), used(4));
+        let rows = mcp_rows(Some(&root), &usage);
+        assert_eq!(rows.len(), 1);
+        assert_eq!((rows[0].pid, rows[0].matched_by), (Some(16), McpMatch::Name));
+        assert_eq!(rows[0].rss_bytes, 20 << 20, "the subtree's memory");
+        assert_eq!(root.totals().3, 1, "one server, two processes");
+
+        // Two such processes: no guessing, each stays its own row.
+        root.children = vec![node(14, ProcKind::Mcp, "uvx some-tool serve --stdio")];
+        root.children.push(node(15, ProcKind::Mcp, "uvx other-tool serve"));
+        let rows = mcp_rows(Some(&root), &usage);
+        assert_eq!(rows.len(), 3);
+        assert!(rows.iter().filter(|r| r.matched_by == McpMatch::ProcessOnly).count() == 2);
+        assert!(mcp_rows(None, &BTreeMap::new()).is_empty());
+    }
+
+    fn raw(pid: u32, start_time: u64) -> RawProc {
+        RawProc {
+            pid,
+            ppid: Some(1),
+            name: "x".into(),
+            exe: None,
+            cmd: vec!["x".into()],
+            cwd: None,
+            cpu_percent: 0.0,
+            rss_bytes: 0,
+            start_time,
+            run_time: 1,
+        }
+    }
+
+    /// The RFC-104 success test, in miniature: a server seen under an agent
+    /// at one tick and among the orphans at the next says which agent it
+    /// came from; one that was an orphan from the start does not pretend to.
+    #[test]
+    fn an_orphan_remembers_the_agent_it_was_under() {
+        let mut c = Collector::new(CollectorOptions::default());
+        let t0 = UNIX_EPOCH + Duration::from_secs(1_000);
+        let t1 = t0 + Duration::from_secs(10);
+        let mut root = node(10, ProcKind::Agent, "claude");
+        root.children = vec![node(11, ProcKind::Mcp, "npx server-filesystem")];
+        let mut agent = Agent {
+            id: "pid:10".into(),
+            name: "claude:proj".into(),
+            harness: Harness::Claude,
+            state: AgentState::Running,
+            activity: Activity::Working,
+            pid: Some(10),
+            session_id: None,
+            session_path: None,
+            cwd: None,
+            model: None,
+            harness_version: None,
+            usage: TokenUsage::default(),
+            cost_usd: 0.0,
+            cost_breakdown: Default::default(),
+            price_source: None,
+            unpriced_tokens: 0,
+            turns: 0,
+            subagent_turns: 0,
+            tool_calls: 0,
+            web_searches: 0,
+            spans: Vec::new(),
+            age_secs: 0,
+            idle_secs: None,
+            cpu_percent: 0.0,
+            rss_bytes: 0,
+            process_count: 2,
+            mcp_count: 1,
+            mcp_servers: Vec::new(),
+            tree: Some(root),
+            attribution: Attribution::HarnessRegistry,
+            shares_process: false,
+            parse_warning: None,
+        };
+        let procs = [raw(10, 5), raw(11, 6), raw(99, 7)];
+        let by_pid: HashMap<u32, &RawProc> = procs.iter().map(|p| (p.pid, p)).collect();
+
+        // Tick 0: the server is under its agent; 99 is an orphan from the start.
+        let origins = c.remember_mcp(std::slice::from_ref(&agent), &[node(99, ProcKind::Mcp, "uvx mcp-server-git")], &by_pid, t0);
+        assert_eq!(origins.len(), 1);
+        assert_eq!(origins[0].pid, 99);
+        assert!(origins[0].parent.is_none());
+        assert_eq!(origins[0].first_seen, t0);
+
+        // Tick 1: the agent is gone and the server is an orphan.
+        agent.tree = None;
+        let procs = [raw(11, 6), raw(99, 7)];
+        let by_pid: HashMap<u32, &RawProc> = procs.iter().map(|p| (p.pid, p)).collect();
+        let orphans = [node(11, ProcKind::Mcp, "npx server-filesystem"), node(99, ProcKind::Mcp, "uvx mcp-server-git")];
+        let origins = c.remember_mcp(&[], &orphans, &by_pid, t1);
+        let fs = origins.iter().find(|o| o.pid == 11).unwrap();
+        assert_eq!(fs.parent.as_ref().map(|p| (p.pid, p.name.as_str())), Some((10, "claude:proj")));
+        assert_eq!(fs.orphaned_at, Some(t1));
+        assert_eq!(fs.first_seen, t0);
+        let git = origins.iter().find(|o| o.pid == 99).unwrap();
+        assert!(git.parent.is_none() && git.orphaned_at.is_none());
+
+        // Tick 2: pid 11 is reused by a different process. The memory starts over.
+        let procs = [raw(11, 900)];
+        let by_pid: HashMap<u32, &RawProc> = procs.iter().map(|p| (p.pid, p)).collect();
+        let origins = c.remember_mcp(&[], &orphans[..1], &by_pid, t1 + Duration::from_secs(10));
+        assert!(origins[0].parent.is_none());
+        assert!(!c.mcp_memory.contains_key(&99), "an exited process is forgotten");
     }
 
     #[test]

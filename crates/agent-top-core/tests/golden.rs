@@ -65,6 +65,7 @@ fn describe(s: &SessionSummary) -> Value {
         "subagent_turns": s.subagent_turns,
         "tool_calls": s.tool_calls,
         "web_searches": s.web_searches,
+        "mcp": s.mcp.iter().map(|(k, u)| json!({"server": k, "calls": u.calls, "errors": u.errors})).collect::<Vec<_>>(),
         "activity": format!("{:?}", s.activity),
         "started_at_ms": millis(s.started_at),
         "last_activity_ms": millis(s.last_activity),

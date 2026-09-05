@@ -12,6 +12,7 @@
   "cwd": "/Users/dev/code/example",
   "harness_version": "2.1.226",
   "last_activity_ms": 1786283224243,
+  "mcp": [],
   "model": "claude-fable-5",
   "session_id": "00000000-1111-2222-3333-444444444444",
   "spans": {

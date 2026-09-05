@@ -10,7 +10,7 @@ use crate::model::{Harness, HostStats, ProcKind, ProcNode};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-use sysinfo::{ProcessesToUpdate, System};
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
 #[derive(Debug, Clone)]
 pub struct RawProc {
@@ -60,7 +60,7 @@ impl ProcessScanner {
         let mut sys = System::new();
         sys.refresh_memory();
         sys.refresh_cpu_usage();
-        sys.refresh_processes(ProcessesToUpdate::All, true);
+        sys.refresh_processes_specifics(ProcessesToUpdate::All, true, Self::refresh_kind());
         let self_pid = sysinfo::get_current_pid().ok().map(|p| p.as_u32());
         ProcessScanner { sys, self_pid }
     }
@@ -68,7 +68,22 @@ impl ProcessScanner {
     pub fn refresh(&mut self) {
         self.sys.refresh_memory();
         self.sys.refresh_cpu_usage();
-        self.sys.refresh_processes(ProcessesToUpdate::All, true);
+        self.sys.refresh_processes_specifics(ProcessesToUpdate::All, true, Self::refresh_kind());
+    }
+
+    /// What to read per process. `System::refresh_processes` reads memory, CPU
+    /// and the executable only; the command line and working directory, which
+    /// every classification and attribution heuristic here depends on, have
+    /// to be asked for. Each is read once per process (`OnlyIfNotSet`): a
+    /// command line never changes, and an agent's working directory does not
+    /// change in practice, so the per-tick cost stays at memory and CPU.
+    fn refresh_kind() -> ProcessRefreshKind {
+        ProcessRefreshKind::nothing()
+            .with_memory()
+            .with_cpu()
+            .with_exe(UpdateKind::OnlyIfNotSet)
+            .with_cmd(UpdateKind::OnlyIfNotSet)
+            .with_cwd(UpdateKind::OnlyIfNotSet)
     }
 
     pub fn host(&self) -> HostStats {

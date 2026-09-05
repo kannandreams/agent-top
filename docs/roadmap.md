@@ -19,6 +19,7 @@ Each phase ships on its own, and the order matters more than any date.
 - `--format otlp` for the trace export, with deterministic trace and span ids and tool calls parented to their turn. Any direct push to a collector stays opt-in behind an explicit `--endpoint`, because a network call contradicts the default posture in [vision.md](vision.md), and none is built.
 - Prebuilt macOS and Linux binaries, a Homebrew tap and `cargo binstall` support, cut by tag (see [releasing.md](releasing.md)).
 - Gemini CLI transcript adapter, on the harness adapter contract that keeps the collector free of harness names.
+- One row per MCP server with its owner, call count and last call, and an orphan list that says which agent a leaked server came from (Claude Code call counts; Codex needs its config's server names first).
 
 ## v0.2 — trust the numbers
 
@@ -30,8 +31,8 @@ Each phase ships on its own, and the order matters more than any date.
 ## v0.3 — the tree
 
 - Logical subagent tree from transcripts (Claude `isSidechain` and `agent-*.jsonl`, Codex `close_agent` events), merged with the process tree.
-- Per-MCP-server rows: which agent started it, how many tool calls went through it, idle time.
-- Orphan lifecycle: first-seen time, parent-of-record, one-key copy of the `kill` command. Still no signalling from agent-top.
+- Per-MCP-server rows for Codex (server names from its config, names only) and Gemini; the Claude Code rows shipped in v0.5.0.
+- Orphan lifecycle: one-key copy of the `kill` command. First-seen time and parent-of-record shipped in v0.5.0. Still no signalling from agent-top.
 
 ## v0.4 — signals
 

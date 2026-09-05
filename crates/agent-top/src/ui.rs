@@ -3,7 +3,7 @@
 
 use crate::app::{App, DetailView};
 use crate::format::{age, bytes, cost, cpu_cell, duration_ms, mem_cell, short_cmd, short_model, tokens, tokens_cell, truncate};
-use agent_top_core::{Agent, AgentState, Attribution, ProcKind, ProcNode, SpanKind, ToolSpan};
+use agent_top_core::{Agent, AgentState, Attribution, McpMatch, OrphanOrigin, ProcKind, ProcNode, SpanKind, ToolSpan};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -374,7 +374,9 @@ fn draw_detail(f: &mut Frame, app: &App, area: Rect) {
     let [left, right] = Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)]).areas(inner);
     f.render_widget(Paragraph::new(agent_facts(a)).wrap(Wrap { trim: false }), left);
     let panel = match app.detail {
-        DetailView::Tree => process_tree(a, &app.snapshot.orphans, right.width as usize),
+        DetailView::Tree => {
+            process_tree(a, &app.snapshot.orphans, &app.snapshot.orphan_origins, app.snapshot.taken_at, right.width as usize)
+        }
         DetailView::Trace => tool_trace(a, app.snapshot.taken_at, right.width as usize, right.height as usize),
     };
     f.render_widget(Paragraph::new(panel), right);
@@ -644,7 +646,7 @@ fn busy_ms(shown: &[&ToolSpan], now: SystemTime) -> u64 {
     total.as_millis() as u64
 }
 
-fn process_tree(a: &Agent, orphans: &[ProcNode], width: usize) -> Text<'static> {
+fn process_tree(a: &Agent, orphans: &[ProcNode], origins: &[OrphanOrigin], now: SystemTime, width: usize) -> Text<'static> {
     let mut lines = vec![Line::from(vec![
         Span::styled("process tree", Style::default().fg(ACCENT).bold()),
         Span::styled(
@@ -659,6 +661,39 @@ fn process_tree(a: &Agent, orphans: &[ProcNode], width: usize) -> Text<'static> 
         None => lines.push(Line::styled("  (no live process)", Style::default().fg(DIM))),
         Some(root) => render_node(root, "", true, true, width, &mut lines),
     }
+    if !a.mcp_servers.is_empty() {
+        lines.push(Line::raw(""));
+        lines.push(Line::from(vec![
+            Span::styled("mcp servers", Style::default().fg(Color::Magenta).bold()),
+            Span::styled("   calls from the transcript; pid? = process guessed", Style::default().fg(DIM)),
+        ]));
+        lines.push(Line::styled(
+            format!("  {:<14} {:>6} {:>5} {:>3} {:>9} {:>5} {:>6}", "server", "pid", "calls", "err", "last call", "cpu", "rss"),
+            Style::default().fg(DIM),
+        ));
+        for m in &a.mcp_servers {
+            // A `?` after the pid marks a process paired with the server by
+            // elimination rather than by name; `-` is a server with no
+            // process, an HTTP one or one that has exited.
+            let (pid, cpu, rss) = match m.pid {
+                Some(pid) if m.matched_by == McpMatch::Sole => (format!("{pid}?"), format!("{:.1}%", m.cpu_percent), bytes(m.rss_bytes)),
+                Some(pid) => (pid.to_string(), format!("{:.1}%", m.cpu_percent), bytes(m.rss_bytes)),
+                None => ("-".into(), "-".into(), "-".into()),
+            };
+            let last = match m.last_call {
+                Some(t) => format!("{} ago", age(now.duration_since(t).unwrap_or_default().as_secs())),
+                None => "-".into(),
+            };
+            let err_style = if m.errors > 0 { Style::default().fg(Color::Red) } else { Style::default().fg(DIM) };
+            lines.push(Line::from(vec![
+                Span::styled(format!("  {:<14} ", truncate(&m.name, 14)), Style::default().fg(Color::Magenta)),
+                Span::styled(format!("{pid:>6} "), Style::default().fg(DIM)),
+                Span::raw(format!("{:>5} ", m.calls)),
+                Span::styled(format!("{:>3} ", m.errors), err_style),
+                Span::styled(format!("{last:>9} {cpu:>5} {rss:>6}"), Style::default().fg(DIM)),
+            ]));
+        }
+    }
     if !orphans.is_empty() {
         lines.push(Line::raw(""));
         lines.push(Line::from(vec![
@@ -671,12 +706,27 @@ fn process_tree(a: &Agent, orphans: &[ProcNode], width: usize) -> Text<'static> 
                 Span::styled(format!("{:>6} {:>6}  ", bytes(o.rss_bytes), age(o.age_secs)), Style::default().fg(DIM)),
                 Span::raw(short_cmd(o, width.saturating_sub(24))),
             ]));
+            if let Some(origin) = origins.iter().find(|x| x.pid == o.pid) {
+                lines.push(Line::styled(format!("         {}", orphan_origin(origin, now)), Style::default().fg(DIM)));
+            }
         }
         if orphans.len() > 8 {
             lines.push(Line::styled(format!("  … {} more", orphans.len() - 8), Style::default().fg(DIM)));
         }
     }
     Text::from(lines)
+}
+
+/// Where an orphan came from, in one line: the agent it was under and how
+/// long ago it lost it, or, when agent-top never saw a parent, how long it has
+/// been watching.
+pub fn orphan_origin(o: &OrphanOrigin, now: SystemTime) -> String {
+    let ago = |t: SystemTime| age(now.duration_since(t).unwrap_or_default().as_secs());
+    match (&o.parent, o.orphaned_at) {
+        (Some(p), Some(at)) => format!("orphaned from {} (pid {}) {} ago", p.name, p.pid, ago(at)),
+        (Some(p), None) => format!("was under {} (pid {})", p.name, p.pid),
+        (None, _) => format!("parent unknown; already an orphan when first seen {} ago", ago(o.first_seen)),
+    }
 }
 
 fn render_node(n: &ProcNode, prefix: &str, last: bool, root: bool, width: usize, out: &mut Vec<Line<'static>>) {
@@ -825,6 +875,7 @@ mod tests {
             rss_bytes: 452 * 1024 * 1024,
             process_count: 4,
             mcp_count: 1,
+            mcp_servers: Vec::new(),
             tree: None,
             attribution: Attribution::HarnessRegistry,
             shares_process: false,
@@ -846,6 +897,7 @@ mod tests {
             },
             agents,
             orphans: Vec::new(),
+            orphan_origins: Vec::new(),
             totals: Totals::default(),
         };
         s.compute_totals();
@@ -909,6 +961,69 @@ mod tests {
 
     /// Renders the whole frame with the trace panel open. Run with
     /// `cargo test -- --nocapture` to eyeball the layout.
+    #[test]
+    fn detail_pane_lists_mcp_servers_and_says_where_an_orphan_came_from() {
+        use agent_top_core::{McpServer, OrphanParent};
+        let mut a = agent("with-mcp", Vec::new());
+        a.mcp_servers = vec![
+            McpServer {
+                name: "filesystem".into(),
+                pid: Some(5001),
+                cmdline: Some("npx -y @modelcontextprotocol/server-filesystem /tmp".into()),
+                cpu_percent: 0.2,
+                rss_bytes: 40 << 20,
+                age_secs: Some(300),
+                calls: 17,
+                errors: 2,
+                last_call: Some(SystemTime::UNIX_EPOCH + Duration::from_secs(100)),
+                matched_by: McpMatch::Name,
+            },
+            McpServer {
+                name: "linear".into(),
+                pid: None,
+                cmdline: None,
+                cpu_percent: 0.0,
+                rss_bytes: 0,
+                age_secs: None,
+                calls: 3,
+                errors: 0,
+                last_call: None,
+                matched_by: McpMatch::TranscriptOnly,
+            },
+        ];
+        let mut snap = snapshot(vec![a]);
+        snap.orphans = vec![ProcNode {
+            pid: 6001,
+            ppid: Some(1),
+            name: "node".into(),
+            cmdline: "node chrome-devtools-mcp".into(),
+            kind: ProcKind::Mcp,
+            harness: None,
+            cpu_percent: 0.0,
+            rss_bytes: 30 << 20,
+            age_secs: 900,
+            cwd: None,
+            children: Vec::new(),
+        }];
+        snap.orphan_origins = vec![OrphanOrigin {
+            pid: 6001,
+            first_seen: SystemTime::UNIX_EPOCH,
+            orphaned_at: Some(SystemTime::UNIX_EPOCH + Duration::from_secs(40)),
+            parent: Some(OrphanParent { pid: 4242, agent_id: "pid:4242".into(), name: "tuff-25".into() }),
+        }];
+        let mut app = App::new(snap);
+        app.show_detail = true;
+        app.detail = DetailView::Tree;
+        let out = render(&mut app, 120, 40);
+        assert!(out.contains("mcp servers"), "{out}");
+        assert!(out.contains("filesystem"), "{out}");
+        assert!(out.contains("17"), "calls column: {out}");
+        assert!(out.contains("1m ago"), "last call: {out}");
+        assert!(out.contains("linear"), "{out}");
+        assert!(out.lines().any(|l| l.contains("linear") && l.contains("-     3   0")), "a server with no process: {out}");
+        assert!(out.contains("orphaned from tuff-25 (pid 4242) 2m ago"), "{out}");
+    }
+
     #[test]
     fn draws_the_trace_waterfall() {
         let spans = vec![

@@ -276,6 +276,7 @@ mod tests {
             rss_bytes: 0,
             process_count: 1,
             mcp_count: 0,
+            mcp_servers: Vec::new(),
             tree: None,
             attribution: Attribution::HarnessRegistry,
             shares_process: false,
@@ -287,6 +288,7 @@ mod tests {
             host: HostStats::default(),
             agents: vec![agent],
             orphans: Vec::new(),
+            orphan_origins: Vec::new(),
             totals: Totals::default(),
         };
         s.compute_totals();

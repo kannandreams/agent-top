@@ -9,7 +9,7 @@ pub mod gemini;
 
 use crate::model::{Activity, Attribution, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage, ToolSpan};
 use crate::process::RawProc;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -67,10 +67,42 @@ pub struct SessionSummary {
     /// See `Agent::web_searches`.
     pub web_searches: u64,
     pub spans: SpanLog,
+    /// Calls to each MCP server, by the server's name.
+    pub mcp: BTreeMap<String, McpUsage>,
     pub health: ParseHealth,
     pub activity: Activity,
     pub started_at: Option<SystemTime>,
     pub last_activity: Option<SystemTime>,
+}
+
+/// What a transcript says about one MCP server: how often it was called,
+/// how often that failed, and when it was last called.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct McpUsage {
+    pub calls: u64,
+    pub errors: u64,
+    pub last_call: Option<SystemTime>,
+}
+
+impl McpUsage {
+    pub fn add(&mut self, o: &McpUsage) {
+        self.calls += o.calls;
+        self.errors += o.errors;
+        self.last_call = self.last_call.max(o.last_call);
+    }
+}
+
+/// The server behind an MCP tool name. Claude Code names them
+/// `mcp__<server>__<tool>`; the server part may itself contain underscores,
+/// so the split is on the first double underscore after the prefix and the
+/// tool part is whatever follows the last one.
+pub fn mcp_server_of(tool_name: &str) -> Option<&str> {
+    let rest = tool_name.strip_prefix("mcp__")?;
+    let server = match rest.rfind("__") {
+        Some(i) => &rest[..i],
+        None => rest,
+    };
+    if server.is_empty() { None } else { Some(server) }
 }
 
 /// Spans kept per session by the live tracker. A screenful of waterfall is
@@ -473,6 +505,16 @@ mod tests {
         assert_eq!(detect(&other), None);
         assert_eq!(detect(&dir.join("missing.jsonl")), None);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn names_the_server_behind_an_mcp_tool() {
+        assert_eq!(mcp_server_of("mcp__filesystem__read_file"), Some("filesystem"));
+        assert_eq!(mcp_server_of("mcp__chrome-devtools__take_screenshot"), Some("chrome-devtools"));
+        assert_eq!(mcp_server_of("mcp__claude_ai_Gmail__authenticate"), Some("claude_ai_Gmail"));
+        assert_eq!(mcp_server_of("mcp__odd"), Some("odd"));
+        assert_eq!(mcp_server_of("mcp____x"), None);
+        assert_eq!(mcp_server_of("Bash"), None);
     }
 
     #[test]

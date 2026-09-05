@@ -578,6 +578,9 @@ impl GeminiTranscript {
             s.health.usage_records += t.health.usage_records;
             s.health.empty_usage_records += t.health.empty_usage_records;
             s.last_activity = s.last_activity.max(t.last_activity);
+            for (server, u) in &t.mcp {
+                s.mcp.entry(server.clone()).or_default().add(u);
+            }
         }
         if !self.subagents.is_empty() {
             let logs = std::iter::once(&self.main.summary.spans).chain(self.subagents.values().map(|c| &c.summary.spans));

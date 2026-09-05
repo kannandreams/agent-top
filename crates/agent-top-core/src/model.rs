@@ -182,6 +182,47 @@ impl ToolSpan {
     }
 }
 
+/// One MCP server an agent uses, seen from either side or both: the process
+/// table has the server's pid, CPU and memory; the transcript has how often
+/// the agent called it. Claude Code names an MCP tool `mcp__<server>__<tool>`,
+/// which is where the server name and the call count come from.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct McpServer {
+    /// The server's name as the harness configured it, or, for a process the
+    /// transcript never named, the program it is running.
+    pub name: String,
+    pub pid: Option<u32>,
+    pub cmdline: Option<String>,
+    pub cpu_percent: f32,
+    pub rss_bytes: u64,
+    pub age_secs: Option<u64>,
+    /// Tool calls the agent made to this server, from the transcript.
+    pub calls: u64,
+    /// Of those, how many the harness reported as errors.
+    pub errors: u64,
+    pub last_call: Option<SystemTime>,
+    /// How the process and the transcript's server were put together, for
+    /// the UI to label a guess as one.
+    pub matched_by: McpMatch,
+}
+
+/// How an `McpServer` row was formed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum McpMatch {
+    /// A process under the agent that no transcript server names. Either it
+    /// has not been called yet, or its name does not appear in its command.
+    ProcessOnly,
+    /// A server the transcript calls with no process under the agent: an HTTP
+    /// server, or one that has exited.
+    TranscriptOnly,
+    /// The server's name appears in the process's command line.
+    Name,
+    /// One unmatched process and one unmatched server were left; they are
+    /// taken to be the same. A guess.
+    Sole,
+}
+
 /// Role of a process inside an agent's tree.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -227,7 +268,10 @@ pub struct ProcNode {
 }
 
 impl ProcNode {
-    /// CPU, RSS and process count summed over the whole subtree.
+    /// CPU, RSS, process count and MCP server count summed over the whole
+    /// subtree. An MCP process's own children (an `npx` wrapper's `node`) are
+    /// the same server, so they add to the process count and not to the
+    /// server count.
     pub fn totals(&self) -> (f32, u64, usize, usize) {
         let mut cpu = self.cpu_percent;
         let mut rss = self.rss_bytes;
@@ -238,9 +282,30 @@ impl ProcNode {
             cpu += ccpu;
             rss += crss;
             count += ccount;
-            mcp += cmcp;
+            if self.kind != ProcKind::Mcp {
+                mcp += cmcp;
+            }
         }
         (cpu, rss, count, mcp)
+    }
+
+    /// The MCP servers in this tree: each `Mcp` node whose parent is not one.
+    /// A server started through `npx` or `uvx` is two or three processes; the
+    /// top one stands for the server.
+    pub fn mcp_roots(&self) -> Vec<&ProcNode> {
+        let mut out = Vec::new();
+        self.collect_mcp_roots(&mut out);
+        out
+    }
+
+    fn collect_mcp_roots<'a>(&'a self, out: &mut Vec<&'a ProcNode>) {
+        if self.kind == ProcKind::Mcp {
+            out.push(self);
+            return;
+        }
+        for c in &self.children {
+            c.collect_mcp_roots(out);
+        }
     }
 
     pub fn walk<'a>(&'a self, depth: usize, f: &mut dyn FnMut(&'a ProcNode, usize)) {
@@ -297,12 +362,18 @@ pub struct Agent {
     pub rss_bytes: u64,
     pub process_count: usize,
     pub mcp_count: usize,
+    /// The MCP servers this agent uses, one row each, from the process tree
+    /// and the transcript. See `McpServer`.
+    #[serde(default)]
+    pub mcp_servers: Vec<McpServer>,
     pub tree: Option<ProcNode>,
     /// How the session was attributed to the process, for debugging attribution.
     pub attribution: Attribution,
     /// True when another row shares this pid and carries its CPU, memory and
     /// process counts. One Codex app-server hosts many conversations, so its
     /// threads each get a row while the process is only counted once.
+    /// Absent in snapshots written before 0.2.0.
+    #[serde(default)]
     pub shares_process: bool,
     /// Set when the transcript parsed but its usage records did not, which
     /// means this row's tokens and cost are not to be believed. Almost always a
@@ -404,6 +475,28 @@ pub struct Totals {
 /// disappears; new fields alone do not bump it.
 pub const SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 
+/// What the collector remembers about an orphaned MCP process: when it first
+/// saw it, and, if it watched the process lose its parent, which agent that
+/// was. Memory lasts for the run; a process that was already an orphan when
+/// agent-top started has no parent on record.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OrphanOrigin {
+    pub pid: u32,
+    pub first_seen: SystemTime,
+    /// When the process was first seen without its parent, if the parent was
+    /// seen before that.
+    pub orphaned_at: Option<SystemTime>,
+    pub parent: Option<OrphanParent>,
+}
+
+/// The agent an orphan used to belong to.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OrphanParent {
+    pub pid: u32,
+    pub agent_id: String,
+    pub name: String,
+}
+
 /// Everything the UI needs for one frame.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Snapshot {
@@ -413,6 +506,9 @@ pub struct Snapshot {
     pub agents: Vec<Agent>,
     /// MCP-looking processes with no live agent ancestor: leak candidates.
     pub orphans: Vec<ProcNode>,
+    /// One entry per orphan, saying where it came from when that is known.
+    #[serde(default)]
+    pub orphan_origins: Vec<OrphanOrigin>,
     pub totals: Totals,
 }
 

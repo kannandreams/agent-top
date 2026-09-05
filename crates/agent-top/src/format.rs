@@ -155,10 +155,38 @@ pub fn plain_table(snap: &Snapshot) -> String {
             out.push_str(&format!("  {}: {}\n", a.name, a.parse_warning.as_deref().unwrap_or_default()));
         }
     }
+    let with_servers: Vec<&Agent> = snap.agents.iter().filter(|a| !a.mcp_servers.is_empty()).collect();
+    if !with_servers.is_empty() {
+        out.push_str("\nMCP SERVERS (calls from the transcript, process from the tree)\n");
+        for a in with_servers {
+            for m in &a.mcp_servers {
+                let pid = m.pid.map(|p| p.to_string()).unwrap_or_else(|| "-".into());
+                let note = match m.matched_by {
+                    agent_top_core::McpMatch::Name => "",
+                    agent_top_core::McpMatch::Sole => "  (process guessed)",
+                    agent_top_core::McpMatch::ProcessOnly => "  (no calls seen)",
+                    agent_top_core::McpMatch::TranscriptOnly => "  (no process)",
+                };
+                out.push_str(&format!(
+                    "  {:<24} {:<20} {:>7} {:>6} calls {:>4} err  {}{}\n",
+                    truncate(&a.name, 24),
+                    truncate(&m.name, 20),
+                    pid,
+                    m.calls,
+                    m.errors,
+                    m.cmdline.as_deref().map(|c| truncate(c, 60)).unwrap_or_default(),
+                    note
+                ));
+            }
+        }
+    }
     if !snap.orphans.is_empty() {
         out.push_str("\nORPHANED MCP PROCESSES (no live agent ancestor)\n");
         for o in &snap.orphans {
             out.push_str(&format!("  {:>7} {:>7} {:>7}  {}\n", o.pid, bytes(o.rss_bytes), age(o.age_secs), short_cmd(o, 100)));
+            if let Some(origin) = snap.orphan_origins.iter().find(|x| x.pid == o.pid) {
+                out.push_str(&format!("          {}\n", crate::ui::orphan_origin(origin, snap.taken_at)));
+            }
         }
     }
     let t = &snap.totals;

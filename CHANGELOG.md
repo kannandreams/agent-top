@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-09-05
+
+### Added
+- **One row per MCP server in the detail pane** (RFC-104 D2, Claude Code side). Under the process tree, each server the agent uses gets a line with its pid, how many times the transcript shows the agent calling it, how many of those calls the harness reported as errors, when it was last called, and its CPU and memory. The calls come from Claude Code's `mcp__<server>__<tool>` tool names; the process comes from the tree. The two are joined by name when the configured name appears in the command line, and by elimination when exactly one process and one server are left, which the row marks with a `?` after the pid. A server called but not running (an HTTP server, or one that has exited) shows with no pid. `--json` carries the rows as `mcp_servers` on each agent, with `matched_by` saying how each was formed. `--once` prints an `MCP SERVERS` section.
+- **Orphans say where they came from** (RFC-104 D3). agent-top remembers which agent each MCP process was under; a process that turns up in the orphan list after that is reported as "orphaned from `<agent>` (pid N) 3m ago". One that was already an orphan when agent-top started says so instead of guessing. `--json` carries this as `orphan_origins`. Memory lasts for the run and is keyed by pid and process start time, so a reused pid starts over.
+- An `npx` or `uvx` wrapper and the server process under it count as one MCP server, not two, in the MCP column and the header.
+
+### Fixed
+- **Command lines and working directories were never read from the process table.** `sysinfo`'s `refresh_processes` reads memory, CPU and the executable only, so every heuristic that looks at arguments or the working directory was running blind: MCP servers under an agent were labelled `tool`, `--resume <id>` on a command line was invisible, and the `cwd` fallback attribution never matched. The scanner now asks for the command line and working directory once per process. Found by the first live MCP check: an `npx` server under a headless Claude Code showed as `tool node node`.
+- A `--json` snapshot written before 0.2.0 replays again; `shares_process` defaults when absent.
+
 ## [0.4.0] - 2026-09-05
 
 ### Added

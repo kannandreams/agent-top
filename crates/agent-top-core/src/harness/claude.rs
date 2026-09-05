@@ -32,7 +32,7 @@
 
 use super::{
     AttributeContext, HarnessAdapter, REFRESH_BUDGET_BYTES, RegistryHints, SessionSummary, SessionTracker, SpanLog, SpanRetention,
-    parse_rfc3339_utc,
+    mcp_server_of, parse_rfc3339_utc,
 };
 use crate::jsonl::TailReader;
 use crate::model::{Activity, Attribution, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage};
@@ -292,6 +292,9 @@ struct Parser {
     /// already over, which a reply to a slash command hours later would.
     inference_ended_by: Option<String>,
     turn_ended_by: Option<String>,
+    /// MCP calls awaiting their result, by call id, so the result's
+    /// `is_error` can be charged to the right server.
+    pending_mcp: HashMap<String, String>,
 }
 
 /// What one API message added to the summary, so the next line of the same
@@ -318,6 +321,7 @@ impl Parser {
             prev_ts: None,
             inference_ended_by: None,
             turn_ended_by: None,
+            pending_mcp: HashMap::new(),
         }
     }
 
@@ -439,7 +443,13 @@ impl Parser {
             }
             answered = true;
             let Some(id) = b.get("tool_use_id").and_then(Value::as_str) else { continue };
-            self.summary.spans.close(id, ts, b.get("is_error").and_then(Value::as_bool).unwrap_or(false));
+            let error = b.get("is_error").and_then(Value::as_bool).unwrap_or(false);
+            self.summary.spans.close(id, ts, error);
+            if let Some(server) = self.pending_mcp.remove(id)
+                && error
+            {
+                self.summary.mcp.entry(server).or_default().errors += 1;
+            }
         }
         answered
     }
@@ -455,8 +465,16 @@ impl Parser {
             let calls = content.iter().filter(|b| b.get("type").and_then(Value::as_str) == Some("tool_use"));
             for b in calls {
                 self.summary.tool_calls += 1;
+                let name = b.get("name").and_then(Value::as_str).unwrap_or("tool");
+                if let Some(server) = mcp_server_of(name) {
+                    let u = self.summary.mcp.entry(server.to_string()).or_default();
+                    u.calls += 1;
+                    u.last_call = u.last_call.max(ts);
+                    if let Some(id) = b.get("id").and_then(Value::as_str) {
+                        self.pending_mcp.insert(id.to_string(), server.to_string());
+                    }
+                }
                 if let (Some(ts), Some(id)) = (ts, b.get("id").and_then(Value::as_str)) {
-                    let name = b.get("name").and_then(Value::as_str).unwrap_or("tool");
                     self.summary.spans.open(id.to_string(), name.to_string(), ts, sidechain);
                 }
             }
@@ -634,6 +652,9 @@ impl ClaudeTranscript {
             s.health.usage_records += t.health.usage_records;
             s.health.empty_usage_records += t.health.empty_usage_records;
             s.last_activity = s.last_activity.max(t.last_activity);
+            for (server, u) in &t.mcp {
+                s.mcp.entry(server.clone()).or_default().add(u);
+            }
         }
         if !self.subagents.is_empty() {
             let logs = std::iter::once(&self.main.summary.spans).chain(self.subagents.values().map(|c| &c.summary.spans));
@@ -732,6 +753,28 @@ mod tests {
         t.refresh().unwrap();
         assert_eq!(t.summary().turns, 2);
         assert_eq!(t.summary().activity, Activity::Waiting);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn counts_calls_per_mcp_server_and_their_errors() {
+        let dir = std::env::temp_dir().join(format!("agent-top-claude-mcp-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("s.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:01.000Z","message":{{"id":"m1","model":"claude-sonnet-5","content":[{{"type":"tool_use","id":"t1","name":"mcp__filesystem__read_file"}},{{"type":"tool_use","id":"t2","name":"mcp__chrome-devtools__take_screenshot"}},{{"type":"tool_use","id":"t3","name":"Bash"}}]}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-03T07:00:02.000Z","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"t1"}},{{"type":"tool_result","tool_use_id":"t2","is_error":true}},{{"type":"tool_result","tool_use_id":"t3","is_error":true}}]}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:05.000Z","message":{{"id":"m2","model":"claude-sonnet-5","content":[{{"type":"tool_use","id":"t4","name":"mcp__filesystem__list_directory"}}]}}}}"#).unwrap();
+        let mut t = ClaudeTranscript::new(&path);
+        t.refresh().unwrap();
+        let s = t.summary();
+        assert_eq!(s.tool_calls, 4, "MCP calls are tool calls too");
+        assert_eq!(s.mcp.len(), 2, "Bash is not a server");
+        let fs = &s.mcp["filesystem"];
+        assert_eq!((fs.calls, fs.errors), (2, 0));
+        assert_eq!(fs.last_call, parse_rfc3339_utc("2026-09-03T07:00:05.000Z"));
+        let cd = &s.mcp["chrome-devtools"];
+        assert_eq!((cd.calls, cd.errors), (1, 1), "the failed result is charged to its server, not to Bash's");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
