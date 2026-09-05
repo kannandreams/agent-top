@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.10.2] - 2026-09-05
+
+### Changed
+- The detail pane's facts column now leads with the headline numbers, cost, cache efficiency, tokens, turns and tool calls, and puts the per-token cost breakdown below them. On a short terminal the useful stats no longer scroll off the bottom of the pane.
 ## [0.10.1] - 2026-09-05
 
 ### Changed

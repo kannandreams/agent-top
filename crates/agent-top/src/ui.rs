@@ -494,6 +494,9 @@ fn agent_facts(a: &Agent, now: SystemTime) -> Text<'static> {
         lines.push(Line::from(vec![Span::styled(format!("⚠ {w}"), Style::default().fg(Color::Red).bold())]));
         lines.push(Line::raw(""));
     }
+    // Identity first, then the headline numbers a glance wants (cost, cache,
+    // turns, tools) high up, so a short detail pane never clips them; the
+    // per-token cost breakdown, a dig-deeper detail, comes below them.
     lines.extend(vec![
         kv("session", a.session_id.clone().unwrap_or_else(|| "-".into())),
         kv("cwd", a.cwd.as_deref().map(tilde).unwrap_or_else(|| "-".into())),
@@ -503,24 +506,12 @@ fn agent_facts(a: &Agent, now: SystemTime) -> Text<'static> {
         kv("attributed", attribution.to_string()),
         Line::raw(""),
         Line::from(vec![
-            Span::styled(format!("{:<13}{:>7}", "tokens", ""), Style::default().fg(ACCENT).bold()),
-            dim(format!("{:>9}{:>10}", "$/M", "cost")),
-        ]),
-        cost_row("  input", u.input, price.map(|p| p.input), b.input),
-        cost_row("  cache rd", u.cache_read, price.map(|p| p.cache_read), b.cache_read),
-        cost_row("  cache wr 5m", u.cache_write_5m, price.map(|p| p.cache_write_5m), b.cache_write_5m),
-        cost_row("  cache wr 1h", u.cache_write_1h, price.map(|p| p.cache_write_1h), b.cache_write_1h),
-        cost_row("  output", u.output, price.map(|p| p.output), b.output),
-        Line::from(vec![
-            Span::styled(format!("{:<13}", "  total"), Style::default().fg(DIM)),
-            Span::raw(format!("{:>7}", tokens(u.total()))),
-        ]),
-        Line::from(vec![
             Span::styled(format!("{:<11}", "cost"), Style::default().fg(DIM)),
             Span::styled(cost(a), Style::default().bold()),
             dim(format!("   {}", price_basis(a))),
         ]),
         cache_line(a),
+        kv("tokens", tokens(u.total())),
         kv("turns", format!("{} ({} subagent)", a.turns, a.subagent_turns)),
         kv("tool calls", a.tool_calls.to_string()),
     ]);
@@ -528,6 +519,19 @@ fn agent_facts(a: &Agent, now: SystemTime) -> Text<'static> {
         let priced = if b.web_search > 0.0 { format!(" (${:.2})", b.web_search) } else { " (not priced)".to_string() };
         lines.push(kv("web searches", format!("{}{priced}", a.web_searches)));
     }
+    // The per-token cost breakdown, below the headline stats.
+    lines.push(Line::raw(""));
+    lines.push(Line::from(vec![
+        Span::styled(format!("{:<13}{:>7}", "breakdown", ""), Style::default().fg(ACCENT).bold()),
+        dim(format!("{:>9}{:>10}", "$/M", "cost")),
+    ]));
+    lines.extend(vec![
+        cost_row("  input", u.input, price.map(|p| p.input), b.input),
+        cost_row("  cache rd", u.cache_read, price.map(|p| p.cache_read), b.cache_read),
+        cost_row("  cache wr 5m", u.cache_write_5m, price.map(|p| p.cache_write_5m), b.cache_write_5m),
+        cost_row("  cache wr 1h", u.cache_write_1h, price.map(|p| p.cache_write_1h), b.cache_write_1h),
+        cost_row("  output", u.output, price.map(|p| p.output), b.output),
+    ]);
     if let Some(rl) = &a.rate_limit {
         lines.push(Line::raw(""));
         let head = match &rl.plan {
