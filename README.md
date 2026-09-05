@@ -47,15 +47,15 @@ agent-top --prices           # the price table in use, and where each row came f
 
 ## What the table shows
 
-| Column | Meaning |
+| &nbsp;&nbsp;Column&nbsp;&nbsp; | Meaning |
 |---|---|
-| **STATE** | `running` = mid-turn (inference or tool execution), `idle` = alive and waiting for you, `stopped` = transcript with no live process (kept for 30 minutes) |
-| **TOKENS** | input + cache read + cache write + output, from the harness's own transcript |
-| **COST** | USD at list price, from [the price table](#prices). `+` or `≥` means some tokens had no known price and the number is a floor; `n/a` means none of them did |
-| **CPU% / MEM** | summed over the agent's whole process tree |
-| **TOOLS** | tool calls in the session |
-| **PROCS / MCP** | processes in the tree, and how many of them look like Model Context Protocol servers |
-| **AGE** | process age, or time since the last transcript write for stopped sessions |
+| 🚦&nbsp; **STATE** | `running` = mid-turn (inference or tool execution), `idle` = alive and waiting for you, `stopped` = transcript with no live process (kept for 30 minutes) |
+| 🔢&nbsp; **TOKENS** | input + cache read + cache write + output, from the harness's own transcript |
+| 💰&nbsp; **COST** | USD at list price, from [the price table](#prices). `+` or `≥` means some tokens had no known price and the number is a floor; `n/a` means none of them did |
+| 🖥️&nbsp; **CPU% / MEM** | summed over the agent's whole process tree |
+| 🔧&nbsp; **TOOLS** | tool calls in the session |
+| 🧩&nbsp; **PROCS / MCP** | processes in the tree, and how many of them look like Model Context Protocol servers |
+| ⏱️&nbsp; **AGE** | process age, or time since the last transcript write for stopped sessions |
 
 A Claude Code session's subagents are folded into its row, the way Claude
 Code's own cost display counts them. Web searches the model ran are counted
