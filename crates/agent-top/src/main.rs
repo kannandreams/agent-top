@@ -2,6 +2,7 @@
 
 mod app;
 mod format;
+mod report;
 mod trace;
 mod ui;
 
@@ -67,6 +68,21 @@ enum Command {
         #[arg(long, value_name = "URL")]
         endpoint: Option<String>,
     },
+    /// What the agents have cost, across every harness, from the transcripts
+    /// already on disk. Reads history, not the live snapshot; nothing is
+    /// written and nothing leaves the machine.
+    Report {
+        /// How far back to look: `all`, a duration like `7d` / `12h` / `2w`,
+        /// or a date `YYYY-MM-DD`.
+        #[arg(long, default_value = "30d", value_name = "WHEN")]
+        since: String,
+        /// What to group the rows by.
+        #[arg(long, value_enum, default_value_t = report::GroupBy::Harness)]
+        by: report::GroupBy,
+        /// Print the report as JSON instead of a table.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// Where frames come from: this machine, or a snapshot someone saved earlier.
@@ -100,6 +116,19 @@ fn main() -> Result<()> {
     }
     if let Some(Command::Trace { session, format, output, endpoint }) = &cli.command {
         return export_trace(session, *format, output.as_deref(), endpoint.as_deref());
+    }
+    if let Some(Command::Report { since, by, json }) = &cli.command {
+        for w in &agent_top_core::pricing::table().warnings {
+            eprintln!("agent-top: {w}");
+        }
+        let since = report::parse_since(since)?;
+        let rep = report::build(since, *by);
+        if *json {
+            println!("{}", serde_json::to_string_pretty(&rep.to_json())?);
+        } else {
+            print!("{}", rep.to_plain());
+        }
+        return Ok(());
     }
     // A user's price file that could not be read is the difference between a
     // real cost and a wrong one, so say so rather than quietly using defaults.

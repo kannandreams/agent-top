@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-09-05
+
+### Added
+- **`agent-top report`: what the agents have cost, across every harness.** The live table is one moment; this reads the transcripts already on disk and totals cost and tokens over a window, grouped by harness, model, project, or day. It is the one place that adds up Claude, Codex, Gemini and OpenCode together, priced the same way, so "what did all of this cost me" has an answer. `--since` takes `all`, a duration (`7d`, `12h`, `2w`), or a date; `--by harness|model|project|day` chooses the grouping; `--json` prints it structured. Tokens on a model with no price (Codex's, today) are shown as an `UNPRICED` column and the cost carries a `+` so an incomplete total is never mistaken for a cheap one. Nothing is written and nothing leaves the machine; it reads the same files the live view does, so an old file outside the window is skipped by its modification time without being parsed.
 ## [0.8.0] - 2026-09-05
 
 ### Added

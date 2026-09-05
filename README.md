@@ -283,7 +283,27 @@ agent-top --interval-ms 500      # faster refresh
 agent-top --stopped-window-min 120   # keep stopped sessions visible for two hours
 agent-top --replay snap.json     # render a saved --json snapshot, keys and all, reading nothing local
 agent-top trace --session <id|prefix|path> [--format chrome|otlp] [-o FILE] [--endpoint URL]
+agent-top report [--since 7d|all|YYYY-MM-DD] [--by harness|model|project|day] [--json]
 ```
+
+`agent-top report` reads the transcripts already on disk and totals cost and
+tokens across every harness at once, grouped how you ask. It is history, not
+the live snapshot, and the one place that adds Claude, Codex, Gemini and
+OpenCode into a single figure:
+
+```
+agent-top report · since the beginning · by harness
+
+HARNESS                SESSIONS     TOKENS       COST   UNPRICED
+claude                       43       2.1B   $1762.09          -
+opencode                     39     704.1M      $8.45          -
+codex                        96       1.6B     $0.00+       1.6B
+----------------------------------------------------------------
+total                       178       4.3B  $1770.54+       1.6B
+```
+
+A model with no price in the table shows its tokens under `UNPRICED` and the
+cost carries a `+`, so an incomplete total is never read as a cheap one.
 
 `--replay` is for bug reports: attach a `--json` snapshot and the reader can
 inspect it exactly as you saw it.
@@ -380,7 +400,7 @@ on each tick.
 
 ## Roadmap
 
-See [docs/roadmap.md](docs/roadmap.md). Next: an Aider adapter, and a non-interactive `watch --alert` mode. [docs/releasing.md](docs/releasing.md) is the release runbook.
+See [docs/roadmap.md](docs/roadmap.md). Next: OpenAI prices so Codex sessions stop reading as free, an Aider adapter, and a `watch --alert` mode. [docs/releasing.md](docs/releasing.md) is the release runbook.
 
 ## Development
 
