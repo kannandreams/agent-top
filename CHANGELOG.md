@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.12.2] - 2026-09-05
+
+### Changed
+- The version badge moved from the top-left of the header to the footer, just before `quit`. The header now just names the tool and host.
 ## [0.12.1] - 2026-09-05
 
 ### Changed

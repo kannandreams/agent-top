@@ -331,23 +331,14 @@ fn draw_tool_panel(f: &mut Frame, area: Rect, snap: &agent_top_core::Snapshot, p
 fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     let snap = &app.snapshot;
     let host = &snap.host;
-    // A small version pill in the title, on a filled ground, so the running
-    // version is always visible (a nudge to upgrade, with no network check).
-    let rest = format!(
-        "{}{}",
+    // The version lives in the footer now, next to quit; the header just names
+    // the tool and the host.
+    let title = format!(
+        "agent-top{}{}",
         host.hostname.as_deref().map(|h| format!(" @ {h}")).unwrap_or_default(),
         if app.paused { "  [PAUSED]" } else { "" }
     );
-    let outer = Block::bordered().border_type(BorderType::Rounded).border_style(Style::default().fg(term_color(BORDER_RGB))).title(
-        Line::from(vec![
-            Span::raw(" "),
-            Span::styled("agent-top", Style::default().fg(ACCENT).bold()),
-            Span::raw(" "),
-            Span::styled(format!(" v{} ", crate::VERSION), Style::default().fg(Color::Black).bg(ACCENT)),
-            Span::styled(rest, Style::default().fg(ACCENT).bold()),
-            Span::raw(" "),
-        ]),
-    );
+    let outer = block(&title);
     let inner = outer.inner(area);
     f.render_widget(outer, area);
 
@@ -1015,12 +1006,13 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     left.push(sep());
     left.extend(key("?", "help", ACCENT));
 
-    // Quit sits on its own at the right end.
-    let quit = key("q", "quit", ACCENT);
-    let quit_w = quit.iter().map(|s| s.content.chars().count()).sum::<usize>() as u16;
-    let [left_area, right_area] = Layout::horizontal([Constraint::Min(0), Constraint::Length(quit_w)]).areas(area);
+    // The version badge and quit sit together at the right end.
+    let mut right = vec![Span::styled(format!(" v{} ", crate::VERSION), Style::default().fg(Color::Black).bg(ACCENT)), Span::raw("  ")];
+    right.extend(key("q", "quit", ACCENT));
+    let right_w = right.iter().map(|s| s.content.chars().count()).sum::<usize>() as u16;
+    let [left_area, right_area] = Layout::horizontal([Constraint::Min(0), Constraint::Length(right_w)]).areas(area);
     f.render_widget(Paragraph::new(Line::from(left)), left_area);
-    f.render_widget(Paragraph::new(Line::from(quit)), right_area);
+    f.render_widget(Paragraph::new(Line::from(right)), right_area);
 }
 
 fn draw_help(f: &mut Frame, area: Rect) {
