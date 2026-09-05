@@ -332,7 +332,8 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     let snap = &app.snapshot;
     let host = &snap.host;
     let title = format!(
-        "agent-top{}{}",
+        "agent-top {}{}{}",
+        crate::VERSION,
         host.hostname.as_deref().map(|h| format!(" @ {h}")).unwrap_or_default(),
         if app.paused { "  [PAUSED]" } else { "" }
     );
@@ -1016,6 +1017,11 @@ fn draw_help(f: &mut Frame, area: Rect) {
             Span::styled("failed tool calls", Style::default().fg(Color::Red)),
         ]),
         Line::raw(""),
+        Line::from(vec![Span::styled(format!("agent-top {}", crate::VERSION), Style::default().fg(ACCENT).bold())]),
+        Line::raw("  upgrade   brew upgrade agent-top   |   cargo install agent-top"),
+        Line::styled("  what's new  agent-top --whats-new", Style::default().fg(DIM)),
+        Line::styled(format!("  changelog   {}", crate::CHANGELOG_URL), Style::default().fg(DIM)),
+        Line::raw(""),
         Line::from(vec![Span::styled("columns", Style::default().fg(ACCENT).bold())]),
         Line::raw("  STATE   running = mid-turn, idle = waiting for you,"),
         Line::raw("          stopped = transcript with no live process"),
@@ -1293,6 +1299,16 @@ mod tests {
         let out = render(&mut app, 120, 110);
         assert!(out.contains("90% from cache"), "{out}");
         assert!(!out.contains("full price"), "{out}");
+    }
+
+    #[test]
+    fn help_popup_nudges_the_upgrade() {
+        let mut app = App::new(snapshot(vec![agent("a", Vec::new())]));
+        app.overlay = Overlay::Help;
+        let out = render(&mut app, 90, 44);
+        assert!(out.contains(&format!("agent-top {}", crate::VERSION)), "{out}");
+        assert!(out.contains("brew upgrade agent-top"), "{out}");
+        assert!(out.contains("--whats-new"), "{out}");
     }
 
     #[test]

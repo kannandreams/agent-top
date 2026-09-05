@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-09-05
+
+### Added
+- **An upgrade nudge and `agent-top --whats-new`, both without a network call.** The header and the `?` help popup now show the running version and how to upgrade (`brew upgrade agent-top` / `cargo install agent-top`), and `--help` carries the same hint. `agent-top --whats-new` prints the recent changelog entries baked into the binary and a link to the online changelog for anything newer. Nothing is fetched: a binary cannot know the latest version without a network call it will not make, so it shows what it shipped with and points at the current changelog. The changelog is embedded through a build script that reads the repository file for release builds and falls back to just the link when built from the published crate.
 ## [0.11.0] - 2026-09-05
 
 ### Added

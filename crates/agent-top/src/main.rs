@@ -14,8 +14,40 @@ use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+/// Where to read the full, current changelog, printed by the upgrade nudge and
+/// `--whats-new` so a stale binary can still point at what is new.
+pub(crate) const CHANGELOG_URL: &str = "https://github.com/kannandreams/agent-top/blob/main/CHANGELOG.md";
+/// This build's version.
+pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// The changelog embedded at build time (see build.rs).
+const CHANGELOG: &str = include_str!(concat!(env!("OUT_DIR"), "/changelog.md"));
+
+/// Print the most recent changelog sections baked into this build, then the
+/// link for anything newer. Honest about the limit: a binary cannot know the
+/// latest version without a network call it will not make, so it shows what it
+/// shipped with and points at the online changelog for the rest.
+fn print_whats_new() {
+    println!("agent-top {VERSION}\n");
+    // The changelog is newest-first; show the first few `## [` sections.
+    let mut shown = 0;
+    for line in CHANGELOG.lines() {
+        if line.starts_with("## [") {
+            shown += 1;
+            if shown > 4 {
+                break;
+            }
+        }
+        if shown >= 1 {
+            println!("{line}");
+        }
+    }
+    println!("\nNewer versions may exist; this is only what this build shipped with.");
+    println!("Full and current changelog: {CHANGELOG_URL}");
+}
+
 #[derive(Parser, Debug)]
-#[command(name = "agent-top", version, about = "htop for local coding agents", long_about = None)]
+#[command(name = "agent-top", version, about = "htop for local coding agents", long_about = None,
+    after_help = "Upgrade: brew upgrade agent-top | cargo install agent-top\nWhat's new: agent-top --whats-new")]
 struct Cli {
     /// Print one snapshot as JSON and exit.
     #[arg(long)]
@@ -42,6 +74,11 @@ struct Cli {
     /// saw it. Nothing on the local machine is read.
     #[arg(long, value_name = "FILE")]
     replay: Option<PathBuf>,
+    /// Print what is new in this build's changelog and how to upgrade, then
+    /// exit. Reads only the changelog compiled into the binary; makes no
+    /// network call.
+    #[arg(long)]
+    whats_new: bool,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -112,6 +149,10 @@ fn main() -> Result<()> {
     }
     if cli.prices {
         print!("{}", format::price_table(agent_top_core::pricing::table()));
+        return Ok(());
+    }
+    if cli.whats_new {
+        print_whats_new();
         return Ok(());
     }
     if let Some(Command::Trace { session, format, output, endpoint }) = &cli.command {

@@ -53,6 +53,7 @@ agent-top --json             # one snapshot as JSON, for scripts and bug reports
 agent-top trace --session 662cda1f -o trace.json   # one session as a trace file for Perfetto
 agent-top report --since 7d  # what every harness cost this week, in one place
 agent-top --prices           # the price table in use, and where each row came from
+agent-top --whats-new        # recent changelog for this build, and how to upgrade (no network)
 ```
 
 ## What the table shows
