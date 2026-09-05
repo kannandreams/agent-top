@@ -43,7 +43,7 @@ What to look at first:
 - **COST** is what each session has spent so far, at list price.
 - **Red rows in the detail pane** are MCP servers whose agent has gone. They are the leak this tool exists to catch.
 
-Keys: `j`/`k` move, `Tab` switches the detail pane between the process tree and the tool trace, `s` sorts, `x` hides stopped sessions, `?` shows the rest, `q` quits.
+Keys: `j`/`k` move, `Tab` switches the detail pane between the process tree and the tool trace, `s` sorts, `x` hides stopped sessions, `l` opens the slowest-tools panel, `f` the failed-tools panel, `?` shows the rest, `q` quits.
 
 Other ways to run it:
 
@@ -148,6 +148,14 @@ waiting on you. **turn** is how long the current human turn has been going.
 None of this needs telemetry switched on. The spans are reconstructed from the
 transcript by pairing each tool call with its result and each prompt with its
 reply, reading only names, ids and timestamps.
+
+### Tool leaderboards
+
+Two popups summarise the tool activity across every agent on screen, so the
+main table stays uncluttered. Press `l` for the **slowest tools** (ranked by
+time, with calls, total, average and max) and `f` for **failed tool calls**
+(ranked by failures, with the fail rate). Each closes with the same key or
+`Esc`, and is accented amber or red so you know which one is open.
 
 ### Exporting a trace
 

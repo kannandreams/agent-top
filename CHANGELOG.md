@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-09-05
+
+### Added
+- **Tool leaderboards, behind two shortcut keys.** `l` opens a "slowest tools" panel and `f` a "failed tool calls" panel, each a centred popup over the table, closed with the same key or `Esc`. They aggregate the tool spans already on screen across every agent, ranking tools by the time they took (calls, total, average, max) or by how often they failed (fails, calls, fail rate). Keeping them behind keys, rather than in the main view, means the table stays uncluttered; the panels are accented amber and red so which one is open reads at a glance. The single help flag became an `Overlay` so only one popup shows at a time.
 ## [0.10.2] - 2026-09-05
 
 ### Changed

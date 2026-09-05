@@ -187,9 +187,16 @@ fn run(terminal: &mut ratatui::DefaultTerminal, source: &mut Source, interval: D
             }
             let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
             match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => {
-                    if app.show_help {
-                        app.show_help = false;
+                KeyCode::Char('q') => {
+                    if app.overlay != app::Overlay::None {
+                        app.overlay = app::Overlay::None;
+                    } else {
+                        return Ok(());
+                    }
+                }
+                KeyCode::Esc => {
+                    if app.overlay != app::Overlay::None {
+                        app.overlay = app::Overlay::None;
                     } else {
                         return Ok(());
                     }

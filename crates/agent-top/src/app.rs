@@ -74,6 +74,17 @@ const HISTORY: usize = 120;
 /// a rate and still drops back to zero soon after the agents go quiet.
 const RATE_WINDOW: Duration = Duration::from_secs(10);
 
+/// Which full-screen popup, if any, is over the table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Overlay {
+    None,
+    Help,
+    /// Tool calls ranked by how much time they took.
+    SlowTools,
+    /// Tool calls ranked by how often they failed.
+    FailedTools,
+}
+
 pub struct App {
     pub snapshot: Snapshot,
     pub rows: Vec<Agent>,
@@ -83,7 +94,7 @@ pub struct App {
     pub sort_desc: bool,
     pub show_detail: bool,
     pub detail: DetailView,
-    pub show_help: bool,
+    pub overlay: Overlay,
     pub show_stopped: bool,
     pub paused: bool,
     pub cpu_history: Vec<u64>,
@@ -105,7 +116,7 @@ impl App {
             sort_desc: false,
             show_detail: true,
             detail: DetailView::Tree,
-            show_help: false,
+            overlay: Overlay::None,
             show_stopped: true,
             paused: false,
             cpu_history: Vec::new(),
@@ -215,9 +226,17 @@ impl App {
                 self.rebuild_rows();
             }
             KeyCode::Char('p') | KeyCode::Char(' ') => self.paused = !self.paused,
-            KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.show_help = !self.show_help,
+            KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.toggle(Overlay::Help),
+            KeyCode::Char('l') => self.toggle(Overlay::SlowTools),
+            KeyCode::Char('f') => self.toggle(Overlay::FailedTools),
+            KeyCode::Esc => self.overlay = Overlay::None,
             _ => {}
         }
+    }
+
+    /// Open the given overlay, or close it if it is already the one showing.
+    fn toggle(&mut self, o: Overlay) {
+        self.overlay = if self.overlay == o { Overlay::None } else { o };
     }
 }
 

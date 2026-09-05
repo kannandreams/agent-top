@@ -1,7 +1,7 @@
 //! Rendering. Layout, top to bottom: header (host gauges + totals), agent
 //! table, optional detail pane (process tree + token breakdown), key bar.
 
-use crate::app::{App, DetailView};
+use crate::app::{App, DetailView, Overlay};
 use crate::format::{age, bytes, cost, cpu_cell, duration_ms, mem_cell, short_cmd, short_model, tokens, tokens_cell, truncate};
 use agent_top_core::{Agent, AgentState, Attribution, McpMatch, OrphanOrigin, ProcKind, ProcNode, SpanKind, ToolSpan};
 use ratatui::Frame;
@@ -204,9 +204,128 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_detail(f, app, detail);
     }
     draw_footer(f, app, footer);
-    if app.show_help {
-        draw_help(f, area);
+    match app.overlay {
+        Overlay::Help => draw_help(f, area),
+        Overlay::SlowTools => draw_tool_panel(f, area, &app.snapshot, ToolPanel::Slow),
+        Overlay::FailedTools => draw_tool_panel(f, area, &app.snapshot, ToolPanel::Failed),
+        Overlay::None => {}
     }
+}
+
+/// One tool's stats, summed over every agent on screen.
+#[derive(Default, Clone)]
+struct ToolStat {
+    name: String,
+    calls: u64,
+    timed: u64,
+    total_ms: u64,
+    max_ms: u64,
+    errors: u64,
+}
+
+/// Which leaderboard a tool panel shows.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ToolPanel {
+    Slow,
+    Failed,
+}
+
+/// Aggregate every tool span across every agent into per-tool stats.
+fn tool_stats(snap: &agent_top_core::Snapshot) -> Vec<ToolStat> {
+    use std::collections::HashMap;
+    let mut by: HashMap<&str, ToolStat> = HashMap::new();
+    for a in &snap.agents {
+        for sp in &a.spans {
+            if sp.kind != SpanKind::Tool {
+                continue;
+            }
+            let e = by.entry(sp.name.as_str()).or_default();
+            if e.name.is_empty() {
+                e.name = sp.name.clone();
+            }
+            e.calls += 1;
+            if let Some(ms) = sp.duration_ms {
+                e.timed += 1;
+                e.total_ms += ms;
+                e.max_ms = e.max_ms.max(ms);
+            }
+            if sp.error {
+                e.errors += 1;
+            }
+        }
+    }
+    by.into_values().collect()
+}
+
+/// A centred popup: the slow-tools or failed-tools leaderboard, from the tool
+/// spans already on screen. Amber for time, red for failures, so the panel is
+/// recognisable at a glance.
+fn draw_tool_panel(f: &mut Frame, area: Rect, snap: &agent_top_core::Snapshot, panel: ToolPanel) {
+    let (title, accent, key) = match panel {
+        ToolPanel::Slow => ("slowest tools", Color::Rgb(220, 160, 40), "l"),
+        ToolPanel::Failed => ("failed tool calls", Color::Red, "f"),
+    };
+    let mut stats = tool_stats(snap);
+    match panel {
+        ToolPanel::Slow => stats.sort_by(|a, b| b.total_ms.cmp(&a.total_ms).then(b.max_ms.cmp(&a.max_ms))),
+        ToolPanel::Failed => {
+            stats.retain(|s| s.errors > 0);
+            stats.sort_by(|a, b| b.errors.cmp(&a.errors).then(b.calls.cmp(&a.calls)));
+        }
+    }
+
+    let w = 66.min(area.width.saturating_sub(2));
+    let h = (stats.len() as u16 + 6).clamp(8, 26).min(area.height.saturating_sub(2));
+    let popup = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };
+    f.render_widget(Clear, popup);
+
+    let mut lines: Vec<Line> = Vec::new();
+    if stats.is_empty() {
+        let msg = match panel {
+            ToolPanel::Slow => "no tool calls on screen yet",
+            ToolPanel::Failed => "no failed tool calls on screen — all green",
+        };
+        lines.push(Line::styled(format!("  {msg}"), Style::default().fg(DIM)));
+    } else {
+        let header = match panel {
+            ToolPanel::Slow => format!("  {:<22}{:>7}{:>9}{:>9}{:>7}", "tool", "calls", "total", "avg", "max"),
+            ToolPanel::Failed => format!("  {:<22}{:>8}{:>8}{:>9}", "tool", "fails", "calls", "fail%"),
+        };
+        lines.push(Line::styled(header, Style::default().fg(DIM)));
+        let cap = h.saturating_sub(5) as usize;
+        for s in stats.iter().take(cap) {
+            let line = match panel {
+                ToolPanel::Slow => {
+                    let avg = s.total_ms.checked_div(s.timed).unwrap_or(0);
+                    format!(
+                        "  {:<22}{:>7}{:>9}{:>9}{:>7}",
+                        truncate(&s.name, 22),
+                        s.calls,
+                        duration_ms(s.total_ms),
+                        duration_ms(avg),
+                        duration_ms(s.max_ms)
+                    )
+                }
+                ToolPanel::Failed => {
+                    let pct = if s.calls > 0 { 100.0 * s.errors as f64 / s.calls as f64 } else { 0.0 };
+                    format!("  {:<22}{:>8}{:>8}{:>8.0}%", truncate(&s.name, 22), s.errors, s.calls, pct)
+                }
+            };
+            lines.push(Line::raw(line));
+        }
+        if stats.len() > cap {
+            lines.push(Line::styled(format!("  … {} more", stats.len() - cap), Style::default().fg(DIM)));
+        }
+    }
+    lines.push(Line::raw(""));
+    lines.push(Line::styled(format!("  aggregated from the tool trace on screen · {key} or Esc to close"), Style::default().fg(DIM)));
+
+    let block = Block::default()
+        .borders(ratatui::widgets::Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(accent))
+        .title(Span::styled(format!(" {title} "), Style::default().fg(accent).bold()));
+    f.render_widget(Paragraph::new(Text::from(lines)).block(block), popup);
 }
 
 fn draw_header(f: &mut Frame, app: &App, area: Rect) {
@@ -870,6 +989,8 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     spans.extend(key("t", if app.show_detail { "hide detail" } else { "show detail" }));
     spans.extend(key("Tab", if app.detail == DetailView::Tree { "trace" } else { "tree" }));
     spans.extend(key("x", if app.show_stopped { "hide stopped" } else { "show stopped" }));
+    spans.extend(key("l", "slow tools"));
+    spans.extend(key("f", "fails"));
     spans.extend(key("p", if app.paused { "resume" } else { "pause" }));
     spans.extend(key("?", "help"));
     spans.extend(key("q", "quit"));
@@ -888,6 +1009,12 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::raw("  t / Enter    toggle detail pane  x       toggle stopped rows"),
         Line::raw("  Tab / v      detail: tree ⇄ trace"),
         Line::raw("  p / Space    pause refresh       q / Esc quit"),
+        Line::from(vec![
+            Span::raw("  l            "),
+            Span::styled("slowest tools", Style::default().fg(Color::Rgb(220, 160, 40))),
+            Span::raw("       f       "),
+            Span::styled("failed tool calls", Style::default().fg(Color::Red)),
+        ]),
         Line::raw(""),
         Line::from(vec![Span::styled("columns", Style::default().fg(ACCENT).bold())]),
         Line::raw("  STATE   running = mid-turn, idle = waiting for you,"),
@@ -1166,6 +1293,43 @@ mod tests {
         let out = render(&mut app, 120, 110);
         assert!(out.contains("90% from cache"), "{out}");
         assert!(!out.contains("full price"), "{out}");
+    }
+
+    #[test]
+    fn tool_panels_rank_by_time_and_by_failure() {
+        // Two agents' worth of tool spans: Bash slow and sometimes failing,
+        // Read fast and clean.
+        let sp = |name: &str, dur: u64, err: bool| ToolSpan {
+            id: name.into(),
+            name: name.into(),
+            started_at: SystemTime::UNIX_EPOCH,
+            duration_ms: Some(dur),
+            sidechain: false,
+            error: err,
+            kind: SpanKind::Tool,
+        };
+        let mut a = agent("worker", vec![sp("Bash", 20_000, false), sp("Bash", 5_000, true), sp("Read", 100, false)]);
+        a.spans.push(sp("Read", 120, false));
+        let mut app = App::new(snapshot(vec![a]));
+
+        app.overlay = Overlay::SlowTools;
+        let out = render(&mut app, 100, 40);
+        assert!(out.contains("slowest tools"), "{out}");
+        // Bash's total (25s) beats Read's, so Bash is the first data row.
+        let bash_line = out.lines().find(|l| l.contains("Bash")).unwrap();
+        let read_line = out.lines().find(|l| l.contains("Read")).unwrap();
+        assert!(
+            out.lines().position(|l| l.contains("Bash")) < out.lines().position(|l| l.contains("Read")),
+            "Bash ranks above Read:\n{out}"
+        );
+        assert!(bash_line.contains("25.0s") || bash_line.contains("25s"), "bash total: {bash_line}");
+        let _ = read_line;
+
+        app.overlay = Overlay::FailedTools;
+        let out = render(&mut app, 100, 40);
+        assert!(out.contains("failed tool calls"), "{out}");
+        assert!(out.lines().any(|l| l.contains("Bash")), "the failing tool is listed: {out}");
+        assert!(!out.lines().any(|l| l.contains("Read")), "a clean tool is not in the failures panel: {out}");
     }
 
     #[test]
