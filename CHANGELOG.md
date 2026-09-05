@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.10.1] - 2026-09-05
+
+### Changed
+- The README gains a "Key features" section, and the "What the table shows" column labels each stay on one line beside their icon. Documentation only; no behaviour change.
 ## [0.10.0] - 2026-09-05
 
 ### Added
