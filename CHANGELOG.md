@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.12.1] - 2026-09-05
+
+### Changed
+- The footer is grouped, navigation, then the analytics panels (`l` slow tools in amber, `f` fails in red), then help, with `q quit` pushed to the right end. The `x` key appears only when there are stopped sessions to hide, so it is never on the bar doing nothing. The header shows the running version as a small filled badge.
 ## [0.12.0] - 2026-09-05
 
 ### Added

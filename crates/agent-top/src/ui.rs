@@ -331,13 +331,23 @@ fn draw_tool_panel(f: &mut Frame, area: Rect, snap: &agent_top_core::Snapshot, p
 fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     let snap = &app.snapshot;
     let host = &snap.host;
-    let title = format!(
-        "agent-top {}{}{}",
-        crate::VERSION,
+    // A small version pill in the title, on a filled ground, so the running
+    // version is always visible (a nudge to upgrade, with no network check).
+    let rest = format!(
+        "{}{}",
         host.hostname.as_deref().map(|h| format!(" @ {h}")).unwrap_or_default(),
         if app.paused { "  [PAUSED]" } else { "" }
     );
-    let outer = block(&title);
+    let outer = Block::bordered().border_type(BorderType::Rounded).border_style(Style::default().fg(term_color(BORDER_RGB))).title(
+        Line::from(vec![
+            Span::raw(" "),
+            Span::styled("agent-top", Style::default().fg(ACCENT).bold()),
+            Span::raw(" "),
+            Span::styled(format!(" v{} ", crate::VERSION), Style::default().fg(Color::Black).bg(ACCENT)),
+            Span::styled(rest, Style::default().fg(ACCENT).bold()),
+            Span::raw(" "),
+        ]),
+    );
     let inner = outer.inner(area);
     f.render_widget(outer, area);
 
@@ -975,27 +985,42 @@ fn render_node(n: &ProcNode, prefix: &str, last: bool, root: bool, width: usize,
 }
 
 fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
-    let key = |k: &str, d: &str| -> Vec<Span<'static>> {
+    // A key badge: the letter on a coloured ground, its label dimmed beside it.
+    let key = |k: &str, d: &str, bg: Color| -> Vec<Span<'static>> {
         vec![
-            Span::styled(k.to_string(), Style::default().fg(Color::Black).bg(ACCENT)),
+            Span::styled(k.to_string(), Style::default().fg(Color::Black).bg(bg)),
             Span::styled(format!(" {d} "), Style::default().fg(DIM)),
         ]
     };
-    let mut spans = Vec::new();
-    spans.extend(key("↑↓/jk", "select"));
-    // The sort direction used to live in the header; it belongs next to the
-    // key that changes it.
-    spans.extend(key("s", format!("sort:{}{}", app.sort.label(), if app.sort_desc { "↑" } else { "↓" }).as_str()));
-    spans.extend(key("r", "reverse"));
-    spans.extend(key("t", if app.show_detail { "hide detail" } else { "show detail" }));
-    spans.extend(key("Tab", if app.detail == DetailView::Tree { "trace" } else { "tree" }));
-    spans.extend(key("x", if app.show_stopped { "hide stopped" } else { "show stopped" }));
-    spans.extend(key("l", "slow tools"));
-    spans.extend(key("f", "fails"));
-    spans.extend(key("p", if app.paused { "resume" } else { "pause" }));
-    spans.extend(key("?", "help"));
-    spans.extend(key("q", "quit"));
-    f.render_widget(Paragraph::new(Line::from(spans)), area);
+    let sep = || Span::styled("│ ", Style::default().fg(DIM));
+
+    let amber = Color::Rgb(220, 160, 40);
+    let mut left = Vec::new();
+    // Navigation and view.
+    left.extend(key("↑↓/jk", "select", ACCENT));
+    left.extend(key("s", format!("sort:{}{}", app.sort.label(), if app.sort_desc { "↑" } else { "↓" }).as_str(), ACCENT));
+    left.extend(key("r", "reverse", ACCENT));
+    left.extend(key("t", if app.show_detail { "hide detail" } else { "show detail" }, ACCENT));
+    left.extend(key("Tab", if app.detail == DetailView::Tree { "trace" } else { "tree" }, ACCENT));
+    // `x` only matters when there are stopped sessions to hide; hiding it
+    // otherwise keeps a key that does nothing off the bar.
+    if app.snapshot.totals.stopped > 0 {
+        left.extend(key("x", if app.show_stopped { "hide stopped" } else { "show stopped" }, ACCENT));
+    }
+    left.extend(key("p", if app.paused { "resume" } else { "pause" }, ACCENT));
+    // The analytics panels, each in the colour of its panel.
+    left.push(sep());
+    left.extend(key("l", "slow tools", amber));
+    left.extend(key("f", "fails", Color::Red));
+    left.push(sep());
+    left.extend(key("?", "help", ACCENT));
+
+    // Quit sits on its own at the right end.
+    let quit = key("q", "quit", ACCENT);
+    let quit_w = quit.iter().map(|s| s.content.chars().count()).sum::<usize>() as u16;
+    let [left_area, right_area] = Layout::horizontal([Constraint::Min(0), Constraint::Length(quit_w)]).areas(area);
+    f.render_widget(Paragraph::new(Line::from(left)), left_area);
+    f.render_widget(Paragraph::new(Line::from(quit)), right_area);
 }
 
 fn draw_help(f: &mut Frame, area: Rect) {
@@ -1299,6 +1324,27 @@ mod tests {
         let out = render(&mut app, 120, 110);
         assert!(out.contains("90% from cache"), "{out}");
         assert!(!out.contains("full price"), "{out}");
+    }
+
+    #[test]
+    fn footer_groups_features_and_hides_x_when_nothing_is_stopped() {
+        // No stopped sessions: the x key is not on the bar.
+        let mut app = App::new(snapshot(vec![agent("a", Vec::new())]));
+        let out = render(&mut app, 120, 20);
+        let footer = out.lines().last().unwrap();
+        assert!(footer.contains("slow tools"), "{footer}");
+        assert!(footer.contains("fails"), "{footer}");
+        assert!(footer.contains("│"), "grouped with separators: {footer}");
+        assert!(footer.trim_end().ends_with("quit"), "quit is at the right end: {footer:?}");
+        assert!(!footer.contains("stopped"), "no x/stopped key when nothing is stopped: {footer}");
+
+        // With a stopped session, x appears.
+        let mut stopped = agent("old", Vec::new());
+        stopped.state = AgentState::Stopped;
+        stopped.pid = None;
+        let mut app = App::new(snapshot(vec![agent("a", Vec::new()), stopped]));
+        let out = render(&mut app, 120, 20);
+        assert!(out.lines().last().unwrap().contains("stopped"), "x shows when something is stopped");
     }
 
     #[test]
