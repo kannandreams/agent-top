@@ -7,7 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust 2024](https://img.shields.io/badge/rust-edition%202024-orange.svg)](Cargo.toml)
 
-You have three Claude Code sessions, a Codex thread in VS Code, and a Gemini CLI you forgot about. Which one is burning tokens right now? Which one is waiting on you? Which MCP server is still alive after the agent that started it died? `agent-top` answers that in one terminal view, the way `htop` answers it for processes and `btop` answers it for the whole machine.
+`agent-top` is a terminal dashboard for the coding agents running on your machine. It reads the transcripts the harnesses already write and the process table the OS already keeps, then shows every Claude Code, Codex, Gemini CLI and OpenCode session in one place: what each one is doing, how many tokens and dollars it has spent, and which helper processes it has left behind.
+
+Coding agents have become long-running processes, and you tend to keep several at once, each in its own window with its own cost and its own leaks. No single harness shows them together. `agent-top` does, the way `htop` does it for processes and `btop` for the whole machine. At a glance you can see which agent is burning tokens, which is waiting on you, and which MCP server is still alive after the agent that started it died.
 
 ![agent-top](https://raw.githubusercontent.com/kannandreams/agent-top/main/docs/demo.gif)
 
