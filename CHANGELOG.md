@@ -2,10 +2,14 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [0.12.2] - 2026-09-05
+## [0.13.0] - 2026-09-05
+
+### Added
+- **A once-a-day update check, the one call agent-top makes on its own.** It asks crates.io for the latest published version and nothing else: no data about you, your agents or your machine is ever sent, only a generic User-Agent. When a newer version exists the footer version badge turns amber and shows the arrow to it (`v0.12.2 → v0.13.0`); the upgrade command is in the `?` help popup. The result is cached, so it hits the network at most once a day and most launches make no call at all; it runs on a background thread so the UI never waits; it is silent when offline; and `AGENT_TOP_NO_UPDATE_CHECK=1` turns it off. The promise is reworded from "no network" to the thing that actually matters: your data never leaves the machine.
 
 ### Changed
-- The version badge moved from the top-left of the header to the footer, just before `quit`. The header now just names the tool and host.
+- The version badge moved from the top-left of the header to the footer, just before `quit`; the header now just names the tool and host.
+- The help popup (`?`) is sized to its content and widened, so the lower half is no longer clipped.
 ## [0.12.1] - 2026-09-05
 
 ### Changed

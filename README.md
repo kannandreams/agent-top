@@ -23,7 +23,7 @@ Coding agents have become long-running processes, and you tend to keep several a
 - **MCP leak detection.** One row per MCP server with its call count, and orphaned servers, the memory leak this tool exists to catch, flagged in red with the agent they were orphaned from.
 - **Tool trace, and OpenTelemetry export.** A waterfall of every tool call, inference and turn, reconstructed from the transcript with no telemetry to switch on. Export it as a Chrome trace for Perfetto, or as OTLP JSON, and `trace --endpoint <url>` posts it straight to Jaeger, Tempo or any OpenTelemetry collector.
 - **Signals the harnesses hide.** How close each agent is to its rate limit (Codex), and how much of each prompt is served from cheap cache versus paid at full price.
-- **Read-only and self-contained.** Reads the files the harnesses already write and the process table the OS already keeps. No daemon, no network, no configuration, one static binary; it never writes to or kills an agent.
+- **Read-only and self-contained.** Reads the files the harnesses already write and the process table the OS already keeps. No daemon, no configuration, one static binary; it never writes to or kills an agent, and your data never leaves the machine. The only network calls it makes carry none of your data: a daily update check (turn off with `AGENT_TOP_NO_UPDATE_CHECK=1`) and the `trace --endpoint` you type.
 
 ## Quick start
 
@@ -53,7 +53,8 @@ agent-top --json             # one snapshot as JSON, for scripts and bug reports
 agent-top trace --session 662cda1f -o trace.json   # one session as a trace file for Perfetto
 agent-top report --since 7d  # what every harness cost this week, in one place
 agent-top --prices           # the price table in use, and where each row came from
-agent-top --whats-new        # recent changelog for this build, and how to upgrade (no network)
+agent-top --whats-new        # recent changelog for this build, and how to upgrade
+AGENT_TOP_NO_UPDATE_CHECK=1   # env var: disable the daily update check entirely
 ```
 
 ## What the table shows

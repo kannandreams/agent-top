@@ -29,9 +29,9 @@ pane, each labelled with the agent it was orphaned from.
 ## What it will not do
 
 `agent-top` observes; it never acts on an agent. It does not kill or restart a
-process, write to a transcript, or send anything anywhere. Killing an orphaned
-MCP server is your decision, with your own `kill`. The single exception to "no
-network" is `trace --endpoint <url>`, which posts one trace file to an address
-you type on the command line, and nowhere else. See
-[where the numbers come from](accounting.md) for how the reading stays
-read-only and metadata-only.
+process, write to a transcript, or send any of your data anywhere. Killing an
+orphaned MCP server is your decision, with your own `kill`. It makes two network
+calls that carry none of your data: a daily update check (a version lookup you
+can disable with `AGENT_TOP_NO_UPDATE_CHECK=1`) and the `trace --endpoint <url>`
+you type. See [where the numbers come from](accounting.md) for how the reading
+stays read-only and metadata-only.

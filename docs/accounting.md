@@ -22,10 +22,14 @@ about which ones are exact and which are inferred.
   presenting it as fact.
 - **Only metadata is read.** Token counts, model ids, tool names, timestamps.
   Never a prompt, a tool input, or a tool result.
-- **Nothing is written, signalled, or sent anywhere.** `agent-top` never kills or
-  writes to an agent, and the only network call it can make is the one you ask
-  for by typing an address after `--endpoint`. Killing an orphaned MCP server
-  is your decision, with your own `kill`.
+- **Your data never leaves the machine.** `agent-top` never kills or writes to an
+  agent, and it never sends your sessions, prompts, costs or process list
+  anywhere. It makes exactly two network calls, neither carrying any of your
+  data: a once-a-day update check that asks crates.io for the latest version
+  number (nothing about you is sent; turn it off with
+  `AGENT_TOP_NO_UPDATE_CHECK=1`), and the `trace --endpoint <url>` you type
+  yourself. Killing an orphaned MCP server is your decision, with your own
+  `kill`.
 
 ## If the cost does not match your harness
 

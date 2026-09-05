@@ -1006,8 +1006,15 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     left.push(sep());
     left.extend(key("?", "help", ACCENT));
 
-    // The version badge and quit sit together at the right end.
-    let mut right = vec![Span::styled(format!(" v{} ", crate::VERSION), Style::default().fg(Color::Black).bg(ACCENT)), Span::raw("  ")];
+    // The version badge and quit sit together at the right end. When the update
+    // check has found a newer version, the badge turns amber and shows the
+    // arrow to it.
+    let latest = app.update.lock().ok().and_then(|g| g.clone());
+    let (badge, badge_bg) = match &latest {
+        Some(newer) => (format!(" v{} → v{} ", crate::VERSION, newer), Color::Rgb(220, 160, 40)),
+        None => (format!(" v{} ", crate::VERSION), ACCENT),
+    };
+    let mut right = vec![Span::styled(badge, Style::default().fg(Color::Black).bg(badge_bg)), Span::raw("  ")];
     right.extend(key("q", "quit", ACCENT));
     let right_w = right.iter().map(|s| s.content.chars().count()).sum::<usize>() as u16;
     let [left_area, right_area] = Layout::horizontal([Constraint::Min(0), Constraint::Length(right_w)]).areas(area);
@@ -1016,11 +1023,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_help(f: &mut Frame, area: Rect) {
-    let w = 62.min(area.width.saturating_sub(2));
-    let h = 30.min(area.height.saturating_sub(2));
-    let popup = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };
-    f.render_widget(Clear, popup);
-    let text = Text::from(vec![
+    let lines = vec![
         Line::from(vec![Span::styled("keys", Style::default().fg(ACCENT).bold())]),
         Line::raw("  ↑ ↓ j k      move selection      g G     first / last"),
         Line::raw("  s            cycle sort column   r       reverse sort"),
@@ -1066,8 +1069,14 @@ fn draw_help(f: &mut Frame, area: Rect) {
             Span::raw("  MCP-looking processes whose agent is gone."),
         ]),
         Line::raw("  Inspect with `agent-top --json`; kill with `kill <pid>`."),
-    ]);
-    f.render_widget(Paragraph::new(text).block(block("help")).wrap(Wrap { trim: false }), popup);
+    ];
+    // Size the popup to its content, with margins, and cap to the screen so it
+    // always fits: a fixed small box was clipping the lower half.
+    let w = 80.min(area.width.saturating_sub(4));
+    let h = (lines.len() as u16 + 3).min(area.height.saturating_sub(2));
+    let popup = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };
+    f.render_widget(Clear, popup);
+    f.render_widget(Paragraph::new(Text::from(lines)).block(block("help")).wrap(Wrap { trim: false }), popup);
 }
 
 #[cfg(test)]
@@ -1337,6 +1346,19 @@ mod tests {
         let mut app = App::new(snapshot(vec![agent("a", Vec::new()), stopped]));
         let out = render(&mut app, 120, 20);
         assert!(out.lines().last().unwrap().contains("stopped"), "x shows when something is stopped");
+    }
+
+    #[test]
+    fn footer_badge_shows_the_update_when_one_is_known() {
+        let mut app = App::new(snapshot(vec![agent("a", Vec::new())]));
+        // No update known: the badge is just the version.
+        let out = render(&mut app, 120, 20);
+        assert!(out.lines().last().unwrap().contains(&format!("v{}", crate::VERSION)), "{out}");
+        assert!(!out.lines().last().unwrap().contains("→"), "no arrow without an update");
+        // A newer version is known: the arrow appears.
+        *app.update.lock().unwrap() = Some("99.9.9".into());
+        let out = render(&mut app, 120, 20);
+        assert!(out.lines().last().unwrap().contains("→ v99.9.9"), "{out}");
     }
 
     #[test]

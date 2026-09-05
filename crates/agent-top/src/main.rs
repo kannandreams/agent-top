@@ -5,6 +5,7 @@ mod format;
 mod report;
 mod trace;
 mod ui;
+mod update;
 
 use agent_top_core::{Collector, CollectorOptions, Snapshot};
 use anyhow::{Context, Result};
@@ -216,6 +217,12 @@ fn main() -> Result<()> {
 
 fn run(terminal: &mut ratatui::DefaultTerminal, source: &mut Source, interval: Duration) -> Result<()> {
     let mut app = app::App::new(source.collect());
+    // The update check runs only for a live session, not a replayed snapshot,
+    // and is the one call agent-top makes on its own (a version lookup, no data
+    // sent). See the update module.
+    if matches!(source, Source::Live(_)) {
+        app.update = update::start();
+    }
     let mut last_tick = Instant::now();
     loop {
         terminal.draw(|f| ui::draw(f, &mut app))?;

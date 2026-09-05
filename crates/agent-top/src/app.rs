@@ -103,6 +103,9 @@ pub struct App {
     pub cost_history: Vec<u64>,
     /// (when, output tokens across every agent) for the last `RATE_WINDOW`.
     rate_samples: VecDeque<(Instant, u64)>,
+    /// The latest published version when it is newer than this build, filled by
+    /// the update check; `None` otherwise. The footer reads it each frame.
+    pub update: std::sync::Arc<std::sync::Mutex<Option<String>>>,
 }
 
 impl App {
@@ -123,6 +126,7 @@ impl App {
             output_rate: Vec::new(),
             cost_history: Vec::new(),
             rate_samples: VecDeque::new(),
+            update: std::sync::Arc::new(std::sync::Mutex::new(None)),
         };
         app.rebuild_rows();
         app
