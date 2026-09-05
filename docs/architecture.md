@@ -6,7 +6,7 @@ Two crates in one Cargo workspace.
 crates/agent-top-core          no terminal dependency; what --json prints
   model.rs        Agent, AgentState, TokenUsage, ToolSpan, ProcNode, Snapshot
   process.rs      sysinfo scan -> agent roots, child kinds, orphans
-  harness/        the HarnessAdapter trait and one adapter per harness (claude.rs, codex.rs, gemini.rs)
+  harness/        the HarnessAdapter trait and one adapter per harness (claude.rs, codex.rs, gemini.rs, opencode.rs)
   jsonl.rs        incremental line reader with a byte offset
   pricing.rs      dated price table, longest-prefix model match
   collector.rs    joins processes + transcripts into a Snapshot

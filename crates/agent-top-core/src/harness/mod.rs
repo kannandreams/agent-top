@@ -6,6 +6,7 @@
 pub mod claude;
 pub mod codex;
 pub mod gemini;
+pub mod opencode;
 
 use crate::model::{Activity, Attribution, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage, ToolSpan};
 use crate::process::RawProc;
@@ -334,7 +335,12 @@ pub trait HarnessAdapter {
 /// The order matters to `detect` alone: Gemini's metadata line carries a
 /// `sessionId` like Claude Code's lines do, so it is asked first.
 pub fn adapters() -> Vec<Box<dyn HarnessAdapter>> {
-    vec![Box::new(codex::CodexAdapter::default()), Box::new(gemini::GeminiAdapter::default()), Box::new(claude::ClaudeAdapter::default())]
+    vec![
+        Box::new(codex::CodexAdapter::default()),
+        Box::new(gemini::GeminiAdapter::default()),
+        Box::new(opencode::OpenCodeAdapter::default()),
+        Box::new(claude::ClaudeAdapter::default()),
+    ]
 }
 
 /// The adapter for one harness, or none when it has only a process table entry.

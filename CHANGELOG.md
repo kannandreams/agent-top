@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-09-05
+
+### Added
+- **OpenCode adapter.** OpenCode sessions now get a row like the other harnesses: tokens, cost, model, tool calls, subagents folded in, and a tool trace. OpenCode is the first harness that keeps its history in a SQLite database (`~/.local/share/opencode/opencode.db`) rather than a JSONL log, so the adapter reads that database read-only, never writing to or locking the file OpenCode is using. The `session` table already carries the accounting, so tokens and the harness's own computed cost are read straight from it; because OpenCode has already priced the session, that cost is used as is rather than re-priced from agent-top's table, and an OpenCode row is never a floor. Subagent sessions (rows with a `parent_id`) fold into their parent, tool parts become tool-call spans with real durations, and assistant messages are the turn count. Verified against the real database on the build machine (39 sessions, DeepSeek models, costs matching the table). Adds `rusqlite` (bundled, so the single static binary still has no system dependency).
+
+### Known gaps
+- Turn and inference spans are not reconstructed for OpenCode yet, only tool-call spans; the turn count is still shown. Per-server MCP counts are not produced (no MCP server was configured to read the naming from). Both are follow-ups.
 ## [0.6.0] - 2026-09-05
 
 ### Added

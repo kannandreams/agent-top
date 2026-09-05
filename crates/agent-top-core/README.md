@@ -45,7 +45,9 @@ orphan, which is a common way for these tools to leak memory.
 publishes a registry of its own sessions or holds its transcript open, that is
 used and the result is exact. Otherwise the match is made on working directory
 and start time. Each harness is a `HarnessAdapter` in `harness::adapters()`;
-Claude Code, Codex and Gemini CLI have one. Every agent
+Claude Code, Codex, Gemini CLI and OpenCode have one. OpenCode keeps its
+history in a SQLite database rather than a JSONL log, which the adapter reads
+read-only. Every agent
 records which method was used, so a caller never has to guess how much to trust
 a row.
 

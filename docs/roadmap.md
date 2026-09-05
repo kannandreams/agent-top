@@ -23,7 +23,7 @@ Each phase ships on its own, and the order matters more than any date.
 
 ## v0.2 — trust the numbers
 
-- OpenCode transcript adapter.
+- OpenCode adapter (shipped v0.7.0): reads its SQLite session store read-only, tokens and the harness's own cost, subagents folded, tool spans. Turn/inference spans and MCP counts are follow-ups.
 - Per-agent history sparkline (tokens per minute) and cost rate ($/hour).
 - Linux `/proc` verification against a real Linux desktop, not only CI.
 - Golden transcript fixtures: small real transcripts per harness version, checked in with the exact numbers they should produce. These catch regressions in our own parsing. They cannot catch an upstream format change, because a fixture recorded at version X keeps passing forever after the harness moves to version Y.

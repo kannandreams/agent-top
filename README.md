@@ -253,7 +253,8 @@ not a bill.
 | Claude Code | process table + `~/.claude/sessions/<pid>.json` (exact) | transcript usage, priced per model, subagent transcripts folded into their parent | harness-reported |
 | Codex CLI / app-server | process table + the rollout files the process holds open (exact on macOS and Linux; `cwd` heuristic elsewhere) | transcript usage; priced once you add the model to [your price table](#prices) | transcript events |
 | Gemini CLI | process table + `cwd` heuristic (the CLI keeps no registry and does not hold its transcript open) | transcript usage, priced per model, subagent transcripts folded into their parent | transcript events |
-| OpenCode, Aider, Copilot CLI, cursor-agent | process table only | not yet | CPU heuristic |
+| OpenCode | process table + `cwd` heuristic; reads its SQLite session store read-only | tokens and OpenCode's own computed cost, subagent sessions folded into their parent | transcript times |
+| Aider, Copilot CLI, cursor-agent | process table only | not yet | CPU heuristic |
 
 ## Install
 
@@ -374,7 +375,7 @@ on each tick.
 
 ## Roadmap
 
-See [docs/roadmap.md](docs/roadmap.md). Next: an OpenCode adapter and MCP call counts for Codex. [docs/releasing.md](docs/releasing.md) is the release runbook.
+See [docs/roadmap.md](docs/roadmap.md). Next: turn and inference spans for OpenCode, and Aider. [docs/releasing.md](docs/releasing.md) is the release runbook.
 
 ## Development
 
