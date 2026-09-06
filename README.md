@@ -78,15 +78,17 @@ and, for Claude Code, priced.
 Press `t` to open it and `Tab` to switch between two views.
 
 **Process tree.** Every process under the agent, labelled `agent`, `subagent`,
-`mcp`, `shell` or `tool`, with the token breakdown beside it. Below it, one
-line per **MCP server** the agent uses: the server's pid, how many times the
-agent has called it, how many of those calls failed, when it was last called,
-and its CPU and memory. The calls are counted from the transcript (Claude Code
-names an MCP tool `mcp__<server>__<tool>`, Gemini `mcp_<server>_<tool>`, and
-Codex records the server name directly), the process comes from the tree,
-and the two are joined by name; when the join is a guess the pid carries a `?`.
-A server the agent calls but that has no process, an HTTP server or one that
-has exited, shows with no pid.
+`mcp`, `shell` or `tool`, with the token breakdown beside it.
+
+**MCP servers.** Below the tree, one line per MCP server the agent uses: the
+server's pid, how many times the agent has called it, how many of those calls
+failed, when it was last called, and its CPU and memory. The call counts come
+from the transcript, where each harness names the server in its own way:
+Claude Code names an MCP tool `mcp__<server>__<tool>`, Gemini
+`mcp_<server>_<tool>`, and Codex records the server name directly. The process
+comes from the tree, and the two are joined by name. When that join is a guess
+the pid carries a `?`. A server the agent calls but that has no process, such
+as an HTTP server or one that has already exited, shows with no pid.
 
 ```
  mcp servers   calls from the transcript; pid? = process guessed
@@ -95,10 +97,12 @@ has exited, shows with no pid.
    linear              -     3   0         -     -      -
 ```
 
-**Orphaned MCP processes**, servers with no live agent above them, are listed
-in red, each with where it came from: "orphaned from `tuff-25` (pid 4242) 3m
-ago" when agent-top watched the agent go, or how long it has been an orphan
-when it was one already at startup.
+**Orphaned MCP processes.** An MCP server whose agent has exited, leaving it
+running with no live agent above it, is listed in red. Each one says where it
+came from. If agent-top was running when the agent went away, the line names
+it: "orphaned from `tuff-25` (pid 4242) 3m ago". If the server was already an
+orphan when agent-top started, the parent is unknown, so the line says only how
+long it has been on its own.
 
 The facts on the left include the cost one line per kind of token, with the
 price each was charged at and what it came to, and the total names the table
