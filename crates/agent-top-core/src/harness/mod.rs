@@ -8,7 +8,7 @@ pub mod codex;
 pub mod gemini;
 pub mod opencode;
 
-use crate::model::{Activity, Attribution, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage, ToolSpan};
+use crate::model::{Activity, Attribution, ContextOrigin, ContextSource, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage, ToolSpan};
 use crate::process::RawProc;
 use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
@@ -70,6 +70,9 @@ pub struct SessionSummary {
     pub spans: SpanLog,
     /// Calls to each MCP server, by the server's name.
     pub mcp: BTreeMap<String, McpUsage>,
+    /// What each tool's results added to the prompt, and what carrying it
+    /// has cost. See `ContextLedger`.
+    pub context: ContextLedger,
     pub health: ParseHealth,
     pub activity: Activity,
     pub started_at: Option<SystemTime>,
@@ -92,6 +95,182 @@ impl McpUsage {
         self.calls += o.calls;
         self.errors += o.errors;
         self.last_call = self.last_call.max(o.last_call);
+    }
+}
+
+/// What each source has added to a session's context, and what carrying it
+/// has cost. Built incrementally by an adapter from two facts it already
+/// has: the tool results it sees submitted, and the usage on each response.
+///
+/// The arithmetic. A response's prompt is the previous response's prompt
+/// plus everything appended since: the previous reply, and the tool results
+/// that answered it. So `prompt_n - prompt_n-1` is the new material, the
+/// previous reply's `output` is the part of it the model wrote itself, and
+/// the rest is the tool results submitted in between. Those tokens go to
+/// the tools that produced them, split evenly when several were answered
+/// together, which is a heuristic and is labelled as one in the UI. The
+/// first response's whole prompt, the replies, and any growth with no
+/// result to explain it (the user's own messages) are `Other`.
+///
+/// Every response then re-reads the whole context, so each source's live
+/// tokens are charged at that response's prompt rate: its prompt-side cost
+/// over its prompt tokens, which is mostly the cache-read price with some
+/// fresh input mixed in. The first read is charged the same way, so the
+/// sources' costs sum to the session's prompt-side cost.
+///
+/// A compaction replaces the context. The live set is cleared when the
+/// harness says one happened (`compacted`), and, for a harness that does
+/// not say, when the prompt halves, which nothing else does. Thinking
+/// blocks a harness drops between turns shrink the prompt by less than
+/// that; the shrink is taken off `Other`, whose replies they were.
+#[derive(Debug, Clone, Default)]
+pub struct ContextLedger {
+    shares: BTreeMap<ContextKey, ContextShare>,
+    /// Tokens each source has in the context now; cleared at a compaction.
+    live: BTreeMap<ContextKey, u64>,
+    /// Results submitted since the last response, by call id, awaiting the
+    /// response that will say how big they were.
+    pending: Vec<(String, ContextKey)>,
+    /// The last response's prompt and output, for the next delta.
+    prev: Option<(u64, u64)>,
+}
+
+type ContextKey = (ContextOrigin, String);
+
+/// One source's running totals.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct ContextShare {
+    pub calls: u64,
+    pub tokens: u64,
+    pub cost_usd: f64,
+}
+
+impl ContextLedger {
+    /// The name every non-tool share is filed under.
+    pub const OTHER: &str = "other";
+
+    fn other() -> ContextKey {
+        (ContextOrigin::Other, Self::OTHER.to_string())
+    }
+
+    /// A tool result was submitted to the model. `id` is the harness's call
+    /// id, so a harness that names the MCP server only after the result is
+    /// written can `retag` it before the response arrives.
+    pub fn result(&mut self, id: &str, origin: ContextOrigin, name: &str) {
+        self.pending.push((id.to_string(), (origin, name.to_string())));
+    }
+
+    /// Re-file a pending result under another source. A no-op once the
+    /// response that sized it has been seen.
+    pub fn retag(&mut self, id: &str, origin: ContextOrigin, name: &str) {
+        if let Some((_, key)) = self.pending.iter_mut().find(|(i, _)| i == id) {
+            *key = (origin, name.to_string());
+        }
+    }
+
+    /// A response came back. Sizes and files whatever was submitted since
+    /// the last one, then charges everything in the context for this read.
+    /// A record with no prompt is not an API response and is ignored.
+    pub fn response(&mut self, usage: &TokenUsage, cost: &CostBreakdown) {
+        let prompt = usage.prompt();
+        if prompt == 0 {
+            return;
+        }
+        let pending = std::mem::take(&mut self.pending);
+        match self.prev {
+            Some((p, _)) if prompt < p / 2 => {
+                // Compacted: what is in the context now is all new.
+                self.live.clear();
+                self.file(prompt, 0, pending);
+            }
+            Some((p, o)) if prompt >= p => {
+                let growth = prompt - p;
+                let reply = o.min(growth);
+                self.file(growth - reply, reply, pending);
+            }
+            Some(_) => {
+                // Shrunk, but not compacted: thinking blocks dropped between
+                // turns. They were part of a reply, so the shrink is Other's.
+                let e = self.live.entry(Self::other()).or_default();
+                *e = e.saturating_sub(self.prev.map(|(p, _)| p - prompt).unwrap_or(0));
+                self.file(0, 0, pending);
+            }
+            None => self.file(prompt, 0, pending),
+        }
+        let prompt_cost = cost.input + cost.cache_read + cost.cache_write_5m + cost.cache_write_1h;
+        if prompt_cost > 0.0 {
+            let rate = prompt_cost / prompt as f64;
+            for (k, t) in &self.live {
+                self.shares.entry(k.clone()).or_default().cost_usd += *t as f64 * rate;
+            }
+        }
+        self.prev = Some((prompt, usage.output));
+    }
+
+    /// `results` tokens across the pending results, evenly; `other` tokens
+    /// to `Other`. No pending result puts everything under `Other`.
+    fn file(&mut self, results: u64, other: u64, pending: Vec<(String, ContextKey)>) {
+        if pending.is_empty() {
+            self.add(Self::other(), results + other, 0);
+            return;
+        }
+        self.add(Self::other(), other, 0);
+        let n = pending.len() as u64;
+        let (each, mut rem) = (results / n, results % n);
+        for (_, key) in pending {
+            let t = each + u64::from(rem > 0);
+            rem = rem.saturating_sub(1);
+            self.add(key, t, 1);
+        }
+    }
+
+    fn add(&mut self, key: ContextKey, tokens: u64, calls: u64) {
+        if tokens == 0 && calls == 0 {
+            return;
+        }
+        let sh = self.shares.entry(key.clone()).or_default();
+        sh.tokens += tokens;
+        sh.calls += calls;
+        *self.live.entry(key).or_default() += tokens;
+    }
+
+    /// The harness replaced the context with a summary. Whatever the next
+    /// response carries is new.
+    pub fn compacted(&mut self) {
+        self.live.clear();
+        self.prev = None;
+    }
+
+    /// Fold another ledger's totals in, as a parent folds its subagents.
+    /// The running state is not merged: a fold is read, never fed.
+    pub fn merge(&mut self, other: &ContextLedger) {
+        for (k, sh) in &other.shares {
+            let e = self.shares.entry(k.clone()).or_default();
+            e.calls += sh.calls;
+            e.tokens += sh.tokens;
+            e.cost_usd += sh.cost_usd;
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.shares.is_empty()
+    }
+
+    /// Every source, largest first.
+    pub fn sources(&self) -> Vec<ContextSource> {
+        let mut v: Vec<ContextSource> = self
+            .shares
+            .iter()
+            .map(|((origin, name), sh)| ContextSource {
+                name: name.clone(),
+                origin: *origin,
+                calls: sh.calls,
+                tokens: sh.tokens,
+                cost_usd: sh.cost_usd,
+            })
+            .collect();
+        v.sort_by(|a, b| b.tokens.cmp(&a.tokens).then_with(|| a.name.cmp(&b.name)));
+        v
     }
 }
 
@@ -545,6 +724,101 @@ mod tests {
         assert!(!h.fields_unrecognised());
         // Nothing parsed at all is silence, not evidence.
         assert!(!ParseHealth::default().fields_unrecognised());
+    }
+
+    fn usage(prompt: u64, output: u64) -> TokenUsage {
+        TokenUsage { cache_read: prompt, output, ..Default::default() }
+    }
+
+    /// $1 per million prompt tokens, so a source's cost is its live tokens
+    /// summed over the responses that read them, in micro-dollars.
+    fn cost(prompt: u64) -> CostBreakdown {
+        CostBreakdown { cache_read: prompt as f64 / 1e6, ..Default::default() }
+    }
+
+    fn share<'a>(v: &'a [ContextSource], name: &str) -> &'a ContextSource {
+        v.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("no source {name}"))
+    }
+
+    #[test]
+    fn context_ledger_files_prompt_growth_under_the_results_that_caused_it() {
+        let mut l = ContextLedger::default();
+        // First response: the whole prompt is the system prompt and the ask.
+        l.response(&usage(1_000, 100), &cost(1_000));
+        // Two tool results, then a response 2_300 bigger: 100 of that is the
+        // reply, 2_200 the results, split evenly.
+        l.result("a", ContextOrigin::Tool, "Read");
+        l.result("b", ContextOrigin::Mcp, "fs");
+        l.response(&usage(3_300, 50), &cost(3_300));
+        let v = l.sources();
+        assert_eq!(share(&v, "Read").tokens, 1_100);
+        assert_eq!(share(&v, "fs").tokens, 1_100);
+        assert_eq!(share(&v, "fs").origin, ContextOrigin::Mcp);
+        assert_eq!(share(&v, "fs").calls, 1);
+        let other = share(&v, ContextLedger::OTHER);
+        assert_eq!((other.tokens, other.calls), (1_100, 0));
+        // Costs: Other was read twice (1_000 then 1_100), the results once.
+        assert!((other.cost_usd - 2_100e-6).abs() < 1e-12, "{}", other.cost_usd);
+        assert!((share(&v, "Read").cost_usd - 1_100e-6).abs() < 1e-12);
+        // The sources sum to the prompt-side cost.
+        let total: f64 = v.iter().map(|s| s.cost_usd).sum();
+        assert!((total - 4_300e-6).abs() < 1e-12, "{total}");
+        assert_eq!(v[0].tokens, 1_100, "largest first");
+    }
+
+    #[test]
+    fn context_ledger_takes_a_shrink_off_other_and_a_halving_as_compaction() {
+        let mut l = ContextLedger::default();
+        l.response(&usage(10_000, 2_000), &cost(10_000));
+        l.result("a", ContextOrigin::Tool, "Bash");
+        l.response(&usage(12_500, 3_000), &cost(12_500)); // Bash gets 500
+        // Thinking dropped at the new turn: 1_000 smaller. Bash keeps its 500;
+        // Other's live share takes the shrink and no source grows.
+        l.response(&usage(11_500, 10), &cost(11_500));
+        let v = l.sources();
+        assert_eq!(share(&v, "Bash").tokens, 500);
+        assert_eq!(share(&v, ContextLedger::OTHER).tokens, 12_000);
+        // Bash was read by the two responses since it arrived: 500 * 2.
+        assert!((share(&v, "Bash").cost_usd - 1_000e-6).abs() < 1e-12);
+        // Compaction halves the prompt: the old context is gone, the summary
+        // is Other, and Bash is no longer charged.
+        l.response(&usage(3_000, 10), &cost(3_000));
+        let v = l.sources();
+        assert!((share(&v, "Bash").cost_usd - 1_000e-6).abs() < 1e-12, "not charged after compaction");
+        assert_eq!(share(&v, ContextLedger::OTHER).tokens, 15_000);
+        // A harness that says so resets the same way, mid-growth.
+        l.compacted();
+        l.response(&usage(4_000, 10), &cost(4_000));
+        let v = l.sources();
+        assert_eq!(share(&v, ContextLedger::OTHER).tokens, 19_000);
+        assert!((share(&v, "Bash").cost_usd - 1_000e-6).abs() < 1e-12);
+    }
+
+    #[test]
+    fn context_ledger_retags_pending_results_and_merges() {
+        let mut l = ContextLedger::default();
+        l.response(&usage(100, 0), &cost(100));
+        l.result("c1", ContextOrigin::Tool, "fetch");
+        l.retag("c1", ContextOrigin::Mcp, "apps");
+        l.retag("zzz", ContextOrigin::Mcp, "nope");
+        // No usage record: not a response, nothing filed.
+        l.response(&TokenUsage::default(), &CostBreakdown::default());
+        l.response(&usage(300, 0), &cost(300));
+        let v = l.sources();
+        assert_eq!(v.len(), 2);
+        assert_eq!((share(&v, "apps").origin, share(&v, "apps").tokens), (ContextOrigin::Mcp, 200));
+        assert!(v.iter().all(|s| s.name != "fetch"));
+
+        let mut sub = ContextLedger::default();
+        sub.response(&usage(50, 0), &cost(50));
+        sub.result("x", ContextOrigin::Mcp, "apps");
+        sub.response(&usage(70, 0), &cost(70));
+        l.merge(&sub);
+        let v = l.sources();
+        assert_eq!(share(&v, "apps").tokens, 220);
+        assert_eq!(share(&v, "apps").calls, 2);
+        assert_eq!(share(&v, ContextLedger::OTHER).tokens, 150);
+        assert!(!l.is_empty() && ContextLedger::default().is_empty());
     }
 
     #[test]

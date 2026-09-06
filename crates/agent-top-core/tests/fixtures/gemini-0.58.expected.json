@@ -1,5 +1,49 @@
 {
   "activity": "Waiting",
+  "context": [
+    {
+      "calls": 0,
+      "cost_usd_micros": 20202,
+      "name": "other",
+      "origin": "Other",
+      "tokens": 16610
+    },
+    {
+      "calls": 1,
+      "cost_usd_micros": 203,
+      "name": "codebase_investigator",
+      "origin": "Tool",
+      "tokens": 520
+    },
+    {
+      "calls": 1,
+      "cost_usd_micros": 389,
+      "name": "google_web_search",
+      "origin": "Tool",
+      "tokens": 505
+    },
+    {
+      "calls": 1,
+      "cost_usd_micros": 389,
+      "name": "run_shell_command",
+      "origin": "Tool",
+      "tokens": 505
+    },
+    {
+      "calls": 1,
+      "cost_usd_micros": 38,
+      "name": "grep_search",
+      "origin": "Tool",
+      "tokens": 500
+    },
+    {
+      "calls": 1,
+      "cost_usd_micros": 175,
+      "name": "read_file",
+      "origin": "Tool",
+      "tokens": 160
+    }
+  ],
   "cost_breakdown_micros": {
     "cache_read": 11165,
     "cache_write_1h": 0,

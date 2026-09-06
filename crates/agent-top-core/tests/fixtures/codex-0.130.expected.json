@@ -1,5 +1,28 @@
 {
   "activity": "Working",
+  "context": [
+    {
+      "calls": 0,
+      "cost_usd_micros": 23610,
+      "name": "other",
+      "origin": "Other",
+      "tokens": 22199
+    },
+    {
+      "calls": 10,
+      "cost_usd_micros": 1400,
+      "name": "exec_command",
+      "origin": "Tool",
+      "tokens": 2524
+    },
+    {
+      "calls": 3,
+      "cost_usd_micros": 172,
+      "name": "apply_patch",
+      "origin": "Tool",
+      "tokens": 310
+    }
+  ],
   "cost_breakdown_micros": {
     "cache_read": 13306,
     "cache_write_1h": 0,

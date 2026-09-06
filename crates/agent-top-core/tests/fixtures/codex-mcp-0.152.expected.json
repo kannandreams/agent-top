@@ -1,5 +1,6 @@
 {
   "activity": "Waiting",
+  "context": [],
   "cost_breakdown_micros": {
     "cache_read": 40,
     "cache_write_1h": 0,

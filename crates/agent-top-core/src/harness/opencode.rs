@@ -33,6 +33,10 @@
 //! * MCP tool naming was not observable here (no MCP server is configured), so
 //!   per-server MCP counts are not produced for OpenCode yet; every tool part
 //!   is counted as a tool call and a span.
+//! * Context by source is not produced either: the session row carries
+//!   totals, and sizing each tool's results needs per-message usage in
+//!   message order, which is a `message` table read this adapter does not
+//!   do yet. The detail pane shows no `context` section for an OpenCode row.
 //!
 //! A session has no file of its own, so a tracker is addressed by a virtual
 //! path `<db>/<session id>`: unique, stable, and with the session id as its
