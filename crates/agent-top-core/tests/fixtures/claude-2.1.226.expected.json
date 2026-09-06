@@ -1,5 +1,63 @@
 {
   "activity": "Working",
+  "context": [
+    {
+      "calls": 0,
+      "cost_usd_micros": 1699300,
+      "name": "other",
+      "origin": "Other",
+      "tokens": 56694
+    },
+    {
+      "calls": 3,
+      "cost_usd_micros": 143337,
+      "name": "Write",
+      "origin": "Tool",
+      "tokens": 20180
+    },
+    {
+      "calls": 6,
+      "cost_usd_micros": 380859,
+      "name": "Bash",
+      "origin": "Tool",
+      "tokens": 13095
+    },
+    {
+      "calls": 5,
+      "cost_usd_micros": 285189,
+      "name": "Read",
+      "origin": "Tool",
+      "tokens": 8683
+    },
+    {
+      "calls": 3,
+      "cost_usd_micros": 71646,
+      "name": "Agent",
+      "origin": "Tool",
+      "tokens": 2504
+    },
+    {
+      "calls": 1,
+      "cost_usd_micros": 35434,
+      "name": "ToolSearch",
+      "origin": "Tool",
+      "tokens": 1428
+    },
+    {
+      "calls": 4,
+      "cost_usd_micros": 5190,
+      "name": "TaskCreate",
+      "origin": "Tool",
+      "tokens": 230
+    },
+    {
+      "calls": 3,
+      "cost_usd_micros": 465,
+      "name": "TaskUpdate",
+      "origin": "Tool",
+      "tokens": 39
+    }
+  ],
   "cost_breakdown_micros": {
     "cache_read": 1005090,
     "cache_write_1h": 1616000,

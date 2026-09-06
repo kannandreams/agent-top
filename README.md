@@ -21,6 +21,7 @@ Coding agents have become long-running processes, and you tend to keep several a
 - **Real tokens and cost.** Counted from the harness's own transcript, never estimated, and priced from a table you can read and edit (Anthropic, OpenAI and Google list prices). Subagents are folded into their parent.
 - **[`agent-top report`](#what-it-all-costs-agent-top-report).** What all of it has cost, across every harness, from the transcripts on disk, grouped by harness, model, project or day. The one place that adds your agent spend up together.
 - **MCP leak detection.** One row per MCP server with its call count, and orphaned servers, the memory leak this tool exists to catch, flagged in red with the agent they were orphaned from.
+- **Context by source.** Which tool's results are filling the prompt, and what re-reading them on every response since has cost: a `Read` that returned 40k tokens is billed again on every turn for the rest of the session, and no harness shows that. Computed from the usage records alone; no tool output is read.
 - **Tool trace, and OpenTelemetry export.** A waterfall of every tool call, inference and turn, reconstructed from the transcript with no telemetry to switch on. Export it as a Chrome trace for Perfetto, or as OTLP JSON, and `trace --endpoint <url>` posts it straight to Jaeger, Tempo or any OpenTelemetry collector.
 - **Signals the harnesses hide.** How close each agent is to its rate limit (Codex), how much of each prompt is served from cheap cache versus paid at full price, and your live spend velocity in dollars-per-hour across every agent at once.
 - **Read-only and self-contained.** Reads the files the harnesses already write and the process table the OS already keeps. No daemon, no configuration, one static binary; it never writes to or kills an agent, and your data never leaves the machine. The only network calls it makes carry none of your data: a daily update check (turn off with `AGENT_TOP_NO_UPDATE_CHECK=1`) and the `trace --endpoint` you type.
@@ -96,6 +97,33 @@ as an HTTP server or one that has already exited, shows with no pid.
    filesystem       5001    17   2    1m ago  0.2%    40M
    linear              -     3   0         -     -      -
 ```
+
+**Context by source.** Under the servers, what each tool's results have added
+to the prompt and what that has cost. Every response re-reads the whole
+conversation, so a tool result is paid for not once but on every response
+after it until the context is compacted; a single large `Read` or an MCP
+server that returns a page of JSON per call can quietly become the biggest
+line in the bill. The section lists sources largest first: built-in tools by
+name, MCP servers as `mcp <server>`, and one row, `prompts & replies`, for the
+system prompt, your messages and the model's own replies.
+
+```
+ context   what each tool's results added to the prompt, and its cost since
+   source            calls   added     cost
+   mcp scratchfs        17    1.2M   $38.10
+   Read                 84    812k   $22.00
+   prompts & replies     -   56.7k    $1.70
+```
+
+The tokens are the growth of the prompt between one response and the next,
+attributed to the tool results submitted in between (split evenly when several
+were answered together, which is a heuristic); the cost is those tokens at each
+later response's own prompt rate, mostly the cache-read price. The rows sum to
+the session's prompt-side cost. Nothing is read from a tool result itself,
+only how much bigger the next prompt was. See
+[accounting.md](docs/accounting.md#context-by-source) for the arithmetic and
+its limits. `agent-top --once` lists the top sources per agent under
+`CONTEXT BY SOURCE`; `--json` carries them all as `context`.
 
 **Orphaned MCP processes.** An MCP server whose agent has exited, leaving it
 running with no live agent above it, is listed in red. Each one says where it

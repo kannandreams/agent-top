@@ -239,6 +239,41 @@ pub enum McpMatch {
     Sole,
 }
 
+/// Where a stretch of a session's context came from.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ContextOrigin {
+    /// A built-in tool of the harness (`Bash`, `Read`, `exec_command`, ...).
+    Tool,
+    /// An MCP server; `name` is the server, not the tool.
+    Mcp,
+    /// Everything that is not a tool result: the system prompt, the user's
+    /// own messages, a compaction summary.
+    #[default]
+    Other,
+}
+
+/// One source of a session's context: what its results have added to the
+/// prompt, and what sending that on every inference since has cost.
+///
+/// The tokens are the growth of the prompt between one response and the
+/// next, attributed to the tool results submitted in between; the cost is
+/// those tokens charged at the prompt rate of every response that carried
+/// them, the first read included. The rows sum to the session's prompt-side
+/// cost. See `docs/accounting.md`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ContextSource {
+    pub name: String,
+    pub origin: ContextOrigin,
+    /// Tool results attributed to this source. Zero for `Other`.
+    pub calls: u64,
+    /// Tokens the source added to the prompt over the session.
+    pub tokens: u64,
+    /// USD those tokens have cost across every response that read them.
+    /// An estimate; zero when the model has no price.
+    pub cost_usd: f64,
+}
+
 /// Role of a process inside an agent's tree.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -382,6 +417,10 @@ pub struct Agent {
     /// and the transcript. See `McpServer`.
     #[serde(default)]
     pub mcp_servers: Vec<McpServer>,
+    /// What each tool's results added to the prompt and what carrying it has
+    /// cost, largest first. See `ContextSource`.
+    #[serde(default)]
+    pub context: Vec<ContextSource>,
     pub tree: Option<ProcNode>,
     /// How the session was attributed to the process, for debugging attribution.
     pub attribution: Attribution,

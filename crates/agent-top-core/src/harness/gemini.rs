@@ -45,6 +45,10 @@
 //!   There is no end-of-turn marker, so a turn is as long as its last reply.
 //! * Legacy `session-*.json` files (one JSON document, rewritten on every
 //!   update) are not read; the CLI converts them on resume.
+//! * Context by source: a message's `toolCalls` are filed as results when
+//!   they first appear, which is before the next `gemini` message, and that
+//!   message's `tokens` sizes them. No compaction marker was seen in the
+//!   recorder; the ledger's halving rule stands in. See `ContextLedger`.
 //!
 //! Gemini CLI does not hold the file open between writes and publishes no
 //! registry of its processes, so a process is matched to its conversation by
@@ -54,7 +58,7 @@ use super::{
     AttributeContext, HarnessAdapter, REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanLog, SpanRetention, parse_rfc3339_utc,
 };
 use crate::jsonl::TailReader;
-use crate::model::{Activity, Attribution, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage};
+use crate::model::{Activity, Attribution, ContextOrigin, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage};
 use crate::pricing::{self, Table};
 use crate::process::RawProc;
 use serde_json::Value;
@@ -389,12 +393,16 @@ impl Parser {
                 }
             }
         }
-        self.account(id, m, prices);
+        let c = self.account(id, m, prices);
+        if first_time {
+            self.summary.context.response(&c.usage, &c.cost);
+        }
         self.ingest_tool_calls(m, ts);
     }
 
-    /// Replace whatever this message contributed before with what it says now.
-    fn account(&mut self, id: &str, m: &Value, prices: &Table) {
+    /// Replace whatever this message contributed before with what it says
+    /// now, and return it.
+    fn account(&mut self, id: &str, m: &Value, prices: &Table) -> Contrib {
         let model = m.get("model").and_then(Value::as_str).map(str::to_string).or_else(|| self.summary.model.clone());
         let mut c = Contrib::default();
         if let Some(t) = m.get("tokens").filter(|t| t.is_object()) {
@@ -421,6 +429,7 @@ impl Parser {
         s.unpriced_tokens += c.unpriced;
         s.health.usage_records += u64::from(c.has_record);
         s.health.empty_usage_records += u64::from(c.empty_record);
+        c
     }
 
     /// Completed tool calls, appended to the message that issued them. Each
@@ -442,11 +451,15 @@ impl Parser {
             }
             let ended = c.get("timestamp").and_then(Value::as_str).and_then(parse_rfc3339_utc);
             let error = c.get("status").and_then(Value::as_str) == Some("error");
-            if let Some(server) = mcp_server_of(name) {
-                let u = self.summary.mcp.entry(server.to_string()).or_default();
-                u.calls += 1;
-                u.errors += u64::from(error);
-                u.last_call = u.last_call.max(ended.or(msg_ts));
+            match mcp_server_of(name) {
+                Some(server) => {
+                    let u = self.summary.mcp.entry(server.to_string()).or_default();
+                    u.calls += 1;
+                    u.errors += u64::from(error);
+                    u.last_call = u.last_call.max(ended.or(msg_ts));
+                    self.summary.context.result(id, ContextOrigin::Mcp, server);
+                }
+                None => self.summary.context.result(id, ContextOrigin::Tool, name),
             }
             let Some(started) = msg_ts.or(ended) else { continue };
             let ended = ended.unwrap_or(started);
@@ -600,6 +613,7 @@ impl GeminiTranscript {
             for (server, u) in &t.mcp {
                 s.mcp.entry(server.clone()).or_default().add(u);
             }
+            s.context.merge(&t.context);
         }
         if !self.subagents.is_empty() {
             let logs = std::iter::once(&self.main.summary.spans).chain(self.subagents.values().map(|c| &c.summary.spans));
@@ -677,6 +691,36 @@ mod tests {
         let fs = &s.mcp["filesystem"];
         assert_eq!((fs.calls, fs.errors), (2, 1));
         assert_eq!(fs.last_call, parse_rfc3339_utc("2026-09-05T09:00:06.000Z"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn sizes_context_per_tool_from_the_next_reply() {
+        let dir = scratch("context");
+        let path = dir.join("session.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, r#"{{"sessionId":"s","startTime":"2026-09-05T09:00:00.000Z","kind":"main"}}"#).unwrap();
+        writeln!(f, r#"{{"id":"u1","timestamp":"2026-09-05T09:00:01.000Z","type":"user","content":[{{"text":"go"}}]}}"#).unwrap();
+        let g1 = r#""tokens":{"input":10000,"output":100,"cached":0,"thoughts":0,"tool":0,"total":10100},"model":"gemini-2.5-pro""#;
+        writeln!(f, r#"{{"id":"g1","timestamp":"2026-09-05T09:00:03.000Z","type":"gemini","content":"",{g1}}}"#).unwrap();
+        // Re-appended with its calls once they completed.
+        writeln!(f, r#"{{"id":"g1","timestamp":"2026-09-05T09:00:03.000Z","type":"gemini","content":"",{g1},"toolCalls":[{{"id":"c1","name":"read_file","status":"success","timestamp":"2026-09-05T09:00:05.000Z"}},{{"id":"c2","name":"mcp_fs_list","status":"success","timestamp":"2026-09-05T09:00:05.000Z"}}]}}"#).unwrap();
+        writeln!(f, r#"{{"id":"u2","timestamp":"2026-09-05T09:00:05.100Z","type":"user","content":[{{"functionResponse":{{"id":"c1"}}}},{{"functionResponse":{{"id":"c2"}}}}]}}"#).unwrap();
+        // 10_000 + 100 reply + 5_000 of results.
+        writeln!(f, r#"{{"id":"g2","timestamp":"2026-09-05T09:00:09.000Z","type":"gemini","content":"done","tokens":{{"input":15100,"output":5,"cached":15000,"thoughts":0,"tool":0,"total":15105}},"model":"gemini-2.5-pro"}}"#).unwrap();
+        let mut t = GeminiTranscript::new(&path).with_prices(pricing::builtin_table());
+        t.refresh().unwrap();
+        let c: std::collections::HashMap<String, crate::model::ContextSource> =
+            t.summary().context.sources().into_iter().map(|c| (c.name.clone(), c)).collect();
+        assert_eq!(c["read_file"].tokens, 2_500);
+        assert_eq!((c["fs"].tokens, c["fs"].origin), (2_500, ContextOrigin::Mcp));
+        assert_eq!(c["other"].tokens, 10_100);
+        let prompt_cost = {
+            let b = &t.summary().cost_breakdown;
+            b.input + b.cache_read + b.cache_write_5m + b.cache_write_1h
+        };
+        let attributed: f64 = c.values().map(|x| x.cost_usd).sum();
+        assert!((attributed - prompt_cost).abs() < 1e-9, "{attributed} vs {prompt_cost}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

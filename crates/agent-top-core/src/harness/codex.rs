@@ -16,13 +16,22 @@
 //!   thing the model produced: a call, a `reasoning` item, a
 //!   `web_search_call`, or an assistant `message`.
 //! * `response_item` `web_search_call` is one server-side web search.
+//! * `info.last_token_usage` beside the cumulative record is the one
+//!   response's usage. The first `token_count` of a turn repeats the
+//!   previous turn's last one, so a record identical to the one before it
+//!   is a snapshot, not a response. Context by source is sized from these:
+//!   each `*_output` item is filed under its call's name, re-filed under
+//!   the MCP server when the `mcp_tool_call_end` for that call id follows
+//!   (it comes after the output), and sized by the next response. Codex
+//!   writes no compaction marker that was seen, so the ledger's halving
+//!   rule stands in. See `ContextLedger`.
 //!
 //! Codex model prices are not in the static table, so cost is reported as
 //! unpriced tokens.
 
 use super::{AttributeContext, HarnessAdapter, REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanRetention, parse_rfc3339_utc};
 use crate::jsonl::TailReader;
-use crate::model::{Activity, Attribution, Harness, ProcNode, SpanKind, TokenUsage};
+use crate::model::{Activity, Attribution, ContextOrigin, Harness, ProcNode, SpanKind, TokenUsage};
 use crate::pricing::{self, Table};
 use crate::process::RawProc;
 use serde_json::Value;
@@ -253,6 +262,11 @@ pub struct CodexTranscript {
     inferences: u64,
     turn: Option<String>,
     inference: Option<String>,
+    /// Tool calls awaiting their output, by call id, so the output can be
+    /// filed under the call's name.
+    pending_tools: HashMap<String, String>,
+    /// The last per-response usage seen, to skip the repeated snapshot.
+    last_response: Option<TokenUsage>,
 }
 
 impl CodexTranscript {
@@ -265,6 +279,8 @@ impl CodexTranscript {
             inferences: 0,
             turn: None,
             inference: None,
+            pending_tools: HashMap::new(),
+            last_response: None,
         }
     }
 
@@ -359,6 +375,27 @@ impl CodexTranscript {
                             }
                         }
                     }
+                    if let Some(last) = payload.and_then(|p| p.pointer("/info/last_token_usage")) {
+                        let g = |k: &str| last.get(k).and_then(Value::as_u64).unwrap_or(0);
+                        let cached = g("cached_input_tokens");
+                        let usage = TokenUsage {
+                            input: g("input_tokens").saturating_sub(cached),
+                            cache_read: cached,
+                            output: g("output_tokens"),
+                            ..Default::default()
+                        };
+                        if self.last_response != Some(usage) {
+                            let cost = self
+                                .summary
+                                .model
+                                .as_deref()
+                                .and_then(|m| self.prices.lookup(m))
+                                .map(|p| p.breakdown(&usage))
+                                .unwrap_or_default();
+                            self.summary.context.response(&usage, &cost);
+                            self.last_response = Some(usage);
+                        }
+                    }
                     // The rate-limit snapshot rides on every token_count; the
                     // latest one is the current state.
                     if let Some(rl) = payload.and_then(|p| p.get("rate_limits")).filter(|v| v.is_object()) {
@@ -396,6 +433,7 @@ impl CodexTranscript {
                         u.calls += 1;
                         u.errors += u64::from(error);
                         u.last_call = u.last_call.max(ts);
+                        self.summary.context.retag(&payload.map(call_id).unwrap_or_default(), ContextOrigin::Mcp, server);
                     }
                 }
                 "task_complete" | "turn_aborted" | "error" => {
@@ -416,6 +454,7 @@ impl CodexTranscript {
                         self.end_inference(ts);
                         let id = call_id(p);
                         let name = p.get("name").and_then(Value::as_str).unwrap_or(ptype);
+                        self.pending_tools.insert(id.clone(), name.to_string());
                         self.summary.spans.open(id, name.to_string(), ts, false);
                     }
                 }
@@ -424,7 +463,10 @@ impl CodexTranscript {
                         // Codex reports the result as an opaque string, and
                         // agent-top does not read tool output, so a failed call
                         // is not distinguishable from a successful one here.
-                        self.summary.spans.close(&call_id(p), ts, false);
+                        let id = call_id(p);
+                        self.summary.spans.close(&id, ts, false);
+                        let name = self.pending_tools.remove(&id).unwrap_or_else(|| "tool".into());
+                        self.summary.context.result(&id, ContextOrigin::Tool, &name);
                         self.begin_inference(ts);
                     }
                 }
@@ -698,6 +740,42 @@ mod tests {
         // The one call with a response_item pair is one tool call and one span;
         // the mcp_tool_call_end lines do not add to that.
         assert_eq!(s.tool_calls, 1, "mcp_tool_call_end must not double-count tool calls");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn sizes_context_per_tool_from_last_token_usage_and_skips_the_repeated_snapshot() {
+        let dir = std::env::temp_dir().join(format!("agent-top-codex-context-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rollout.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        let count = |input: u64, cached: u64, out: u64| {
+            format!(
+                r#"{{"timestamp":"2026-05-27T09:00:00.000Z","type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":{input},"cached_input_tokens":{cached},"output_tokens":{out}}},"last_token_usage":{{"input_tokens":{input},"cached_input_tokens":{cached},"output_tokens":{out}}}}}}}}}"#
+            )
+        };
+        writeln!(f, r#"{{"timestamp":"2026-05-27T09:00:00.000Z","type":"session_meta","payload":{{"id":"s","cwd":"/tmp"}}}}"#).unwrap();
+        writeln!(f, "{}", count(10_000, 0, 100)).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-05-27T09:00:01.000Z","type":"response_item","payload":{{"type":"function_call","call_id":"c1","name":"exec_command"}}}}"#).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-05-27T09:00:01.000Z","type":"response_item","payload":{{"type":"function_call","call_id":"c2","name":"github_fetch_file"}}}}"#).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-05-27T09:00:02.000Z","type":"response_item","payload":{{"type":"function_call_output","call_id":"c1"}}}}"#).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-05-27T09:00:02.000Z","type":"response_item","payload":{{"type":"function_call_output","call_id":"c2"}}}}"#).unwrap();
+        // The server is named only after the output was written.
+        writeln!(f, r#"{{"timestamp":"2026-05-27T09:00:02.100Z","type":"event_msg","payload":{{"type":"mcp_tool_call_end","call_id":"c2","invocation":{{"server":"codex_apps","tool":"github_fetch_file"}},"result":{{"Ok":{{}}}}}}}}"#).unwrap();
+        // 10_000 + 100 reply + 3_000 of results, half each.
+        writeln!(f, "{}", count(13_100, 12_000, 40)).unwrap();
+        // A new turn re-emits the last record: not a response.
+        writeln!(f, r#"{{"timestamp":"2026-05-27T09:01:00.000Z","type":"event_msg","payload":{{"type":"task_started"}}}}"#).unwrap();
+        writeln!(f, "{}", count(13_100, 12_000, 40)).unwrap();
+        let mut t = CodexTranscript::new(&path).with_prices(pricing::builtin_table());
+        t.refresh().unwrap();
+        let c: HashMap<String, crate::model::ContextSource> =
+            t.summary().context.sources().into_iter().map(|c| (c.name.clone(), c)).collect();
+        assert_eq!(c["exec_command"].tokens, 1_500);
+        assert_eq!((c["codex_apps"].tokens, c["codex_apps"].origin), (1_500, ContextOrigin::Mcp));
+        assert!(!c.contains_key("github_fetch_file"), "re-filed under its server");
+        assert_eq!(c["other"].tokens, 10_100, "the repeated snapshot added nothing");
+        assert_eq!(c["other"].cost_usd, 0.0, "no price for the model: tokens only");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

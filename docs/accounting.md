@@ -21,7 +21,9 @@ about which ones are exact and which are inferred.
   start time, and the detail pane labels that row a heuristic rather than
   presenting it as fact.
 - **Only metadata is read.** Token counts, model ids, tool names, timestamps.
-  Never a prompt, a tool input, or a tool result.
+  Never a prompt, a tool input, or a tool result. Even the size of a tool
+  result is inferred from how much the next prompt grew, not read from it
+  (see [Context by source](#context-by-source)).
 - **Your data never leaves the machine.** `agent-top` never kills or writes to an
   agent, and it never sends your sessions, prompts, costs or process list
   anywhere. It makes exactly two network calls, neither carrying any of your
@@ -30,6 +32,45 @@ about which ones are exact and which are inferred.
   `AGENT_TOP_NO_UPDATE_CHECK=1`), and the `trace --endpoint <url>` you type
   yourself. Killing an orphaned MCP server is your decision, with your own
   `kill`.
+
+## Context by source
+
+The detail pane's `context` section says what each tool's results added to the
+prompt and what carrying that has cost. It is derived, not read: no harness
+records the size of a tool result, and agent-top does not read the result.
+
+**Tokens.** A response's prompt is the previous response's prompt plus
+everything appended since: the previous reply, and the tool results that
+answered it. So `prompt(n) − prompt(n−1)` is the new material; the previous
+reply's `output` is the part the model wrote itself; the remainder is the tool
+results submitted in between, and it is filed under the tools that produced
+them. When several results were answered by one response the growth is split
+evenly between them, which is a heuristic and the one place the figure is not
+exact. The first response's whole prompt, the replies, and any growth that no
+result explains (your own messages) go to one row, `prompts & replies`.
+
+**Cost.** Every response re-reads the whole context, so each source's tokens
+are charged at every response that read them, at that response's own prompt
+rate: its prompt-side cost divided by its prompt tokens, which on a well-cached
+session is close to the cache-read price with some fresh input mixed in. The
+first read is charged the same way. The rows therefore sum to the session's
+prompt-side cost (input + cache read + cache write), which the cost breakdown
+above the section shows, so the two can be checked against each other.
+
+**Compaction.** A compaction replaces the context with a summary, after which
+the old results are no longer being re-read. Claude Code writes a
+`compact_boundary` line, which resets the ledger exactly. For a harness that
+writes no marker, a prompt that halves between two responses is taken as a
+compaction; nothing else shrinks it by that much. Thinking blocks a harness
+drops between turns shrink it by less, and that shrink is taken off the
+`prompts & replies` row, whose replies they were.
+
+**What it cannot see.** A model with no price shows tokens and a `-` for
+cost. OpenCode rows have no section yet: its session store carries totals, and
+per-message usage in order is a read the adapter does not do. And the split is
+per response, so two tools answered together are assumed the same size; if that
+matters, the `agent-top trace` export has each call's duration, which is often
+a fair proxy.
 
 ## If the cost does not match your harness
 

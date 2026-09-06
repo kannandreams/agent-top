@@ -924,6 +924,10 @@ fn process_tree(a: &Agent, orphans: &[ProcNode], origins: &[OrphanOrigin], now: 
             ]));
         }
     }
+    if !a.context.is_empty() {
+        lines.push(Line::raw(""));
+        lines.extend(context_by_source(a));
+    }
     if !orphans.is_empty() {
         lines.push(Line::raw(""));
         lines.push(Line::from(vec![
@@ -945,6 +949,45 @@ fn process_tree(a: &Agent, orphans: &[ProcNode], origins: &[OrphanOrigin], now: 
         }
     }
     Text::from(lines)
+}
+
+/// Rows shown before the section folds the rest into "… n more".
+const CONTEXT_ROWS: usize = 6;
+
+/// What each tool's results added to the prompt and what carrying it has
+/// cost, largest first. MCP servers are named as such; the row for the
+/// system prompt, the user's messages and the model's replies is last in
+/// spirit but sorts with the rest, since on a fresh session it is the
+/// biggest thing there.
+fn context_by_source(a: &Agent) -> Vec<Line<'static>> {
+    use agent_top_core::ContextOrigin;
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled("context", Style::default().fg(ACCENT).bold()),
+            Span::styled("   tokens each tool added to the prompt, and their cost since", Style::default().fg(DIM)),
+        ]),
+        Line::styled(format!("  {:<18} {:>5} {:>7} {:>8}", "source", "calls", "added", "cost"), Style::default().fg(DIM)),
+    ];
+    for c in a.context.iter().take(CONTEXT_ROWS) {
+        let (label, style) = match c.origin {
+            ContextOrigin::Mcp => (format!("mcp {}", c.name), Style::default().fg(Color::Magenta)),
+            ContextOrigin::Tool => (c.name.clone(), Style::default().fg(Color::White)),
+            ContextOrigin::Other => ("prompts & replies".to_string(), Style::default().fg(DIM)),
+        };
+        let calls = if c.origin == ContextOrigin::Other { "-".to_string() } else { c.calls.to_string() };
+        // No price for the model: the tokens are real, the cost is not knowable.
+        let cost = if a.price_source.is_none() { "-".to_string() } else { format!("${:.2}", c.cost_usd) };
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {:<18} ", truncate(&label, 18)), style),
+            Span::styled(format!("{calls:>5} "), Style::default().fg(DIM)),
+            Span::raw(format!("{:>7} ", tokens(c.tokens))),
+            Span::raw(format!("{cost:>8}")),
+        ]));
+    }
+    if a.context.len() > CONTEXT_ROWS {
+        lines.push(Line::styled(format!("  … {} more", a.context.len() - CONTEXT_ROWS), Style::default().fg(DIM)));
+    }
+    lines
 }
 
 /// Where an orphan came from, in one line: the agent it was under and how
@@ -1080,6 +1123,11 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::raw("  in tools = share of the window covered by at least one call;"),
         Line::raw("           the rest of it is the model thinking."),
         Line::raw(""),
+        Line::from(vec![Span::styled("context", Style::default().fg(ACCENT).bold())]),
+        Line::raw("  What each tool's results added to the prompt, and what"),
+        Line::raw("  re-reading them on every response since has cost. Results"),
+        Line::raw("  answered together share the growth evenly: an estimate."),
+        Line::raw(""),
         Line::from(vec![
             Span::styled("orphaned mcp", Style::default().fg(Color::Red).bold()),
             Span::raw("  MCP-looking processes whose agent is gone."),
@@ -1144,6 +1192,7 @@ mod tests {
             process_count: 4,
             mcp_count: 1,
             mcp_servers: Vec::new(),
+            context: Vec::new(),
             tree: None,
             attribution: Attribution::HarnessRegistry,
             shares_process: false,
@@ -1291,6 +1340,40 @@ mod tests {
         assert!(out.contains("linear"), "{out}");
         assert!(out.lines().any(|l| l.contains("linear") && l.contains("-     3   0")), "a server with no process: {out}");
         assert!(out.contains("orphaned from tuff-25 (pid 4242) 2m ago"), "{out}");
+    }
+
+    #[test]
+    fn detail_pane_lists_context_by_source() {
+        use agent_top_core::{ContextOrigin, ContextSource, PriceSource};
+        let mut a = agent("ctx", Vec::new());
+        a.price_source = Some(PriceSource::Builtin);
+        let src = |name: &str, origin, calls, tokens, cost_usd| ContextSource { name: name.into(), origin, calls, tokens, cost_usd };
+        a.context = vec![
+            src("scratchfs", ContextOrigin::Mcp, 17, 1_200_000, 38.1),
+            src("Read", ContextOrigin::Tool, 84, 812_000, 22.0),
+            src("other", ContextOrigin::Other, 0, 90_000, 2.1),
+        ];
+        let mut app = App::new(snapshot(vec![a]));
+        app.show_detail = true;
+        app.detail = DetailView::Tree;
+        let out = render(&mut app, 120, 40);
+        assert!(out.contains("context"), "{out}");
+        assert!(
+            out.lines().any(|l| l.contains("mcp scratchfs") && l.contains("17") && l.contains("1.2M") && l.contains("$38.10")),
+            "{out}"
+        );
+        assert!(out.lines().any(|l| l.contains("Read") && l.contains("84") && l.contains("812") && l.contains("$22.00")), "{out}");
+        assert!(out.lines().any(|l| l.contains("prompts & replies") && l.contains("-") && l.contains("$2.10")), "{out}");
+
+        // An unpriced model: tokens shown, cost not pretended.
+        let mut a = agent("unpriced", Vec::new());
+        a.price_source = None;
+        a.context = vec![src("exec_command", ContextOrigin::Tool, 3, 2_524, 0.0)];
+        let mut app = App::new(snapshot(vec![a]));
+        app.show_detail = true;
+        app.detail = DetailView::Tree;
+        let out = render(&mut app, 120, 40);
+        assert!(out.lines().any(|l| l.contains("exec_command") && l.contains("2.5k        -")), "{out}");
     }
 
     #[test]

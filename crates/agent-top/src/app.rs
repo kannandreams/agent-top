@@ -330,6 +330,7 @@ mod tests {
             process_count: 1,
             mcp_count: 0,
             mcp_servers: Vec::new(),
+            context: Vec::new(),
             tree: None,
             attribution: Attribution::HarnessRegistry,
             shares_process: false,

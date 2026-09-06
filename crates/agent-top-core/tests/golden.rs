@@ -72,6 +72,13 @@ fn describe(s: &SessionSummary) -> Value {
             "secondary_pct": rl.secondary.map(|w| w.used_percent),
         })),
         "mcp": s.mcp.iter().map(|(k, u)| json!({"server": k, "calls": u.calls, "errors": u.errors})).collect::<Vec<_>>(),
+        "context": s.context.sources().iter().map(|c| json!({
+            "name": c.name,
+            "origin": format!("{:?}", c.origin),
+            "calls": c.calls,
+            "tokens": c.tokens,
+            "cost_usd_micros": (c.cost_usd * 1_000_000.0).round() as i64,
+        })).collect::<Vec<_>>(),
         "activity": format!("{:?}", s.activity),
         "started_at_ms": millis(s.started_at),
         "last_activity_ms": millis(s.last_activity),

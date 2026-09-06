@@ -180,6 +180,28 @@ pub fn plain_table(snap: &Snapshot) -> String {
             }
         }
     }
+    let with_context: Vec<&Agent> = snap.agents.iter().filter(|a| !a.context.is_empty()).collect();
+    if !with_context.is_empty() {
+        out.push_str("\nCONTEXT BY SOURCE (tokens each tool's results added to the prompt; cost = every read since, est.)\n");
+        for a in with_context {
+            for c in a.context.iter().take(5) {
+                let (label, calls) = match c.origin {
+                    agent_top_core::ContextOrigin::Mcp => (format!("mcp {}", c.name), c.calls.to_string()),
+                    agent_top_core::ContextOrigin::Tool => (c.name.clone(), c.calls.to_string()),
+                    agent_top_core::ContextOrigin::Other => ("prompts & replies".into(), "-".into()),
+                };
+                let cost = if a.price_source.is_none() { "-".to_string() } else { format!("${:.2}", c.cost_usd) };
+                out.push_str(&format!(
+                    "  {:<24} {:<22} {:>5} calls {:>7} tokens {:>9}\n",
+                    truncate(&a.name, 24),
+                    truncate(&label, 22),
+                    calls,
+                    tokens(c.tokens),
+                    cost
+                ));
+            }
+        }
+    }
     if !snap.orphans.is_empty() {
         out.push_str("\nORPHANED MCP PROCESSES (no live agent ancestor)\n");
         for o in &snap.orphans {

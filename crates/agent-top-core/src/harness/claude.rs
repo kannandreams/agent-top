@@ -29,13 +29,20 @@
 //!   `stop_reason` ends the turn there too.
 //! * The registry file has `status: "busy" | "idle"`, which is the harness's
 //!   own opinion of its state and beats any transcript heuristic.
+//! * A compaction writes a `system` line with `subtype: "compact_boundary"`
+//!   and `compactMetadata.{preTokens,postTokens}`, then the summary as a
+//!   `user` line with `isCompactSummary: true`. The boundary resets the
+//!   context ledger exactly, so no halving heuristic is needed here.
+//! * Context by source: each `tool_result` is filed under its `tool_use`'s
+//!   name (the MCP server for `mcp__` tools) and sized by the growth of the
+//!   next message's prompt. See `ContextLedger`.
 
 use super::{
     AttributeContext, HarnessAdapter, REFRESH_BUDGET_BYTES, RegistryHints, SessionSummary, SessionTracker, SpanLog, SpanRetention,
     mcp_server_of, parse_rfc3339_utc,
 };
 use crate::jsonl::TailReader;
-use crate::model::{Activity, Attribution, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage};
+use crate::model::{Activity, Attribution, ContextOrigin, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage};
 use crate::pricing::{self, Table};
 use crate::process::{RawProc, session_id_from_args};
 use serde::Deserialize;
@@ -292,9 +299,10 @@ struct Parser {
     /// already over, which a reply to a slash command hours later would.
     inference_ended_by: Option<String>,
     turn_ended_by: Option<String>,
-    /// MCP calls awaiting their result, by call id, so the result's
-    /// `is_error` can be charged to the right server.
-    pending_mcp: HashMap<String, String>,
+    /// Tool calls awaiting their result, by call id: the result names only
+    /// the id, and the name is what the context ledger files it under and,
+    /// for an MCP tool, what its `is_error` is charged to.
+    pending_tools: HashMap<String, String>,
 }
 
 /// What one API message added to the summary, so the next line of the same
@@ -321,7 +329,7 @@ impl Parser {
             prev_ts: None,
             inference_ended_by: None,
             turn_ended_by: None,
-            pending_mcp: HashMap::new(),
+            pending_tools: HashMap::new(),
         }
     }
 
@@ -376,6 +384,9 @@ impl Parser {
                 if let Some(ts) = ts {
                     self.begin_inference(ts, sidechain);
                 }
+            }
+            "system" if v.get("subtype").and_then(Value::as_str) == Some("compact_boundary") => {
+                self.summary.context.compacted();
             }
             _ => {}
         }
@@ -445,10 +456,15 @@ impl Parser {
             let Some(id) = b.get("tool_use_id").and_then(Value::as_str) else { continue };
             let error = b.get("is_error").and_then(Value::as_bool).unwrap_or(false);
             self.summary.spans.close(id, ts, error);
-            if let Some(server) = self.pending_mcp.remove(id)
-                && error
-            {
-                self.summary.mcp.entry(server).or_default().errors += 1;
+            let name = self.pending_tools.remove(id).unwrap_or_else(|| "tool".into());
+            match mcp_server_of(&name) {
+                Some(server) => {
+                    if error {
+                        self.summary.mcp.entry(server.to_string()).or_default().errors += 1;
+                    }
+                    self.summary.context.result(id, ContextOrigin::Mcp, server);
+                }
+                None => self.summary.context.result(id, ContextOrigin::Tool, &name),
             }
         }
         answered
@@ -470,9 +486,9 @@ impl Parser {
                     let u = self.summary.mcp.entry(server.to_string()).or_default();
                     u.calls += 1;
                     u.last_call = u.last_call.max(ts);
-                    if let Some(id) = b.get("id").and_then(Value::as_str) {
-                        self.pending_mcp.insert(id.to_string(), server.to_string());
-                    }
+                }
+                if let Some(id) = b.get("id").and_then(Value::as_str) {
+                    self.pending_tools.insert(id.to_string(), name.to_string());
                 }
                 if let (Some(ts), Some(id)) = (ts, b.get("id").and_then(Value::as_str)) {
                     self.summary.spans.open(id.to_string(), name.to_string(), ts, sidechain);
@@ -546,6 +562,9 @@ impl Parser {
             if sidechain {
                 self.summary.subagent_turns += 1;
             }
+            // Every line of a message repeats its usage; the first one sizes
+            // whatever was submitted since the previous message.
+            self.summary.context.response(&usage, &cost);
         }
         self.summary.usage.add(&usage);
         self.summary.cost_usd += cost.total();
@@ -655,6 +674,7 @@ impl ClaudeTranscript {
             for (server, u) in &t.mcp {
                 s.mcp.entry(server.clone()).or_default().add(u);
             }
+            s.context.merge(&t.context);
         }
         if !self.subagents.is_empty() {
             let logs = std::iter::once(&self.main.summary.spans).chain(self.subagents.values().map(|c| &c.summary.spans));
@@ -775,6 +795,50 @@ mod tests {
         assert_eq!(fs.last_call, parse_rfc3339_utc("2026-09-03T07:00:05.000Z"));
         let cd = &s.mcp["chrome-devtools"];
         assert_eq!((cd.calls, cd.errors), (1, 1), "the failed result is charged to its server, not to Bash's");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn files_context_growth_under_each_tool_and_resets_at_a_compaction() {
+        let dir = std::env::temp_dir().join(format!("agent-top-claude-context-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("s.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        let usage = |read: u64, out: u64| format!(r#"{{"cache_read_input_tokens":{read},"output_tokens":{out}}}"#);
+        // System prompt and ask: 10k, all "other".
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-03T07:00:00.000Z","message":{{"role":"user","content":"go"}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:01.000Z","message":{{"id":"m1","model":"claude-sonnet-5","content":[{{"type":"tool_use","id":"t1","name":"Read"}},{{"type":"tool_use","id":"t2","name":"mcp__fs__read_text_file"}}],"usage":{}}}}}"#, usage(10_000, 100)).unwrap();
+        // The same message on a second line must not be a second response.
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:01.500Z","message":{{"id":"m1","model":"claude-sonnet-5","content":[{{"type":"text"}}],"usage":{}}}}}"#, usage(10_000, 100)).unwrap();
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-03T07:00:02.000Z","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"t1"}},{{"type":"tool_result","tool_use_id":"t2"}}]}}}}"#).unwrap();
+        // 14_100 = 10_000 + the 100-token reply + 4_000 of results, 2_000 each.
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:03.000Z","message":{{"id":"m2","model":"claude-sonnet-5","stop_reason":"end_turn","content":[{{"type":"text"}}],"usage":{}}}}}"#, usage(14_100, 50)).unwrap();
+        let mut t = ClaudeTranscript::new(&path).with_prices(pricing::builtin_table());
+        t.refresh().unwrap();
+        let by_name = |s: &SessionSummary| -> std::collections::HashMap<String, crate::model::ContextSource> {
+            s.context.sources().into_iter().map(|c| (c.name.clone(), c)).collect()
+        };
+        let c = by_name(t.summary());
+        assert_eq!(c["Read"].tokens, 2_000);
+        assert_eq!((c["fs"].tokens, c["fs"].origin, c["fs"].calls), (2_000, ContextOrigin::Mcp, 1));
+        assert_eq!(c["other"].tokens, 10_100);
+        // sonnet-5 cache read is $0.20/M: other read twice (10_000 + 10_100),
+        // each result once.
+        assert!((c["Read"].cost_usd - 2_000.0 * 0.2 / 1e6).abs() < 1e-12, "{}", c["Read"].cost_usd);
+        assert!((c["other"].cost_usd - 20_100.0 * 0.2 / 1e6).abs() < 1e-12, "{}", c["other"].cost_usd);
+        let prompt_cost = t.summary().cost_breakdown.cache_read;
+        let attributed: f64 = c.values().map(|x| x.cost_usd).sum();
+        assert!((attributed - prompt_cost).abs() < 1e-12, "sources sum to the prompt-side cost");
+
+        // Compaction: the boundary line, then a response whose whole prompt
+        // is the summary. Read and fs stop being charged.
+        writeln!(f, r#"{{"type":"system","subtype":"compact_boundary","timestamp":"2026-09-03T07:10:00.000Z","compactMetadata":{{"trigger":"auto","preTokens":14100,"postTokens":3000}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-03T07:10:01.000Z","isCompactSummary":true,"message":{{"role":"user","content":"summary"}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:10:05.000Z","message":{{"id":"m3","model":"claude-sonnet-5","stop_reason":"end_turn","content":[{{"type":"text"}}],"usage":{}}}}}"#, usage(3_000, 10)).unwrap();
+        t.refresh().unwrap();
+        let c = by_name(t.summary());
+        assert_eq!(c["other"].tokens, 13_100);
+        assert!((c["Read"].cost_usd - 2_000.0 * 0.2 / 1e6).abs() < 1e-12, "not charged after the compaction");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
