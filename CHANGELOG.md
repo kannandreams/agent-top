@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Advice: the meter read for you.** Press `a` for a popup with one sentence per thing that looks like a bad deal on the machine right now, the numbers behind it, and what you could do. Three rules, applied to figures already on screen and only to live agents: an **expensive source** (a tool or MCP server whose results run to 8k tokens or more per call and have added at least 40k tokens to the prompt, so every response since has paid to re-read them: *`docs-search` MCP server: 1 call added 40k tokens to the prompt, re-read at a cost of $12.03 since*), an **idle MCP server** (attached to a live agent, no calls in ten minutes or more; quiet whenever the process-to-server join is incomplete), and a **growing MCP server** (memory up at least 64 MB and half again over ten minutes or more, still climbing, never dipping, with no calls in the window: the shape of a leak before it becomes an orphan). Nothing is done for you: agent-top still never signals a process or edits a config, it points. `--once` prints the sentences under `ADVICE`; `--json` carries them as `advice` with rule, subject, pid and the numbers. The collector now samples each attached MCP server's memory every 30 seconds for the last hour to feed the leak rule; that memory is per run and never written anywhere.
+
 ## [0.14.0] - 2026-09-07
 
 ### Added

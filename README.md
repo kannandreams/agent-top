@@ -44,7 +44,7 @@ What to look at first:
 - **COST** is what each session has spent so far, at list price.
 - **Red rows in the detail pane** are MCP servers whose agent has gone. They are the leak this tool exists to catch.
 
-Keys: `j`/`k` move, `Tab` switches the detail pane between the process tree and the tool trace, `s` sorts, `x` hides stopped sessions, `l` opens the slowest-tools panel, `f` the failed-tools panel, `?` shows the rest, `q` quits.
+Keys: `j`/`k` move, `Tab` switches the detail pane between the process tree and the tool trace, `s` sorts, `x` hides stopped sessions, `l` opens the slowest-tools panel, `f` the failed-tools panel, `a` the advice panel, `?` shows the rest, `q` quits.
 
 Other ways to run it:
 
@@ -190,6 +190,37 @@ main table stays uncluttered. Press `l` for the **slowest tools** (ranked by
 time, with calls, total, average and max) and `f` for **failed tool calls**
 (ranked by failures, with the fail rate). Each closes with the same key or
 `Esc`, and is accented amber or red so you know which one is open.
+
+### Advice
+
+Everything above is a meter. Press `a` and agent-top reads it for you: a
+violet popup with one sentence per thing that looks like a bad deal, the
+numbers that make it one, and what you could do about it. Three rules, each
+applied to figures already on screen and only to live agents:
+
+- **An expensive source.** A tool or MCP server whose results are large per
+  call (8k tokens or more, about a thousand-line file) and have added at
+  least 40k tokens to the prompt, so every response since has paid to re-read
+  them. *`docs-search` MCP server: 1 call added 40k tokens to the prompt,
+  re-read at a cost of $12.03 since.* Ask it for smaller results, read in
+  parts, or start a fresh session.
+- **An idle MCP server.** A server process attached to a live agent that has
+  answered no calls in ten minutes or more. Its tool definitions still go out
+  with every response. Remove it from the project's MCP config. This rule
+  stays quiet when the process-to-server join is incomplete, so a server that
+  was called under another name is never called idle; it inherits the
+  process-name heuristic the MCP column uses.
+- **A growing MCP server.** A server whose memory has climbed steadily (at
+  least 64 MB and half again its size, over ten minutes or more, still going,
+  never dipping) with no calls in that window. That is the shape of a leak
+  before it becomes an orphan. Watch it, and kill it if it outlives its agent.
+
+Nothing is done for you. agent-top never signals a process or edits a config;
+it points, and the sentence carries its evidence so you can disagree with it.
+`--once` prints the same sentences under `ADVICE`, and `--json` carries them
+as `advice`, each with its rule, subject, pid and the numbers behind it. The
+thresholds are constants in `agent_top_core::advice`, each with the reason it
+sits where it does.
 
 ### Exporting a trace
 

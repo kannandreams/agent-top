@@ -4,6 +4,7 @@
 //! coding agents are on this machine right now, what are they doing, and what
 //! have they spent?" The TUI crate renders the answer; `--json` prints it.
 
+pub mod advice;
 pub mod collector;
 pub mod harness;
 pub mod jsonl;
