@@ -54,7 +54,7 @@ agent-top --json             # one snapshot as JSON, for scripts and bug reports
 agent-top trace --session 662cda1f -o trace.json   # one session as a trace file for Perfetto
 agent-top report --since 7d  # what every harness cost this week, in one place
 agent-top --prices           # the price table in use, and where each row came from
-agent-top --whats-new        # recent changelog for this build, and how to upgrade
+agent-top --whats-new        # recent changelog for this build; the TUI asks before upgrading
 AGENT_TOP_NO_UPDATE_CHECK=1   # env var: disable the daily update check entirely
 ```
 
@@ -398,10 +398,29 @@ not a bill.
 | **Cargo, from source** | `cargo install --locked agent-top` | builds from crates.io; needs Rust 1.85 or newer |
 | **By hand** | [the releases page](https://github.com/kannandreams/agent-top/releases) | tarballs and `sha256` for macOS and Linux, x86\_64 and arm64 |
 
-Every route ends at the same single binary: no Python, no Node, no daemon. To
-upgrade, `brew upgrade agent-top` or re-run the `cargo install` command.
+Every route ends at the same single binary: no Python, no Node, no daemon.
 Without Homebrew, `agent-top --completions zsh` (or `bash`, `fish`) prints a
 completion script to source from your shell's startup file.
+
+### Upgrading
+
+agent-top checks crates.io once a day for a newer version (a version lookup,
+nothing about you sent; `AGENT_TOP_NO_UPDATE_CHECK=1` turns it off). When one
+is out, the footer badge turns amber and, once per run, a popup asks:
+
+- **`u`** upgrades now, in the terminal, with the installer that put agent-top
+  here: `brew update && brew upgrade agent-top`, `cargo binstall -y agent-top`
+  or `cargo install --locked agent-top`, judged from where the binary is. The
+  exact command is shown in the popup before you press anything and printed
+  before it runs. When it finishes, agent-top starts again on the new version
+  with the same arguments.
+- **`n`** (or `Esc`) is "not now": that version is not asked about again, the
+  badge stays amber, and the next release asks afresh.
+
+A binary installed by hand is not guessed at: the popup lists the three routes
+above and leaves the command to you. This upgrade is the one command agent-top
+ever runs that changes the machine. It changes only agent-top, and only on that
+keypress.
 
 ## All the flags
 

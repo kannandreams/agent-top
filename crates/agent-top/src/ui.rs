@@ -209,8 +209,63 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         Overlay::SlowTools => draw_tool_panel(f, area, &app.snapshot, ToolPanel::Slow),
         Overlay::FailedTools => draw_tool_panel(f, area, &app.snapshot, ToolPanel::Failed),
         Overlay::Advice => draw_advice_panel(f, area, &app.snapshot),
+        Overlay::Update => draw_update(f, area, app),
         Overlay::None => {}
     }
+}
+
+/// The upgrade question: which version is out, which this is, and the exact
+/// command `u` would run, so nothing happens that was not shown first. When
+/// the binary was not installed by an installer agent-top knows, it shows
+/// the ways to upgrade by hand instead of offering to guess.
+fn draw_update(f: &mut Frame, area: Rect, app: &App) {
+    let amber = Color::Rgb(220, 160, 40);
+    let latest = app.latest().unwrap_or_default();
+    let mut lines: Vec<Line> = vec![
+        Line::from(vec![
+            Span::raw("  agent-top "),
+            Span::styled(format!("v{latest}"), Style::default().fg(amber).bold()),
+            Span::raw(format!(" is available; this is v{}.", crate::VERSION)),
+        ]),
+        Line::raw(""),
+    ];
+    match app.installer.command_line() {
+        Some(cmd) => {
+            lines.push(Line::from(vec![
+                Span::styled("  u ", Style::default().fg(Color::Black).bg(amber)),
+                Span::raw("  upgrade now, in this terminal:  "),
+                Span::styled(cmd, Style::default().fg(ACCENT)),
+            ]));
+            lines.push(Line::from(vec![
+                Span::styled("  n ", Style::default().fg(Color::Black).bg(ACCENT)),
+                Span::raw("  not now: this version is not asked about again; the footer badge stays"),
+            ]));
+        }
+        None => {
+            lines.push(Line::raw("  This binary was not installed by Homebrew or cargo, so agent-top will not"));
+            lines.push(Line::raw("  guess how to replace it. Upgrade with one of:"));
+            lines.push(Line::styled("    brew update && brew upgrade agent-top", Style::default().fg(ACCENT)));
+            lines.push(Line::styled("    cargo install agent-top", Style::default().fg(ACCENT)));
+            lines.push(Line::styled("    https://github.com/kannandreams/agent-top/releases/latest", Style::default().fg(ACCENT)));
+            lines.push(Line::from(vec![
+                Span::styled("  n ", Style::default().fg(Color::Black).bg(ACCENT)),
+                Span::raw("  not now: this version is not asked about again"),
+            ]));
+        }
+    }
+    lines.push(Line::raw(""));
+    lines.push(Line::styled(format!("  what's new: agent-top --whats-new · {}", crate::CHANGELOG_URL), Style::default().fg(DIM)));
+    lines.push(Line::styled("  the check sent nothing about you; AGENT_TOP_NO_UPDATE_CHECK=1 turns it off", Style::default().fg(DIM)));
+    let w = 92.min(area.width.saturating_sub(2));
+    let h = (lines.len() as u16 + 2).min(area.height.saturating_sub(2));
+    let popup = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };
+    f.render_widget(Clear, popup);
+    let block = Block::default()
+        .borders(ratatui::widgets::Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(amber))
+        .title(Span::styled(" update available ", Style::default().fg(amber).bold()));
+    f.render_widget(Paragraph::new(Text::from(lines)).block(block), popup);
 }
 
 /// The advice panel's colour: violet, so it is neither the amber of time
@@ -1146,7 +1201,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     // The version badge and quit sit together at the right end. When the update
     // check has found a newer version, the badge turns amber and shows the
     // arrow to it.
-    let latest = app.update.lock().ok().and_then(|g| g.clone());
+    let latest = app.latest();
     let (badge, badge_bg) = match &latest {
         Some(newer) => (format!(" v{} → v{} ", crate::VERSION, newer), Color::Rgb(220, 160, 40)),
         None => (format!(" v{} ", crate::VERSION), ACCENT),
@@ -1180,7 +1235,9 @@ fn draw_help(f: &mut Frame, area: Rect) {
         ]),
         Line::raw(""),
         Line::from(vec![Span::styled(format!("agent-top {}", crate::VERSION), Style::default().fg(ACCENT).bold())]),
-        Line::raw("  upgrade   brew upgrade agent-top   |   cargo install agent-top"),
+        Line::raw("  upgrade   asked once when a newer version is out (u runs the"),
+        Line::raw("            installer that put agent-top here, n declines); or by hand:"),
+        Line::raw("            brew update && brew upgrade agent-top | cargo install agent-top"),
         Line::styled("  what's new  agent-top --whats-new", Style::default().fg(DIM)),
         Line::styled(format!("  changelog   {}", crate::CHANGELOG_URL), Style::default().fg(DIM)),
         Line::raw(""),
@@ -1648,6 +1705,28 @@ mod tests {
         // Narrow terminal: the headline wraps rather than clipping.
         let out = render(&mut app, 60, 40);
         assert!(out.contains("re-read at a cost of $12.03 since"), "{out}");
+    }
+
+    /// The update popup names both versions and the exact command `u` runs,
+    /// or the manual routes when the installer is unknown.
+    #[test]
+    fn update_popup_shows_the_command_it_would_run() {
+        let mut app = App::new(snapshot(vec![agent("worker", Vec::new())]));
+        *app.update.lock().unwrap() = Some("9.9.9".into());
+        app.installer = crate::update::Installer::Homebrew;
+        app.maybe_prompt_update();
+        assert_eq!(app.overlay, Overlay::Update);
+        let out = render(&mut app, 120, 40);
+        assert!(out.contains("update available"), "{out}");
+        assert!(out.contains("v9.9.9 is available; this is v"), "{out}");
+        assert!(out.contains("brew update && brew upgrade agent-top"), "{out}");
+        assert!(out.contains("not now"), "{out}");
+
+        app.installer = crate::update::Installer::Unknown;
+        let out = render(&mut app, 120, 40);
+        assert!(out.contains("not installed by Homebrew or cargo"), "{out}");
+        assert!(out.contains("releases/latest"), "{out}");
+        assert!(!out.contains("upgrade now"), "no offer to run something it cannot: {out}");
     }
 
     #[test]
