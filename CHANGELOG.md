@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.15.0] - 2026-09-07
 
 ### Added
 - **Asked before upgrading.** When the daily check finds a newer version, agent-top now asks, once per run, in a popup that names both versions and the exact command it would run. `u` upgrades in the terminal with the installer that put agent-top here (`brew update && brew upgrade agent-top`, `cargo binstall -y agent-top`, or `cargo install --locked agent-top`, judged from where the binary is), then starts agent-top again on the new version with the same arguments. `n` or `Esc` is "not now": that version is not asked about again (remembered in the same cache file as the check), while the footer badge stays amber. A binary installed by hand is not guessed at; the popup lists the routes and leaves the command to you. This is the one command agent-top runs that changes the machine; it changes only agent-top and only on that keypress. The check itself is unchanged: a version lookup, nothing about you sent, `AGENT_TOP_NO_UPDATE_CHECK=1` turns it off.
