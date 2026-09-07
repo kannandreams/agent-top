@@ -553,10 +553,29 @@ pub(crate) fn head_lines(path: &Path) -> Vec<serde_json::Value> {
 pub const REFRESH_BUDGET_BYTES: usize = 8 * 1024 * 1024;
 
 /// Parse an RFC 3339 timestamp like `2026-09-03T07:15:34.123Z` into SystemTime
-/// without pulling in a date crate. Only the UTC `Z` form is handled, which is
-/// what both Claude Code and Codex write.
+/// without pulling in a date crate. The UTC `Z` form is what Claude Code,
+/// Codex and Gemini write; a numeric offset (`+01:00`, `-0700`) is accepted
+/// too, since a harness that writes local time would otherwise lose its
+/// last-activity time and with it the idle clock and the mtime fallbacks.
 pub fn parse_rfc3339_utc(s: &str) -> Option<SystemTime> {
-    let s = s.strip_suffix('Z')?;
+    let s = s.trim();
+    // Split off the zone: `Z`, or a signed offset after the time.
+    let (s, offset_secs) = match s.strip_suffix(['Z', 'z']) {
+        Some(rest) => (rest, 0i64),
+        None => {
+            let t_pos = s.find('T')?;
+            let sign_pos = s[t_pos..].rfind(['+', '-'])? + t_pos;
+            let (rest, zone) = s.split_at(sign_pos);
+            let sign = if zone.starts_with('-') { -1 } else { 1 };
+            let digits: String = zone[1..].chars().filter(|c| c.is_ascii_digit()).collect();
+            if digits.len() != 4 {
+                return None;
+            }
+            let oh = digits[..2].parse::<i64>().ok()?;
+            let om = digits[2..].parse::<i64>().ok()?;
+            (rest, sign * (oh * 3600 + om * 60))
+        }
+    };
     let (date, time) = s.split_once('T')?;
     let mut d = date.split('-');
     let (y, mo, da) = (d.next()?.parse::<i64>().ok()?, d.next()?.parse::<u32>().ok()?, d.next()?.parse::<u32>().ok()?);
@@ -578,7 +597,8 @@ pub fn parse_rfc3339_utc(s: &str) -> Option<SystemTime> {
         f.parse().ok()?
     };
     let days = days_from_civil(y, mo, da);
-    let secs = days * 86_400 + (h * 3600 + mi * 60 + sec) as i64;
+    // Local time minus its offset is UTC.
+    let secs = days * 86_400 + (h * 3600 + mi * 60 + sec) as i64 - offset_secs;
     if secs < 0 {
         return None;
     }
@@ -830,5 +850,35 @@ mod tests {
         assert_eq!(secs.as_secs(), 1_788_419_734);
         assert_eq!(secs.subsec_millis(), 500);
         assert!(parse_rfc3339_utc("nope").is_none());
+    }
+}
+
+#[cfg(test)]
+mod rfc3339_tests {
+    use super::parse_rfc3339_utc;
+    use std::time::{Duration, UNIX_EPOCH};
+
+    fn secs(s: &str) -> u64 {
+        parse_rfc3339_utc(s).unwrap().duration_since(UNIX_EPOCH).unwrap().as_secs()
+    }
+
+    /// Debt #5: the same instant written with an offset parses to the same
+    /// time as its `Z` form, and the fraction and the sign survive.
+    #[test]
+    fn offsets_are_folded_into_utc() {
+        let z = secs("2026-09-03T07:15:34Z");
+        assert_eq!(secs("2026-09-03T08:15:34+01:00"), z);
+        assert_eq!(secs("2026-09-03T00:15:34-07:00"), z);
+        assert_eq!(secs("2026-09-03T08:15:34+0100"), z, "no colon");
+        assert_eq!(secs("2026-09-03T07:15:34+00:00"), z);
+        assert_eq!(secs("2026-09-03T12:45:34+05:30"), z, "half-hour zone");
+        let ms = parse_rfc3339_utc("2026-09-03T08:15:34.250+01:00").unwrap();
+        assert_eq!(ms, UNIX_EPOCH + Duration::new(z, 250_000_000));
+        // A date's own hyphens are not mistaken for a zone sign.
+        assert_eq!(secs("2026-09-03T07:15:34.5Z"), z);
+        // Not timestamps.
+        assert!(parse_rfc3339_utc("2026-09-03T07:15:34").is_none(), "no zone at all");
+        assert!(parse_rfc3339_utc("2026-09-03T07:15:34+1").is_none());
+        assert!(parse_rfc3339_utc("garbage").is_none());
     }
 }
