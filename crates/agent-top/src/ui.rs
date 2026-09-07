@@ -255,7 +255,7 @@ fn draw_update(f: &mut Frame, area: Rect, app: &App) {
     }
     lines.push(Line::raw(""));
     lines.push(Line::styled(format!("  what's new: agent-top --whats-new · {}", crate::CHANGELOG_URL), Style::default().fg(DIM)));
-    lines.push(Line::styled("  the check sent nothing about you; AGENT_TOP_NO_UPDATE_CHECK=1 turns it off", Style::default().fg(DIM)));
+    lines.push(Line::styled("  AGENT_TOP_NO_UPDATE_CHECK=1 turns the check off", Style::default().fg(DIM)));
     let w = 92.min(area.width.saturating_sub(2));
     let h = (lines.len() as u16 + 2).min(area.height.saturating_sub(2));
     let popup = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };

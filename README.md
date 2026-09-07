@@ -404,9 +404,9 @@ completion script to source from your shell's startup file.
 
 ### Upgrading
 
-agent-top checks crates.io once a day for a newer version (a version lookup,
-nothing about you sent; `AGENT_TOP_NO_UPDATE_CHECK=1` turns it off). When one
-is out, the footer badge turns amber and, once per run, a popup asks:
+agent-top checks crates.io once a day for a newer version
+(`AGENT_TOP_NO_UPDATE_CHECK=1` turns the check off). When one is out, the
+footer badge turns amber and, once per run, a popup asks:
 
 - **`u`** upgrades now, in the terminal, with the installer that put agent-top
   here: `brew update && brew upgrade agent-top`, `cargo binstall -y agent-top`
