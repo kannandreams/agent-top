@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.15.2] - 2026-09-07
 
 ### Changed
 - The update popup's last line is now just `AGENT_TOP_NO_UPDATE_CHECK=1 turns the check off`; the reassurance sentence before it is gone.
