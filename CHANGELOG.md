@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- Timestamps with a numeric zone offset (`2026-09-03T08:15:34+01:00`, or `+0100`) now parse; only the `Z` form did before. A harness writing local time would have lost its last-activity time, and with it the idle clock and the modification-time fallbacks. Every harness agent-top reads today writes `Z`, so no current number changes.
+
 ## [0.15.0] - 2026-09-07
 
 ### Added
