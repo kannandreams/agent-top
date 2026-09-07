@@ -88,6 +88,8 @@ pub enum Overlay {
     FailedTools,
     /// What looks like a bad deal right now, and what to do about it.
     Advice,
+    /// A newer agent-top is available: upgrade now, or not now.
+    Update,
 }
 
 pub struct App {
@@ -115,6 +117,15 @@ pub struct App {
     /// The latest published version when it is newer than this build, filled by
     /// the update check; `None` otherwise. The footer reads it each frame.
     pub update: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    /// The version the user has already said "not now" to, from the cache.
+    pub update_dismissed: Option<String>,
+    /// The upgrade question is asked at most once per run.
+    update_prompted: bool,
+    /// Which installer would run an upgrade; the popup shows its command.
+    pub installer: crate::update::Installer,
+    /// Set when the user pressed `u` in the update popup: the main loop
+    /// leaves the TUI and runs the upgrade.
+    pub upgrade_requested: Option<String>,
 }
 
 impl App {
@@ -138,9 +149,46 @@ impl App {
             cost_samples: VecDeque::new(),
             burn_per_hour: 0.0,
             update: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            update_dismissed: None,
+            update_prompted: false,
+            installer: crate::update::Installer::Unknown,
+            upgrade_requested: None,
         };
         app.rebuild_rows();
         app
+    }
+
+    /// The newer version the update check knows of, if any.
+    pub fn latest(&self) -> Option<String> {
+        self.update.lock().ok().and_then(|g| g.clone())
+    }
+
+    /// Open the update question once a newer version is known, unless the
+    /// user already declined that version or another popup is open. Called
+    /// after the check starts and on every tick, since the answer can arrive
+    /// from the network a moment after start.
+    pub fn maybe_prompt_update(&mut self) {
+        if self.update_prompted || self.overlay != Overlay::None {
+            return;
+        }
+        let Some(latest) = self.latest() else { return };
+        if self.update_dismissed.as_deref() == Some(latest.as_str()) {
+            return;
+        }
+        self.update_prompted = true;
+        self.overlay = Overlay::Update;
+    }
+
+    /// Close whatever popup is open. Closing the update question counts as
+    /// "not now": that version is not asked about again.
+    pub fn close_overlay(&mut self) {
+        if self.overlay == Overlay::Update
+            && let Some(latest) = self.latest()
+        {
+            self.update_dismissed = Some(latest.clone());
+            crate::update::dismiss(&latest);
+        }
+        self.overlay = Overlay::None;
     }
 
     pub fn update(&mut self, snapshot: Snapshot) {
@@ -173,6 +221,7 @@ impl App {
         self.burn_per_hour = burn_per_hour(&self.cost_samples);
         self.snapshot = snapshot;
         self.rebuild_rows();
+        self.maybe_prompt_update();
     }
 
     pub fn rebuild_rows(&mut self) {
@@ -219,6 +268,22 @@ impl App {
     }
 
     pub fn on_key(&mut self, code: KeyCode) {
+        // The update question takes `u` and `n` for itself while it is open.
+        if self.overlay == Overlay::Update {
+            match code {
+                KeyCode::Char('u') | KeyCode::Char('y') | KeyCode::Enter => {
+                    if self.installer.steps().is_some() {
+                        self.upgrade_requested = self.latest();
+                    }
+                    return;
+                }
+                KeyCode::Char('n') | KeyCode::Esc => {
+                    self.close_overlay();
+                    return;
+                }
+                _ => {}
+            }
+        }
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.select(self.selected + 1),
             KeyCode::Char('k') | KeyCode::Up => self.select(self.selected.saturating_sub(1)),
@@ -253,7 +318,7 @@ impl App {
             KeyCode::Char('l') => self.toggle(Overlay::SlowTools),
             KeyCode::Char('f') => self.toggle(Overlay::FailedTools),
             KeyCode::Char('a') => self.toggle(Overlay::Advice),
-            KeyCode::Esc => self.overlay = Overlay::None,
+            KeyCode::Esc => self.close_overlay(),
             _ => {}
         }
     }
@@ -352,6 +417,47 @@ mod tests {
         };
         s.compute_totals();
         s
+    }
+
+    /// The question opens once when a newer version is known, not when that
+    /// version was already declined, and not over another popup; `n` declines
+    /// and `u` asks the main loop to upgrade.
+    #[test]
+    fn the_upgrade_question_is_asked_once_and_remembers_no() {
+        let mut app = App::new(snapshot(0));
+        app.maybe_prompt_update();
+        assert_eq!(app.overlay, Overlay::None, "nothing known yet");
+        *app.update.lock().unwrap() = Some("9.9.9".into());
+        app.overlay = Overlay::Help;
+        app.maybe_prompt_update();
+        assert_eq!(app.overlay, Overlay::Help, "never over another popup");
+        app.overlay = Overlay::None;
+        app.update_at(snapshot(0), Instant::now());
+        assert_eq!(app.overlay, Overlay::Update, "a tick asks");
+        // `u` with an unknown installer does nothing: there is no command to run.
+        app.on_key(KeyCode::Char('u'));
+        assert_eq!(app.upgrade_requested, None);
+        app.installer = crate::update::Installer::CargoInstall;
+        app.on_key(KeyCode::Char('u'));
+        assert_eq!(app.upgrade_requested.as_deref(), Some("9.9.9"));
+
+        // Declining closes it and is remembered in memory for this version.
+        let mut app = App::new(snapshot(0));
+        *app.update.lock().unwrap() = Some("9.9.9".into());
+        app.maybe_prompt_update();
+        assert_eq!(app.overlay, Overlay::Update);
+        app.update_dismissed = None;
+        app.overlay = Overlay::Update;
+        // Simulate the decline without touching the real cache file.
+        app.update_dismissed = Some("9.9.9".into());
+        app.overlay = Overlay::None;
+        app.update_prompted = false;
+        app.maybe_prompt_update();
+        assert_eq!(app.overlay, Overlay::None, "a declined version is not asked again");
+        // A newer release than the declined one is asked about.
+        *app.update.lock().unwrap() = Some("10.0.0".into());
+        app.maybe_prompt_update();
+        assert_eq!(app.overlay, Overlay::Update);
     }
 
     #[test]

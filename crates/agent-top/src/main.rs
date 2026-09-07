@@ -212,16 +212,30 @@ fn main() -> Result<()> {
     let mut terminal = ratatui::init();
     let result = run(&mut terminal, &mut source, Duration::from_millis(cli.interval_ms.max(100)));
     ratatui::restore();
-    result
+    match result? {
+        Exit::Quit => Ok(()),
+        // The user pressed `u` in the update popup: run the installer in the
+        // terminal they can see, then start again on the new binary.
+        Exit::Upgrade(latest) => update::upgrade(&latest),
+    }
 }
 
-fn run(terminal: &mut ratatui::DefaultTerminal, source: &mut Source, interval: Duration) -> Result<()> {
+/// Why the TUI loop ended.
+enum Exit {
+    Quit,
+    Upgrade(String),
+}
+
+fn run(terminal: &mut ratatui::DefaultTerminal, source: &mut Source, interval: Duration) -> Result<Exit> {
     let mut app = app::App::new(source.collect());
     // The update check runs only for a live session, not a replayed snapshot,
     // and is the one call agent-top makes on its own (a version lookup, no data
     // sent). See the update module.
     if matches!(source, Source::Live(_)) {
         app.update = update::start();
+        app.update_dismissed = update::dismissed();
+        app.installer = update::Installer::detect();
+        app.maybe_prompt_update();
     }
     let mut last_tick = Instant::now();
     loop {
@@ -235,22 +249,18 @@ fn run(terminal: &mut ratatui::DefaultTerminal, source: &mut Source, interval: D
             }
             let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
             match key.code {
-                KeyCode::Char('q') => {
+                KeyCode::Char('q') | KeyCode::Esc => {
                     if app.overlay != app::Overlay::None {
-                        app.overlay = app::Overlay::None;
+                        app.close_overlay();
                     } else {
-                        return Ok(());
+                        return Ok(Exit::Quit);
                     }
                 }
-                KeyCode::Esc => {
-                    if app.overlay != app::Overlay::None {
-                        app.overlay = app::Overlay::None;
-                    } else {
-                        return Ok(());
-                    }
-                }
-                KeyCode::Char('c') if ctrl => return Ok(()),
+                KeyCode::Char('c') if ctrl => return Ok(Exit::Quit),
                 _ => app.on_key(key.code),
+            }
+            if let Some(latest) = app.upgrade_requested.take() {
+                return Ok(Exit::Upgrade(latest));
             }
         }
         if last_tick.elapsed() >= interval {
