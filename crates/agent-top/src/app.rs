@@ -86,6 +86,8 @@ pub enum Overlay {
     SlowTools,
     /// Tool calls ranked by how often they failed.
     FailedTools,
+    /// What looks like a bad deal right now, and what to do about it.
+    Advice,
 }
 
 pub struct App {
@@ -250,6 +252,7 @@ impl App {
             KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.toggle(Overlay::Help),
             KeyCode::Char('l') => self.toggle(Overlay::SlowTools),
             KeyCode::Char('f') => self.toggle(Overlay::FailedTools),
+            KeyCode::Char('a') => self.toggle(Overlay::Advice),
             KeyCode::Esc => self.overlay = Overlay::None,
             _ => {}
         }
@@ -344,6 +347,7 @@ mod tests {
             agents: vec![agent],
             orphans: Vec::new(),
             orphan_origins: Vec::new(),
+            advice: Vec::new(),
             totals: Totals::default(),
         };
         s.compute_totals();

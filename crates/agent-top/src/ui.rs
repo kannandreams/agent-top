@@ -208,8 +208,84 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         Overlay::Help => draw_help(f, area),
         Overlay::SlowTools => draw_tool_panel(f, area, &app.snapshot, ToolPanel::Slow),
         Overlay::FailedTools => draw_tool_panel(f, area, &app.snapshot, ToolPanel::Failed),
+        Overlay::Advice => draw_advice_panel(f, area, &app.snapshot),
         Overlay::None => {}
     }
+}
+
+/// The advice panel's colour: violet, so it is neither the amber of time
+/// nor the red of failure. Advice is a suggestion, not an alarm.
+const ADVICE: Color = Color::Rgb(190, 140, 255);
+
+/// A centred popup listing every piece of advice on the snapshot: one
+/// headline with its numbers, and under it, dimmed, what could be done. The
+/// rules and their thresholds live in `agent_top_core::advice`.
+fn draw_advice_panel(f: &mut Frame, area: Rect, snap: &agent_top_core::Snapshot) {
+    let advice = &snap.advice;
+    let w = 84.min(area.width.saturating_sub(2));
+    let inner = w.saturating_sub(4) as usize;
+    let mut lines: Vec<Line> = Vec::new();
+    if advice.is_empty() {
+        lines.push(Line::styled("  nothing to suggest: no oversized results, idle servers or growing servers", Style::default().fg(DIM)));
+    } else {
+        let mut last_agent = "";
+        for x in advice {
+            if x.agent_name != last_agent {
+                if !lines.is_empty() {
+                    lines.push(Line::raw(""));
+                }
+                lines.push(Line::from(vec![
+                    Span::styled(format!("  {}", x.agent_name), Style::default().fg(ACCENT).bold()),
+                    Span::styled(format!("  {}", x.agent_id), Style::default().fg(DIM)),
+                ]));
+                last_agent = &x.agent_name;
+            }
+            let (mark, colour) = match x.rule {
+                agent_top_core::AdviceRule::ExpensiveSource => ("$", Color::Rgb(220, 160, 40)),
+                agent_top_core::AdviceRule::GrowingMcpServer => ("↑", Color::Red),
+                agent_top_core::AdviceRule::IdleMcpServer => ("·", DIM),
+            };
+            for (i, part) in wrap(&x.headline, inner.saturating_sub(4)).into_iter().enumerate() {
+                let lead = if i == 0 { format!("  {mark} ") } else { "    ".to_string() };
+                lines.push(Line::from(vec![Span::styled(lead, Style::default().fg(colour).bold()), Span::raw(part)]));
+            }
+            for part in wrap(&x.action, inner.saturating_sub(6)) {
+                lines.push(Line::styled(format!("      {part}"), Style::default().fg(DIM)));
+            }
+        }
+    }
+    lines.push(Line::raw(""));
+    lines.push(Line::styled("  read from the numbers on screen; nothing is done for you · a or Esc to close", Style::default().fg(DIM)));
+    let h = (lines.len() as u16 + 2).clamp(6, area.height.saturating_sub(2));
+    let popup = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };
+    f.render_widget(Clear, popup);
+    let title = if advice.is_empty() { " advice ".to_string() } else { format!(" advice ({}) ", advice.len()) };
+    let block = Block::default()
+        .borders(ratatui::widgets::Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(ADVICE))
+        .title(Span::styled(title, Style::default().fg(ADVICE).bold()));
+    f.render_widget(Paragraph::new(Text::from(lines)).block(block), popup);
+}
+
+/// Greedy word wrap to `width` columns; a single overlong word stands alone.
+fn wrap(s: &str, width: usize) -> Vec<String> {
+    let width = width.max(16);
+    let mut out = Vec::new();
+    let mut line = String::new();
+    for word in s.split_whitespace() {
+        if !line.is_empty() && line.chars().count() + 1 + word.chars().count() > width {
+            out.push(std::mem::take(&mut line));
+        }
+        if !line.is_empty() {
+            line.push(' ');
+        }
+        line.push_str(word);
+    }
+    if !line.is_empty() || out.is_empty() {
+        out.push(line);
+    }
+    out
 }
 
 /// One tool's stats, summed over every agent on screen.
@@ -1062,6 +1138,8 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     left.push(sep());
     left.extend(key("l", "slow tools", amber));
     left.extend(key("f", "fails", Color::Red));
+    let n = app.snapshot.advice.len();
+    left.extend(key("a", if n > 0 { format!("advice ({n})") } else { "advice".to_string() }.as_str(), ADVICE));
     left.push(sep());
     left.extend(key("?", "help", ACCENT));
 
@@ -1094,6 +1172,11 @@ fn draw_help(f: &mut Frame, area: Rect) {
             Span::styled("slowest tools", Style::default().fg(Color::Rgb(220, 160, 40))),
             Span::raw("       f       "),
             Span::styled("failed tool calls", Style::default().fg(Color::Red)),
+        ]),
+        Line::from(vec![
+            Span::raw("  a            "),
+            Span::styled("advice", Style::default().fg(ADVICE)),
+            Span::raw(": oversized results, idle and growing MCP servers"),
         ]),
         Line::raw(""),
         Line::from(vec![Span::styled(format!("agent-top {}", crate::VERSION), Style::default().fg(ACCENT).bold())]),
@@ -1216,6 +1299,7 @@ mod tests {
             agents,
             orphans: Vec::new(),
             orphan_origins: Vec::new(),
+            advice: Vec::new(),
             totals: Totals::default(),
         };
         s.compute_totals();
@@ -1505,6 +1589,65 @@ mod tests {
         assert!(out.contains("failed tool calls"), "{out}");
         assert!(out.lines().any(|l| l.contains("Bash")), "the failing tool is listed: {out}");
         assert!(!out.lines().any(|l| l.contains("Read")), "a clean tool is not in the failures panel: {out}");
+    }
+
+    /// The advice popup lists every piece of advice under its agent, with a
+    /// mark per rule, and closes on the same key; an empty snapshot says so.
+    #[test]
+    fn advice_popup_lists_headlines_with_their_actions() {
+        use agent_top_core::{Advice, AdviceRule};
+        let mut snap = snapshot(vec![agent("worker", Vec::new())]);
+        let mut app = App::new(snap.clone());
+        app.on_key(ratatui::crossterm::event::KeyCode::Char('a'));
+        assert_eq!(app.overlay, Overlay::Advice);
+        let out = render(&mut app, 100, 40);
+        assert!(out.contains("nothing to suggest"), "{out}");
+        app.on_key(ratatui::crossterm::event::KeyCode::Char('a'));
+        assert_eq!(app.overlay, Overlay::None);
+
+        snap.advice = vec![
+            Advice {
+                agent_id: "pid:6".into(),
+                agent_name: "worker".into(),
+                rule: AdviceRule::ExpensiveSource,
+                subject: "docs-search".into(),
+                pid: None,
+                headline: "docs-search MCP server: 1 call added 40k tokens to the prompt, re-read at a cost of $12.03 since".into(),
+                action: "ask it for smaller results, or drop it from this project's MCP config".into(),
+                cost_usd: 12.03,
+                tokens: 40_000,
+                calls: 1,
+                rss_bytes: 0,
+            },
+            Advice {
+                agent_id: "pid:6".into(),
+                agent_name: "worker".into(),
+                rule: AdviceRule::IdleMcpServer,
+                subject: "server-filesystem".into(),
+                pid: Some(11),
+                headline: "server-filesystem (pid 11) has answered no calls in 42m and holds 180 MB".into(),
+                action: "remove it from this project's MCP config; its tool definitions are sent with every response".into(),
+                cost_usd: 0.0,
+                tokens: 0,
+                calls: 0,
+                rss_bytes: 180 << 20,
+            },
+        ];
+        let mut app = App::new(snap);
+        app.overlay = Overlay::Advice;
+        let out = render(&mut app, 100, 40);
+        println!("{out}");
+        assert!(out.contains("advice (2)"), "{out}");
+        assert!(out.contains("$ docs-search MCP server: 1 call added 40k tokens"), "{out}");
+        assert!(out.contains("· server-filesystem (pid 11) has answered no calls in 42m"), "{out}");
+        assert!(out.contains("ask it for smaller results"), "{out}");
+        // The footer badge counts it too (wide enough that the bar is not clipped).
+        let wide = render(&mut app, 140, 40);
+        let footer = wide.lines().last().unwrap();
+        assert!(footer.contains("advice (2)"), "footer counts it: {footer}");
+        // Narrow terminal: the headline wraps rather than clipping.
+        let out = render(&mut app, 60, 40);
+        assert!(out.contains("re-read at a cost of $12.03 since"), "{out}");
     }
 
     #[test]

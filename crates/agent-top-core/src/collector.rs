@@ -5,10 +5,11 @@
 //! and opens a tracker for one. The collector walks the process forest, asks
 //! the adapter for each root, and builds the rows.
 
+use crate::advice::RssTrend;
 use crate::harness::{self, AttributeContext, HarnessAdapter, McpUsage, RegistryHints, SessionSummary, SessionTracker, SpanRetention};
 use crate::model::*;
 use crate::process::{ProcessScanner, RawProc, build_forest};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -52,6 +53,57 @@ struct McpMemory {
     first_seen: SystemTime,
     parent: Option<OrphanParent>,
     orphaned_at: Option<SystemTime>,
+    /// (when, RSS of the server's subtree), one sample per `RSS_SAMPLE_EVERY`,
+    /// the last `RSS_WINDOW` of them, for the leak rule.
+    rss: VecDeque<(SystemTime, u64)>,
+}
+
+/// How often a server's memory is sampled: a leak shows over minutes, and a
+/// sample a second would be sixty times the memory for the same trend.
+const RSS_SAMPLE_EVERY: Duration = Duration::from_secs(30);
+/// How far back the samples go.
+const RSS_WINDOW: Duration = Duration::from_secs(60 * 60);
+/// "Recent" for the still-growing test: the trend over the last ten minutes.
+const RSS_RECENT: Duration = Duration::from_secs(10 * 60);
+/// A sample this far below the one before it is a churn, not a climb.
+const RSS_DIP: f64 = 0.05;
+
+impl McpMemory {
+    fn new(start_time: u64, now: SystemTime) -> Self {
+        McpMemory { start_time, first_seen: now, parent: None, orphaned_at: None, rss: VecDeque::new() }
+    }
+
+    fn sample(&mut self, now: SystemTime, rss: u64) {
+        if let Some((t, _)) = self.rss.back()
+            && now.duration_since(*t).map(|d| d < RSS_SAMPLE_EVERY).unwrap_or(true)
+        {
+            return;
+        }
+        self.rss.push_back((now, rss));
+        while let Some((t, _)) = self.rss.front()
+            && now.duration_since(*t).map(|d| d > RSS_WINDOW).unwrap_or(false)
+        {
+            self.rss.pop_front();
+        }
+    }
+
+    /// The window's shape, or `None` with fewer than two samples.
+    fn trend(&self, now: SystemTime) -> Option<RssTrend> {
+        let (&(since, from_bytes), &(_, to_bytes)) = (self.rss.front()?, self.rss.back()?);
+        if self.rss.len() < 2 {
+            return None;
+        }
+        let steady = self.rss.iter().zip(self.rss.iter().skip(1)).all(|((_, a), (_, b))| (*b as f64) >= (*a as f64) * (1.0 - RSS_DIP));
+        // The newest sample at least `RSS_RECENT` old, or the oldest if none is.
+        let anchor = self
+            .rss
+            .iter()
+            .rev()
+            .find(|(t, _)| now.duration_since(*t).map(|d| d >= RSS_RECENT).unwrap_or(false))
+            .map(|(_, b)| *b)
+            .unwrap_or(from_bytes);
+        Some(RssTrend { since, from_bytes, to_bytes, steady, recent_growth: to_bytes.saturating_sub(anchor) })
+    }
 }
 
 impl Collector {
@@ -300,7 +352,7 @@ impl Collector {
         let keep: HashSet<&PathBuf> = agents.iter().filter_map(|a| a.session_path.as_ref()).collect();
         self.trackers.retain(|p, _| keep.contains(p));
 
-        let orphan_origins = self.remember_mcp(&agents, &orphans, &by_pid, now);
+        let (orphan_origins, trends) = self.remember_mcp(&agents, &orphans, &by_pid, now);
 
         let mut snap = Snapshot {
             schema_version: SNAPSHOT_SCHEMA_VERSION,
@@ -309,9 +361,11 @@ impl Collector {
             agents,
             orphans,
             orphan_origins,
+            advice: Vec::new(),
             totals: Totals::default(),
         };
         snap.compute_totals();
+        snap.advice = crate::advice::advise(&snap, &trends);
         snap
     }
 
@@ -327,16 +381,18 @@ impl Collector {
         orphans: &[ProcNode],
         by_pid: &HashMap<u32, &RawProc>,
         now: SystemTime,
-    ) -> Vec<OrphanOrigin> {
+    ) -> (Vec<OrphanOrigin>, HashMap<u32, RssTrend>) {
         let start_of = |pid: u32| by_pid.get(&pid).map(|p| p.start_time).unwrap_or(0);
         for a in agents {
             let Some(tree) = &a.tree else { continue };
             let parent = OrphanParent { pid: tree.pid, agent_id: a.id.clone(), name: a.name.clone() };
-            let under: Vec<u32> = tree.mcp_roots().iter().map(|n| n.pid).collect();
-            for pid in under {
+            // A server's memory is its whole subtree, as its row shows it.
+            let under: Vec<(u32, u64)> = tree.mcp_roots().iter().map(|n| (n.pid, n.totals().1)).collect();
+            for (pid, rss) in under {
                 let m = touch(&mut self.mcp_memory, pid, start_of(pid), now);
                 m.parent = Some(parent.clone());
                 m.orphaned_at = None;
+                m.sample(now, rss);
             }
         }
         let mut origins = Vec::with_capacity(orphans.len());
@@ -350,16 +406,17 @@ impl Collector {
         // A process that has exited is forgotten, so the map does not grow
         // with every server ever started.
         self.mcp_memory.retain(|pid, _| by_pid.contains_key(pid));
-        origins
+        let trends = self.mcp_memory.iter().filter_map(|(pid, m)| m.trend(now).map(|t| (*pid, t))).collect();
+        (origins, trends)
     }
 }
 
 /// The memory entry for a process, fresh if the pid is new or has been
 /// reused by a process with a different start time.
 fn touch(memory: &mut HashMap<u32, McpMemory>, pid: u32, start_time: u64, now: SystemTime) -> &mut McpMemory {
-    let entry = memory.entry(pid).or_insert(McpMemory { start_time, first_seen: now, parent: None, orphaned_at: None });
+    let entry = memory.entry(pid).or_insert_with(|| McpMemory::new(start_time, now));
     if entry.start_time != start_time {
-        *entry = McpMemory { start_time, first_seen: now, parent: None, orphaned_at: None };
+        *entry = McpMemory::new(start_time, now);
     }
     entry
 }
@@ -653,7 +710,7 @@ mod tests {
         let by_pid: HashMap<u32, &RawProc> = procs.iter().map(|p| (p.pid, p)).collect();
 
         // Tick 0: the server is under its agent; 99 is an orphan from the start.
-        let origins = c.remember_mcp(std::slice::from_ref(&agent), &[node(99, ProcKind::Mcp, "uvx mcp-server-git")], &by_pid, t0);
+        let (origins, _) = c.remember_mcp(std::slice::from_ref(&agent), &[node(99, ProcKind::Mcp, "uvx mcp-server-git")], &by_pid, t0);
         assert_eq!(origins.len(), 1);
         assert_eq!(origins[0].pid, 99);
         assert!(origins[0].parent.is_none());
@@ -664,7 +721,7 @@ mod tests {
         let procs = [raw(11, 6), raw(99, 7)];
         let by_pid: HashMap<u32, &RawProc> = procs.iter().map(|p| (p.pid, p)).collect();
         let orphans = [node(11, ProcKind::Mcp, "npx server-filesystem"), node(99, ProcKind::Mcp, "uvx mcp-server-git")];
-        let origins = c.remember_mcp(&[], &orphans, &by_pid, t1);
+        let (origins, _) = c.remember_mcp(&[], &orphans, &by_pid, t1);
         let fs = origins.iter().find(|o| o.pid == 11).unwrap();
         assert_eq!(fs.parent.as_ref().map(|p| (p.pid, p.name.as_str())), Some((10, "claude:proj")));
         assert_eq!(fs.orphaned_at, Some(t1));
@@ -675,9 +732,119 @@ mod tests {
         // Tick 2: pid 11 is reused by a different process. The memory starts over.
         let procs = [raw(11, 900)];
         let by_pid: HashMap<u32, &RawProc> = procs.iter().map(|p| (p.pid, p)).collect();
-        let origins = c.remember_mcp(&[], &orphans[..1], &by_pid, t1 + Duration::from_secs(10));
+        let (origins, _) = c.remember_mcp(&[], &orphans[..1], &by_pid, t1 + Duration::from_secs(10));
         assert!(origins[0].parent.is_none());
         assert!(!c.mcp_memory.contains_key(&99), "an exited process is forgotten");
+    }
+
+    /// The leak rule's input, driven tick by tick: samples are taken every
+    /// half minute at most, the window's shape says whether the memory
+    /// climbed, and a server that keeps climbing while unused reaches the
+    /// snapshot as advice.
+    #[test]
+    fn a_servers_memory_is_sampled_over_the_run_and_a_steady_climb_becomes_advice() {
+        let mut c = Collector::new(CollectorOptions::default());
+        let t0 = UNIX_EPOCH + Duration::from_secs(1_000);
+        let mut agent = Agent {
+            id: "pid:10".into(),
+            name: "claude:proj".into(),
+            harness: Harness::Claude,
+            state: AgentState::Running,
+            activity: Activity::Working,
+            pid: Some(10),
+            session_id: None,
+            session_path: None,
+            cwd: None,
+            model: None,
+            harness_version: None,
+            usage: TokenUsage::default(),
+            cost_usd: 0.0,
+            cost_breakdown: Default::default(),
+            price_source: None,
+            unpriced_tokens: 0,
+            turns: 3,
+            subagent_turns: 0,
+            tool_calls: 0,
+            web_searches: 0,
+            spans: Vec::new(),
+            age_secs: 0,
+            idle_secs: None,
+            cpu_percent: 0.0,
+            rss_bytes: 0,
+            process_count: 2,
+            mcp_count: 1,
+            mcp_servers: Vec::new(),
+            context: Vec::new(),
+            tree: None,
+            attribution: Attribution::HarnessRegistry,
+            shares_process: false,
+            parse_warning: None,
+            rate_limit: None,
+        };
+        let procs = [raw(10, 5), raw(11, 6)];
+        let by_pid: HashMap<u32, &RawProc> = procs.iter().map(|p| (p.pid, p)).collect();
+        let tick = |c: &mut Collector, agent: &mut Agent, at: SystemTime, rss: u64| {
+            let mut root = node(10, ProcKind::Agent, "claude");
+            let mut server = node(11, ProcKind::Mcp, "npx chrome-devtools-mcp");
+            server.rss_bytes = rss;
+            root.children = vec![server];
+            agent.tree = Some(root);
+            c.remember_mcp(std::slice::from_ref(agent), &[], &by_pid, at).1
+        };
+
+        // Two ticks a second apart: one sample, so no trend yet.
+        assert!(!tick(&mut c, &mut agent, t0, 100 << 20).contains_key(&11));
+        assert!(!tick(&mut c, &mut agent, t0 + Duration::from_secs(1), 100 << 20).contains_key(&11));
+        assert_eq!(c.mcp_memory[&11].rss.len(), 1, "a second sample waits {RSS_SAMPLE_EVERY:?}");
+
+        // Growing 8 MB a minute for 40 minutes: a steady climb, still going.
+        let mut trends = HashMap::new();
+        for minute in 1..=40u64 {
+            trends = tick(&mut c, &mut agent, t0 + Duration::from_secs(minute * 60), (100 + 8 * minute) << 20);
+        }
+        let t = trends[&11];
+        assert_eq!(t.since, t0);
+        assert_eq!((t.from_bytes, t.to_bytes), (100 << 20, 420 << 20));
+        assert!(t.steady);
+        assert_eq!(t.recent_growth, 80 << 20, "the last ten minutes");
+
+        // The whole way through to the snapshot's advice, with the row the
+        // collector would build for the server.
+        agent.mcp_servers = vec![McpServer {
+            name: "chrome-devtools".into(),
+            pid: Some(11),
+            cmdline: None,
+            cpu_percent: 0.0,
+            rss_bytes: 420 << 20,
+            age_secs: Some(40 * 60),
+            calls: 2,
+            errors: 0,
+            last_call: Some(t0 - Duration::from_secs(60)),
+            matched_by: McpMatch::Name,
+        }];
+        let snap = Snapshot {
+            schema_version: SNAPSHOT_SCHEMA_VERSION,
+            taken_at: t0 + Duration::from_secs(40 * 60),
+            host: HostStats::default(),
+            agents: vec![agent.clone()],
+            orphans: Vec::new(),
+            orphan_origins: Vec::new(),
+            advice: Vec::new(),
+            totals: Totals::default(),
+        };
+        let advice = crate::advice::advise(&snap, &trends);
+        assert_eq!(advice.len(), 1, "{advice:#?}");
+        assert_eq!(advice[0].rule, AdviceRule::GrowingMcpServer);
+        assert_eq!(advice[0].headline, "chrome-devtools (pid 11) grew from 100 MB to 420 MB over 40m with no calls");
+
+        // A drop of more than a few percent breaks the climb.
+        let trends = tick(&mut c, &mut agent, t0 + Duration::from_secs(41 * 60), 300 << 20);
+        assert!(!trends[&11].steady);
+
+        // The window slides: after an hour the oldest samples are gone.
+        let trends = tick(&mut c, &mut agent, t0 + Duration::from_secs(100 * 60), 300 << 20);
+        assert!(trends[&11].since > t0);
+        assert!(c.mcp_memory[&11].rss.len() <= 2 * 60 + 1);
     }
 
     #[test]

@@ -593,6 +593,58 @@ pub struct OrphanParent {
     pub name: String,
 }
 
+/// Which rule a piece of advice came from. See `advice`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AdviceRule {
+    /// A tool or MCP server whose results are large per call and have been
+    /// re-read on every response since: the biggest line in the bill hiding
+    /// behind a few calls.
+    ExpensiveSource,
+    /// An MCP server attached to a live agent that has answered no calls in
+    /// a long while.
+    IdleMcpServer,
+    /// An MCP server whose memory has climbed steadily with no calls to
+    /// explain it.
+    GrowingMcpServer,
+}
+
+impl AdviceRule {
+    pub fn label(self) -> &'static str {
+        match self {
+            AdviceRule::ExpensiveSource => "expensive source",
+            AdviceRule::IdleMcpServer => "idle mcp server",
+            AdviceRule::GrowingMcpServer => "growing mcp server",
+        }
+    }
+}
+
+/// One sentence of advice about one agent, with the numbers that back it and
+/// the thing you could do. Nothing is done for you: agent-top only points.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Advice {
+    pub agent_id: String,
+    pub agent_name: String,
+    pub rule: AdviceRule,
+    /// The tool, or the MCP server, the advice is about.
+    pub subject: String,
+    /// The server's process, when the advice is about one.
+    pub pid: Option<u32>,
+    /// What was seen, with its numbers.
+    pub headline: String,
+    /// What you might do about it.
+    pub action: String,
+    /// The evidence as numbers, for scripts: zero where a rule has none.
+    #[serde(default)]
+    pub cost_usd: f64,
+    #[serde(default)]
+    pub tokens: u64,
+    #[serde(default)]
+    pub calls: u64,
+    #[serde(default)]
+    pub rss_bytes: u64,
+}
+
 /// Everything the UI needs for one frame.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Snapshot {
@@ -605,6 +657,10 @@ pub struct Snapshot {
     /// One entry per orphan, saying where it came from when that is known.
     #[serde(default)]
     pub orphan_origins: Vec<OrphanOrigin>,
+    /// What looks like a bad deal on this machine right now, and what could
+    /// be done about it. See `advice`.
+    #[serde(default)]
+    pub advice: Vec<Advice>,
     pub totals: Totals,
 }
 

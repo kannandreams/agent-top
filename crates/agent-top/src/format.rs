@@ -211,6 +211,13 @@ pub fn plain_table(snap: &Snapshot) -> String {
             }
         }
     }
+    if !snap.advice.is_empty() {
+        out.push_str("\nADVICE (from the numbers above; nothing is done for you)\n");
+        for x in &snap.advice {
+            out.push_str(&format!("  {:<24} {}\n", truncate(&x.agent_name, 24), x.headline));
+            out.push_str(&format!("  {:<24}   → {}\n", "", x.action));
+        }
+    }
     // A stopped session's rate-limit snapshot is from when it last ran, so it
     // is not a current warning; only live and idle agents carry a limit that
     // still applies. The detail pane still shows the figure for any session.
@@ -294,4 +301,48 @@ pub fn price_table(t: &Table) -> String {
     }
     out.push_str("\nA model with no entry here is counted but reported as unpriced, never guessed at.\n");
     out
+}
+
+#[cfg(test)]
+mod advice_tests {
+    use super::plain_table;
+    use agent_top_core::{Advice, AdviceRule, HostStats, SNAPSHOT_SCHEMA_VERSION, Snapshot, Totals};
+    use std::time::SystemTime;
+
+    /// `--once` prints the same sentences the popup shows, headline then
+    /// action, so a script or a screenshot carries the advice too.
+    #[test]
+    fn plain_table_prints_an_advice_section_when_there_is_any() {
+        let mut snap = Snapshot {
+            schema_version: SNAPSHOT_SCHEMA_VERSION,
+            taken_at: SystemTime::UNIX_EPOCH,
+            host: HostStats::default(),
+            agents: Vec::new(),
+            orphans: Vec::new(),
+            orphan_origins: Vec::new(),
+            advice: Vec::new(),
+            totals: Totals::default(),
+        };
+        assert!(!plain_table(&snap).contains("ADVICE"));
+        snap.advice.push(Advice {
+            agent_id: "pid:7".into(),
+            agent_name: "claude:proj".into(),
+            rule: AdviceRule::GrowingMcpServer,
+            subject: "chrome-devtools".into(),
+            pid: Some(77),
+            headline: "chrome-devtools (pid 77) grew from 120 MB to 410 MB over 34m with no calls".into(),
+            action: "a server that grows while unused is likely leaking; watch it, and kill it if it outlives its agent".into(),
+            cost_usd: 0.0,
+            tokens: 0,
+            calls: 3,
+            rss_bytes: 410 << 20,
+        });
+        let out = plain_table(&snap);
+        assert!(out.contains("\nADVICE (from the numbers above; nothing is done for you)\n"), "{out}");
+        assert!(
+            out.contains("claude:proj              chrome-devtools (pid 77) grew from 120 MB to 410 MB over 34m with no calls\n"),
+            "{out}"
+        );
+        assert!(out.contains("→ a server that grows while unused is likely leaking"), "{out}");
+    }
 }
