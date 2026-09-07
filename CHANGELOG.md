@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.14.0] - 2026-09-07
 
 ### Added
 - **Context by source: which tool is filling the prompt, and what that has cost.** Every response re-reads the whole conversation, so a tool result is paid for not once but on every response after it until compaction, and a single large `Read` or a chatty MCP server can quietly become the biggest line in the bill. No harness shows this. The detail pane gains a `context` section listing each source largest first (built-in tools by name, MCP servers as `mcp <server>`, and one `prompts & replies` row for the system prompt, your messages and the model's replies) with the calls attributed to it, the tokens it added to the prompt, and what re-reading those has cost. The tokens are the growth of the prompt between one response and the next, filed under the tool results submitted in between (split evenly when several were answered together, the one heuristic); the cost charges each source's live tokens at every later response's own prompt rate, so the rows sum exactly to the session's prompt-side cost and can be checked against the cost breakdown above them. Claude Code's `compact_boundary` resets the ledger exactly; Codex and Gemini fall back to "the prompt halved". Nothing is read from a tool result, only how much bigger the next prompt was. `--once` prints the top five per agent under `CONTEXT BY SOURCE`; `--json` carries them all as `context`. OpenCode rows have no section yet. Locked with the real Claude, Codex and Gemini fixtures, whose attributed costs reconcile to the micro-dollar.
