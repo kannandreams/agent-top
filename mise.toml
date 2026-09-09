@@ -26,3 +26,19 @@ run = [{ task = "lint" }, { task = "test" }]
 description = "Run the TUI"
 raw = true
 run = "cargo run --"
+
+# The documentation site (mkdocs.yml at the root, pages in docs/). Every
+# Python step goes through uv, which makes a throwaway environment from
+# docs/requirements.txt; nothing is installed with pip and there is no venv.
+[tasks."docs:serve"]
+description = "Preview the docs site at http://127.0.0.1:8000, rebuilding on save"
+run = "uv run --with-requirements docs/requirements.txt mkdocs serve"
+
+[tasks."docs:build"]
+description = "Build the docs site into site/ in strict mode (what CI checks)"
+run = "uv run --with-requirements docs/requirements.txt mkdocs build --strict"
+
+[tasks."docs:publish"]
+description = "Build the docs site and upload site/ to Cloudflare Pages (needs `npx wrangler login` once)"
+depends = ["docs:build"]
+run = "npx --yes wrangler@4 pages deploy site --project-name agent-top --branch main --commit-dirty=true"

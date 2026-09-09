@@ -1,13 +1,12 @@
 # Documentation site for agent-top, built with Material for MkDocs.
 #
-#   uv run --with-requirements docs/requirements.txt mkdocs serve          # http://127.0.0.1:8000
-#   uv run --with-requirements docs/requirements.txt mkdocs build --strict # what CI and Cloudflare Pages run
+#   mise run docs:serve     # preview at http://127.0.0.1:8000
+#   mise run docs:build     # strict build into site/, what CI checks
+#   mise run docs:publish   # build, then upload site/ to Cloudflare Pages
 #
-# uv makes a throwaway environment from docs/requirements.txt; there is no
-# virtualenv to create or activate.
-#
-# The site loads nothing from third parties: no web fonts, no analytics, no
-# CDN. Everything it needs is in the built `site/` directory.
+# The tasks run mkdocs through uv from docs/requirements.txt; no virtualenv,
+# no pip. The site loads nothing from third parties: no web fonts, no
+# analytics, no CDN. Everything it needs is in the built `site/` directory.
 
 site_name: agent-top
 site_description: htop for local coding agents. Processes, subagents, MCP servers, tokens and cost in one terminal view.
