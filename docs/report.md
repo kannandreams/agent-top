@@ -1,3 +1,7 @@
+---
+description: "agent-top report totals cost and tokens across Claude Code, Codex, Gemini CLI and OpenCode from the transcripts on disk, grouped by harness, model, project or day."
+---
+
 # Cost report
 
 The live table is one moment. `agent-top report` reads the transcripts already on disk and totals cost and tokens over a window you choose, grouped by harness, model, project or day. It is the one place that adds Claude, Codex, Gemini and OpenCode into a single figure, priced the same way, so "what has all of this cost me, together" has an answer.
@@ -42,7 +46,15 @@ Each column:
 
 ## By project
 
-`--by project` groups by working directory, shown as its last two path components, and turns the report into a rough cost-per-repository view. It is not pictured here because it names real repositories.
+`--by project` groups by working directory, shown as its last two path components, and turns the report into a rough cost-per-repository view: which of the repos you work in is actually costing the most.
+
+```sh
+agent-top report --since all --by project
+```
+
+The image below uses invented project names and numbers, not a real machine's, because a real one would publish repository names. Everywhere else on this page the report is real, since a cost total alone gives nothing away; a project breakdown does not, so here it is illustrative only.
+
+![agent-top report by project, with example projects and made-up numbers](screenshots/report-by-project.png)
 
 ## Reconciling with your harness
 

@@ -1,4 +1,5 @@
 ---
+description: "The crates, tools and prior art agent-top is built on and inspired by: ratatui, sysinfo, VHS, Material for MkDocs, htop and btop."
 title: Credits
 hide:
   - toc

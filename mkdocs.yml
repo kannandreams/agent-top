@@ -26,9 +26,11 @@ exclude_docs: |
   *.tape
   requirements.txt
   hooks/
+  overrides/
 
 theme:
   name: material
+  custom_dir: docs/overrides
   language: en
   # No web fonts: the stylesheet names system faces instead.
   font: false

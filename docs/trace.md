@@ -1,3 +1,7 @@
+---
+description: "Export a session's tool calls and model turns as a Chrome trace for Perfetto or as OTLP/JSON for Jaeger and Tempo, reconstructed from the transcript with no telemetry to switch on."
+---
+
 # Tool trace and export
 
 Every tool call, model response and turn in a session, reconstructed from the transcript. Nothing has to be switched on in the harness: the timestamps are already in the file it writes. That makes the trace retroactive, so it works on a session that ended last week, and harness-neutral, so it works the same for Claude Code, Codex, Gemini CLI and OpenCode.

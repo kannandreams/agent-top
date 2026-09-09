@@ -1,3 +1,7 @@
+---
+description: "Install agent-top with Homebrew or cargo, start it in a terminal, and learn the keys: move, sort, the tool trace, the advice panel."
+---
+
 # Getting started
 
 ## Install

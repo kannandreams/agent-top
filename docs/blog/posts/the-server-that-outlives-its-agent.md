@@ -3,7 +3,7 @@ date: 2026-09-10
 authors:
   - kannan
 slug: the-server-that-outlives-its-agent
-description: How an MCP server ends up running with no agent above it, why it is worth a red row on the screen, and what to do when you find one.
+description: "How an MCP server ends up running with no agent above it, why it is worth a red row on the screen, and what to do when you find one."
 ---
 
 # The MCP server that outlives its agent

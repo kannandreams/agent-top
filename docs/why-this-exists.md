@@ -1,3 +1,7 @@
+---
+description: "Why agent-top was built: one screen for the coding agents on a machine, the metadata each harness already writes, and where the tool is heading."
+---
+
 # Why agent-top exists
 
 I run several coding agents a day. Claude Code and Codex for most of the work, and OpenCode with the DeepSeek API where cost matters more than speed. I stopped using editor plugins altogether; the terminal is where the agents live now.

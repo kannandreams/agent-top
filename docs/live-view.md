@@ -1,3 +1,7 @@
+---
+description: "A tour of every panel in the live view: the header, the agents table, the process tree, the tool trace, MCP servers, context by source, and the advice, slow-tools and failed-tools popups."
+---
+
 # The live view
 
 The screen has three parts: a header for the machine, a table with one row per agent, and a detail pane for the selected row. Everything refreshes once a second. All of the pictures on this page come from a synthetic snapshot replayed with `--replay`, so the names and paths are made up; see [Snapshots and replay](replay.md).

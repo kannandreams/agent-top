@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{#
+  Search-engine and link-preview metadata Material does not add on its own:
+  Open Graph, Twitter Card, and one JSON-LD block on the home page. Material
+  already emits <meta name="description"> and <link rel="canonical"> from
+  page.meta.description / site_description and site_url, so those are reused
+  here rather than repeated.
+#}
+{% block extrahead %}
+  {% set at_description = (page.meta and page.meta.description) or config.site_description %}
+  {% set at_url = page.canonical_url or config.site_url %}
+  {% set at_image = config.site_url ~ "assets/social-card.png" %}
+
+  {% if page.is_homepage %}
+    {% set at_title = config.site_name ~ " — " ~ config.site_description.split(".")[0] %}
+  {% elif page.meta and page.meta.title %}
+    {% set at_title = page.meta.title ~ " · " ~ config.site_name %}
+  {% elif page.title %}
+    {% set at_title = page.title ~ " · " ~ config.site_name %}
+  {% else %}
+    {% set at_title = config.site_name %}
+  {% endif %}
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{ at_title }}">
+  <meta property="og:description" content="{{ at_description }}">
+  <meta property="og:url" content="{{ at_url }}">
+  <meta property="og:image" content="{{ at_image }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="{{ config.site_name }}">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ at_title }}">
+  <meta name="twitter:description" content="{{ at_description }}">
+  <meta name="twitter:image" content="{{ at_image }}">
+
+  {% if page.is_homepage %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "agent-top",
+    "alternateName": "htop for local coding agents",
+    "url": "{{ config.site_url }}",
+    "description": "{{ config.site_description }}",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "macOS, Linux",
+    "softwareVersion": "0.15.2",
+    "programmingLanguage": "Rust",
+    "license": "https://github.com/kannandreams/agent-top/blob/main/LICENSE",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "downloadUrl": "https://github.com/kannandreams/agent-top/releases",
+    "codeRepository": "https://github.com/kannandreams/agent-top",
+    "featureList": [
+      "Live view of every Claude Code, Codex, Gemini CLI and OpenCode session",
+      "Token and cost accounting across harnesses",
+      "MCP server leak detection",
+      "Cross-harness cost report",
+      "Tool call tracing exported to Perfetto and OpenTelemetry"
+    ]
+  }
+  </script>
+  {% endif %}
+{% endblock %}

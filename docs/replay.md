@@ -1,3 +1,7 @@
+---
+description: "Save a snapshot with --json and render it back anywhere with --replay: every key still works, and nothing on the local machine is read."
+---
+
 # Snapshots and replay
 
 Everything the screen shows comes from one data structure, the snapshot. `--json` prints it. `--replay` renders one back, with every key working, without reading anything on the local machine.

@@ -1,3 +1,7 @@
+---
+description: "What agent-top reads from Claude Code, Codex, Gemini CLI and OpenCode, how it attributes a process to its transcript, and what it does when a harness's format drifts."
+---
+
 # Harness support
 
 Every harness is an adapter that produces the same row, so the table, the report, the trace and the snapshot look the same whichever tool wrote the transcript.

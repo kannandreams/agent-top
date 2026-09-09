@@ -1,3 +1,7 @@
+---
+description: "How agent-top prices tokens: the built-in table, overriding a price or adding a model in ~/.config/agent-top/prices.toml, and how per-call charges like web search are billed."
+---
+
 # Prices
 
 Prices are data, not code. The table shipped in the binary lives in [`crates/agent-top-core/prices.toml`](https://github.com/kannandreams/agent-top/blob/main/crates/agent-top-core/prices.toml) and carries the vendors' published list prices for Anthropic, OpenAI and Google models. `agent-top --prices` prints the table in use, with the source of every row.

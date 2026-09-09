@@ -1,4 +1,5 @@
 ---
+description: "agent-top is htop for local coding agents: every Claude Code, Codex, Gemini CLI and OpenCode session on your machine in one terminal view, with tokens, cost and MCP leak detection."
 title: agent-top
 hide:
   - toc
