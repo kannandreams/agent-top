@@ -8,7 +8,7 @@ Coding agents are now long-running processes on a developer's machine, several a
 
 They consume three scarce things at once. CPU and memory, like any process. Tokens, which cost real money. And the developer's attention, because an idle agent is an agent waiting for a human.
 
-Nothing on the machine shows those three together. `htop` shows a `node` process with no idea whose it is or what it is spending. Each harness shows its own session and nothing about the others. And when an agent dies and leaves helper processes behind, nobody notices until the machine starts to swap. That last failure is not hypothetical; see [The MCP leak](mcp-leak.md).
+Nothing on the machine shows those three together. `htop` shows a `node` process with no idea whose it is or what it is spending. Each harness shows its own session and nothing about the others. And when an agent dies and leaves helper processes behind, nobody notices until the machine starts to swap. That one deserves its own explanation: [The MCP server that outlives its agent](blog/posts/the-server-that-outlives-its-agent.md).
 
 ## What agent-top is
 

@@ -23,7 +23,7 @@ It reads the transcripts the harnesses already write and the process table the O
 
 - **STATE** tells you who is working and who is waiting for you.
 - **COST** is what each session has spent so far, at list price, counted from the harness's own usage records.
-- **Red rows in the detail pane** are MCP servers whose agent has gone. They are the leak this tool exists to catch.
+- **Red rows in the detail pane** are MCP servers whose agent has gone: a leak, and one agent-top watches for on every tick.
 
 ## Where to go next
 

@@ -8,4 +8,4 @@ I wanted one screen for that. The metadata already exists. Every harness writes 
 
 That is the direction: observability for the agents on your machine. Metrics, cost and the cross-harness report are there today. Advice on bad deals, failed-tool and slowest-tool views, and rate-limit warnings came next. Alerts, error tracking and a fuller FinOps history are where it goes from here. Throughout, it stays read-only, sends nothing anywhere, and ships as one binary.
 
-The first concrete failure that pushed me to build it was a leaked MCP process tree. That has its own page: [The MCP leak](mcp-leak.md). The longer view of what agent-top is and is not is in [Vision](vision.md).
+The longer view of what agent-top is and is not is in [Vision](vision.md).
