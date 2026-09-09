@@ -17,7 +17,7 @@ agent-top
 
 Coding agents have become long-running processes, and you tend to keep several at once, each in its own window with its own cost and its own leaks. No single harness shows them together. agent-top does, the way `htop` does it for processes and `btop` for the whole machine.
 
-It reads the transcripts the harnesses already write and the process table the OS already keeps. There is nothing to configure and nothing to enable in your agents. It never writes to, signals or kills an agent, and your data never leaves the machine.
+It is written in Rust and ships as one static binary for macOS and Linux: no runtime, no daemon, nothing to configure and nothing to enable in your agents. It reads the transcripts the harnesses already write and the process table the OS already keeps. It never writes to, signals or kills an agent, and your data never leaves the machine.
 
 ## What to look at first
 

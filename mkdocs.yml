@@ -15,7 +15,7 @@ site_url: https://agent-top.pages.dev
 repo_url: https://github.com/kannandreams/agent-top
 repo_name: kannandreams/agent-top
 edit_uri: edit/main/docs/
-copyright: MIT licensed. Made by Kannan Kalidasan.
+copyright: <span class="at-footer">MIT licensed. <img src="/assets/favicon.svg" alt="" width="18" height="18"> agent-top is built with ❤️ and 🦀 Rust.</span>
 
 docs_dir: docs
 site_dir: site
@@ -70,14 +70,7 @@ hooks:
   - docs/hooks/changelog_links.py
 
 extra:
-  generator: true
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/kannandreams/agent-top
-      name: agent-top on GitHub
-    - icon: fontawesome/solid/cube
-      link: https://crates.io/crates/agent-top
-      name: agent-top on crates.io
+  generator: false
 
 markdown_extensions:
   - admonition
@@ -130,3 +123,5 @@ nav:
       - Credits: credits.md
   - Blog:
       - blog/index.md
+  - GitHub: https://github.com/kannandreams/agent-top
+  - crates.io: https://crates.io/crates/agent-top
