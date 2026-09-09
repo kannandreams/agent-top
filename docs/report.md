@@ -32,18 +32,6 @@ Each column:
 - **CACHE** is the share of the prompt served from cache. High is efficient. A low number on a long-running model is money left on the table.
 - **UNPRICED** is how many tokens the `+` stands for. The footer says what to do about it.
 
-## By day
-
-`--by day` is a spend timeline: one row per calendar day of last activity, most expensive first.
-
-![agent-top report for the last fourteen days, by day](screenshots/report-by-day.png)
-
-## By model
-
-`--by model` answers which model the money went to. A model with no price shows `$0.00+` and its tokens under UNPRICED rather than a believable small number.
-
-![agent-top report since the beginning, by model](screenshots/report-by-model.png)
-
 ## By project
 
 `--by project` groups by working directory, shown as its last two path components, and turns the report into a rough cost-per-repository view: which of the repos you work in is actually costing the most.
@@ -55,6 +43,18 @@ agent-top report --since all --by project
 The image below uses invented project names and numbers, not a real machine's, because a real one would publish repository names. Everywhere else on this page the report is real, since a cost total alone gives nothing away; a project breakdown does not, so here it is illustrative only.
 
 ![agent-top report by project, with example projects and made-up numbers](screenshots/report-by-project.png)
+
+## By day
+
+`--by day` is a spend timeline: one row per calendar day of last activity, most expensive first.
+
+![agent-top report for the last fourteen days, by day](screenshots/report-by-day.png)
+
+## By model
+
+`--by model` answers which model the money went to. A model with no price shows `$0.00+` and its tokens under UNPRICED rather than a believable small number.
+
+![agent-top report since the beginning, by model](screenshots/report-by-model.png)
 
 ## Reconciling with your harness
 

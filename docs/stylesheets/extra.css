@@ -300,10 +300,19 @@
   color: var(--at-ink);
   max-width: 38em;
   margin: 0 0 1.4em;
-  text-wrap: pretty;
 }
+/* Justified body text: on a monospace face, inter-word justification snaps
+ * to the character grid, so the right edge lines up flush against code
+ * blocks and screenshots without the uneven word-gaps justify usually
+ * brings to a proportional face. The last line of a paragraph is left as
+ * the browser leaves it, ragged, which is the readable default. */
 .md-typeset p {
-  text-wrap: pretty;
+  text-align: justify;
+  text-justify: inter-word;
+}
+.at-lead {
+  text-align: justify;
+  text-justify: inter-word;
 }
 
 /* Credits: cards in the spirit of charm.land. A quiet border at rest, a blue
