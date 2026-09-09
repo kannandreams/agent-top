@@ -1,3 +1,7 @@
+---
+description: "agent-top is htop for local coding agents: the problem of several long-running agent processes on one machine, what the tool is, and what it deliberately is not."
+---
+
 # Vision
 
 **agent-top is htop for local coding agents.**

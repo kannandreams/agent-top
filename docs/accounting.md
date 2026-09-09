@@ -1,3 +1,7 @@
+---
+description: "Where agent-top's numbers come from: tokens counted from usage records, cost from a price table, cache efficiency, and context by source."
+---
+
 # Accounting
 
 The whole point of this tool is that its numbers are right, so it is explicit

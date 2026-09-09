@@ -1,3 +1,7 @@
+---
+description: "How agent-top is built: the two-crate workspace, what happens on every tick from process scan to snapshot, the harness transcript formats, and pricing."
+---
+
 # Architecture
 
 Two crates in one Cargo workspace, split by dependency rather than by size.

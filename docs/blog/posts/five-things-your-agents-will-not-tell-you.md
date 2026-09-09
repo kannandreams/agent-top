@@ -3,7 +3,7 @@ date: 2026-09-09
 authors:
   - kannan
 slug: five-things-your-agents-will-not-tell-you
-description: The five parts of agent-top to show someone first, what problem each one answers, and what it looks like on screen.
+description: "The five parts of agent-top to show someone first, what problem each one answers, and what it looks like on screen."
 ---
 
 # Five things agent-top shows that your agents will not
