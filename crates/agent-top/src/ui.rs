@@ -794,7 +794,7 @@ fn agent_facts(a: &Agent, now: SystemTime) -> Text<'static> {
     ]);
     if a.web_searches > 0 {
         let priced = if b.web_search > 0.0 { format!(" (${:.2})", b.web_search) } else { " (not priced)".to_string() };
-        lines.push(kv("web searches", format!("{}{priced}", a.web_searches)));
+        lines.push(kv("web search", format!("{}{priced}", a.web_searches)));
     }
     // The per-token cost breakdown, below the headline stats.
     lines.push(Line::raw(""));

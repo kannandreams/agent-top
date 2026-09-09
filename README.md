@@ -11,6 +11,8 @@
 
 Coding agents have become long-running processes, and you tend to keep several at once, each in its own window with its own cost and its own leaks. No single harness shows them together. `agent-top` does, the way `htop` does it for processes and `btop` for the whole machine. At a glance you can see which agent is burning tokens, which is waiting on you, and which MCP server is still alive after the agent that started it died.
 
+**Docs: [agent-top.pages.dev](https://agent-top.pages.dev)**, including [the blog](https://agent-top.pages.dev/blog/) and a guide to every panel.
+
 ![agent-top](https://raw.githubusercontent.com/kannandreams/agent-top/main/docs/demo.gif)
 
 <sub>Recorded from a synthetic snapshot (`docs/demo-snapshot.json`, replayed with `--replay`) rather than a live machine, because a recording of real sessions would publish real project names, working directories and session ids. Regenerate with `vhs docs/demo.tape`.</sub>
