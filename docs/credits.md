@@ -207,4 +207,4 @@ agent-top is one static binary, and most of what makes it work was written by ot
 
 </div>
 
-agent-top is MIT licensed and written by Kannan Kalidasan. The crate dependency list, with every version, is in [`Cargo.lock`](https://github.com/kannandreams/agent-top/blob/main/Cargo.lock).
+agent-top is MIT licensed. The crate dependency list, with every version, is in [`Cargo.lock`](https://github.com/kannandreams/agent-top/blob/main/Cargo.lock).
