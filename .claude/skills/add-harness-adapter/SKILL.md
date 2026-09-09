@@ -80,7 +80,7 @@ Answer these before coding:
 6. Docs: `README.md` (the harness list in the intro, the bullets, and the
    per-harness support table near the end), `crates/agent-top-core/README.md`,
    `docs/architecture.md`, `docs/accounting.md` if pricing differs,
-   `docs/roadmap.md` (mark the milestone shipped), and `CHANGELOG.md`.
+   and `CHANGELOG.md`.
 
 ## 4. Golden fixture
 
@@ -113,4 +113,4 @@ cargo run -- --once     # with a live session of the new harness, if possible
 ```
 
 Do not tag or release. Changes accumulate on `main` until the user explicitly
-asks for a release; see `docs/releasing.md`.
+asks for a release; the release runbook is in the internal handbook.

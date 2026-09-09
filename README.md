@@ -448,7 +448,7 @@ It is a real, still-open class of bug, and it is not one vendor's. `agent-top`
 watches for the symptom rather than the vendor, so a server left alive after its
 agent died shows as a red row with the agent it came from.
 
-See [docs/why-this-exists.md](docs/why-this-exists.md) for the specific reports
+See [docs/mcp-leak.md](docs/mcp-leak.md) for the specific reports
 that motivated it and what the tool will and will not do.
 
 ## Where the numbers come from
@@ -468,10 +468,6 @@ which are exact and which are inferred. In short:
 The full account, including a worked example of why agent-top and your harness
 can disagree on cost and how to reconcile them, is in
 [docs/accounting.md](docs/accounting.md).
-
-## Roadmap
-
-See [docs/roadmap.md](docs/roadmap.md). Next: OpenAI prices so Codex sessions stop reading as free, an Aider adapter, and a `watch --alert` mode. [docs/releasing.md](docs/releasing.md) is the release runbook.
 
 ## Development
 

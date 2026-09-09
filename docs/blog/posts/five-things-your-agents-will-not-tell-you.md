@@ -117,4 +117,4 @@ brew install kannandreams/tap/agent-top   # or: cargo binstall agent-top
 agent-top
 ```
 
-One static binary, nothing to configure. Start it while your agents are running. The [docs](../../index.md) cover the rest, and the [roadmap](../../roadmap.md) says what is next.
+One static binary, nothing to configure. Start it while your agents are running. The [docs](../../index.md) cover the rest.

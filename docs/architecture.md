@@ -1,62 +1,89 @@
 # Architecture
 
-Two crates in one Cargo workspace.
+Two crates in one Cargo workspace, split by dependency rather than by size.
+
+**`agent-top-core`** is everything that does not need a terminal: process discovery, transcript parsing, pricing, the process model, and the collector that joins them into a snapshot. It is what `--json` prints, so all of it is testable without a TTY.
+
+**`agent-top`** is the ratatui front end and the command line: the live view, `--once`, `report` and `trace`.
 
 ```text
-crates/agent-top-core          no terminal dependency; what --json prints
-  model.rs        Agent, AgentState, TokenUsage, ToolSpan, ProcNode, Snapshot
-  process.rs      sysinfo scan -> agent roots, child kinds, orphans
-  harness/        the HarnessAdapter trait and one adapter per harness (claude.rs, codex.rs, gemini.rs, opencode.rs)
-  jsonl.rs        incremental line reader with a byte offset
-  pricing.rs      dated price table, longest-prefix model match
-  collector.rs    joins processes + transcripts into a Snapshot
+crates/agent-top-core
+  model.rs        Agent, TokenUsage, ToolSpan, ProcNode, Snapshot: the shapes --json prints
+  process.rs      sysinfo scan: agent roots, child kinds, orphans
+  harness/        the HarnessAdapter trait and one adapter per harness
+  jsonl.rs        incremental line reader that remembers its byte offset
+  pricing.rs      the dated price table, longest-prefix model match
+  advice.rs       the three advice rules
+  collector.rs    joins processes and transcripts into a Snapshot
 
-crates/agent-top               ratatui front end
-  main.rs         clap flags, event loop, --once / --json, trace subcommand
-  trace.rs        session lookup, the Chrome trace event writer and the OTLP/JSON writer
-  app.rs          selection, sort, toggles, sparkline histories
-  ui.rs           header gauges, table, detail pane (tree | trace), help
-  format.rs       tokens/bytes/age/cost formatting, plain table
+crates/agent-top
+  main.rs         flags, event loop, --once and --json, the subcommands
+  app.rs          selection, sort, toggles, burn rate, sparkline histories
+  ui.rs           header, table, detail pane, popups
+  report.rs       the cross-harness cost report
+  trace.rs        session lookup, Chrome trace and OTLP/JSON writers
+  update.rs       the daily version check and the upgrade popup
+  format.rs       tokens, bytes, age and cost formatting; the plain table
 ```
 
-## Data flow per tick
+## What happens each tick
 
-```mermaid
-flowchart LR
-  P[sysinfo process table] --> F[build_forest\nagent roots, child kinds, orphans]
-  R[~/.claude/sessions/pid.json] --> A[attribute\nregistry > argv > open files > cwd heuristic]
-  F --> A
-  T[transcripts\n~/.claude/projects, ~/.codex/sessions, ~/.gemini/tmp] --> K[SessionTracker\nincremental tail]
-  A --> K
-  K --> S[Snapshot]
-  F --> S
-  S --> U[TUI / --json / --once]
-```
+Once a second, the collector runs five steps and hands the front end a new snapshot.
 
-1. **Scan.** `ProcessScanner` refreshes the process table, CPU and memory. `classify_agent` marks harness roots; `build_forest` folds children under them and labels each child `subagent`, `mcp`, `shell` or `tool`. MCP-looking processes with no agent ancestor become **orphans**.
-2. **Attribute.** For each root, the harness's `HarnessAdapter` finds its transcripts; the collector names no harness. Claude Code: the registry file keyed by pid (exact), then a `--resume <id>` argument, then the transcript in the cwd's project directory created closest after process start. Codex: the rollouts the process holds open (exact), else the newest rollout whose `session_meta.cwd` matches the process cwd, else the live rollouts started after the process. Gemini CLI: the newest session in the project directory whose `.project_root` is the process cwd, started after the process.
-3. **Tail.** A `SessionTracker` per transcript reads only the bytes appended since last tick (up to 8 MB per tick) and folds them into a `SessionSummary`: usage, cost, turns, tool calls, model, last activity, and whether the agent is mid-turn.
-3a. **Subagents.** A Claude Code session's Agent-tool calls each write their own transcript under `<session>/subagents/`; a Gemini CLI subagent writes to `chats/<session id>/`. The tracker lists that directory on each refresh, tails every file the same way, and folds the results into the parent's summary, because the harness bills and displays them as part of the session.
-3b. **Pair.** Within that same pass, each adapter feeds a `SpanLog`: a "call started" record opens a span keyed by the harness's own call id, the matching "call finished" record closes it with the elapsed wall time. The log keeps the newest `MAX_SPANS` (128) and tolerates calls that overlap, arrive out of order, or never come back — an agent runs tools in parallel, and a session can end mid-call. This costs one extra field lookup per line and no extra I/O, because the bytes are already in hand.
-3b'. **Label the gaps.** The same pass opens an inference span whenever something is submitted to the model and moves its end to each block of the reply, and opens a turn span at each human prompt and ends it at the end-of-turn marker. Both are bound to the message that first ended them, so a reply to a slash command hours later cannot stretch a finished span, and a submission that never got a reply is dropped.
-3c. **Export.** `agent-top trace` does not use the live tracker. It opens the transcript again with an unbounded `SpanLog`, drains it in one go with `refresh_all`, and writes every span; the 128 cap stays where the per-tick clone makes it necessary.
-4. **State.** Registry status if present, else transcript activity, else CPU and mtime.
-5. **Stopped sessions.** Transcripts modified inside the window (default 30 min) that no process owns are shown as `stopped`.
+![Data flow per tick: the process table and the harness registries feed attribution; attribution and the transcripts feed the tail; both feed the snapshot, which feeds every output](assets/data-flow.svg){ .bare }
 
-## Harness formats (verified 2026-09-03)
+### 1. Scan the processes
+
+`sysinfo` refreshes the process table, CPU and memory. Each process is classified: a harness root (`claude`, `codex`, `gemini`, `opencode`), or a child of one. Children are labelled `subagent`, `mcp`, `shell` or `tool` from their command line. An MCP-looking process with no agent ancestor becomes an **orphan**.
+
+### 2. Attribute each root to its transcript
+
+The collector asks the harness's adapter, and the adapter says how sure it is:
+
+- **Claude Code**: the per-pid registry file (exact), else a `--resume <id>` argument, else the transcript in the working directory's project folder created closest after the process started.
+- **Codex**: the rollout file the process holds open (exact), else the newest rollout whose recorded `cwd` matches the process, else a live rollout started after the process.
+- **Gemini CLI**: the newest session in the project directory whose `.project_root` is the process cwd, started after the process.
+- **OpenCode**: the newest session in its SQLite store whose directory matches the process cwd.
+
+The attribution is carried into the row and shown in the detail pane, so a heuristic is never mistaken for a fact.
+
+### 3. Tail the transcripts
+
+One tracker per transcript reads only the bytes appended since the last tick, at most 8 MB per tick, and folds them into a running summary: usage, cost, turns, tool calls, model, last activity, and whether the agent is mid-turn.
+
+Three things happen in that same pass, because the bytes are already in hand:
+
+- **Subagents.** A Claude Code session's subagents each write their own transcript under the session; Gemini CLI writes one per subagent under the chat. The tracker tails those too and folds them into the parent, because the harness bills and shows them as part of the session.
+- **Spans.** A "call started" record opens a span keyed by the harness's own call id; the matching "finished" record closes it with the wall time. Inference spans open when something is submitted to the model and end at the reply; turn spans run from a prompt to the end-of-turn marker. The log keeps the newest 128 spans and tolerates calls that overlap, arrive out of order, or never return.
+- **Context and MCP.** Prompt growth between responses is attributed to the tool results submitted in between, which is the context-by-source ledger; MCP calls are counted per server from the tool names or events the harness writes.
+
+`agent-top trace` and `agent-top report` do not use the live tracker. They open a transcript again with no span cap and read it in one go, which is why they work on sessions that ended long ago.
+
+### 4. Decide the state
+
+Registry status if the harness publishes one, else transcript activity, else CPU and file modification time.
+
+### 5. Add the stopped sessions
+
+A transcript modified inside the window (30 minutes by default) that no process owns is shown as `stopped`, attributed as transcript-only.
+
+## Harness formats
+
+Verified 2026-09-03. Each adapter is locked with a golden fixture, a small real transcript checked in with the exact numbers it should produce, so a regression in agent-top's own parsing is caught. An upstream format change is caught differently: a session that did work while accounting for no tokens is flagged as drift, by name, rather than shown as a believable `$0.00`.
 
 | Harness | Transcript | Usage | State |
 |---|---|---|---|
-| Claude Code 2.1.259 | `~/.claude/projects/<cwd with non-alnum → '-'>/<session>.jsonl` | `message.usage` on `assistant` lines; one API message spans several lines with the same `message.id`, so usage is deduped by id; `cache_creation.ephemeral_{5m,1h}_input_tokens` split cache writes by TTL | `~/.claude/sessions/<pid>.json` `status` (`busy`, `idle`, `shell`); fallback: last `user` line → working, `assistant` with `end_turn` → waiting |
-| Codex 0.149 | `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl` | `event_msg`/`token_count` → `info.total_token_usage`, cumulative; `input_tokens` includes `cached_input_tokens` | `task_started` → working, `task_complete`/`turn_aborted` → waiting |
-| Gemini CLI 0.58 (read from the recorder's source, 2026-09-05) | `~/.gemini/tmp/<project slug>/chats/session-<ts>-<id8>.jsonl`, `.project_root` beside `chats/` names the cwd | `tokens` on `gemini` messages, one per API response, deduped by message id; `input` includes `cached`; `thoughts` are output, `tool` is input | `user` message → working, `gemini` message → waiting, completed `toolCalls` → working |
+| Claude Code 2.1.259 | `~/.claude/projects/<cwd with non-alnum as '-'>/<session>.jsonl` | `message.usage` on `assistant` lines, deduplicated by `message.id`; cache writes split by TTL | `~/.claude/sessions/<pid>.json` status (`busy`, `idle`, `shell`); fallback: last `user` line means working, `assistant` with `end_turn` means waiting |
+| Codex 0.149 | `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl` | `token_count` events, cumulative; input includes cached input | `task_started` means working, `task_complete` or `turn_aborted` means waiting |
+| Gemini CLI 0.58 | `~/.gemini/tmp/<project>/chats/session-<ts>-<id>.jsonl`, with `.project_root` beside `chats/` | `tokens` on `gemini` messages, deduplicated by message id; thoughts count as output | `user` message means working, `gemini` message means waiting |
+| OpenCode | `~/.local/share/opencode/opencode.db`, read-only | token and cost columns on each message | message timestamps |
 
 ## Pricing
 
-USD per million tokens: Anthropic list prices cached 2026-06-24, Google paid-tier and OpenAI standard-tier prices cached 2026-09-05. Anthropic cache writes are 1.25x input (5-minute TTL) and 2x input (1-hour TTL); cache reads are 0.1x input, except Claude Fable 5.1 at $0.25. Gemini rows use the under-200k-token tier and set cache writes to the input price. Any model not in the table contributes to `unpriced_tokens` and the row's cost is displayed as a floor (`≥`) or `n/a`.
+USD per million tokens, from a table compiled into the binary and overridable per model from `~/.config/agent-top/prices.toml`. Anthropic cache writes are 1.25x input for the five-minute TTL and 2x for the hour; cache reads are 0.1x input, with one exception the table carries. Gemini rows use the under-200k-token tier. A model not in the table contributes to `unpriced_tokens` and its cost is shown as a floor, never estimated. Details in [Prices](prices.md) and [Accounting](accounting.md).
 
 ## Non-goals of the current design
 
-- No daemon, no persisted history across runs.
-- No async runtime; one blocking refresh per tick is measured at a few milliseconds for a handful of agents.
-- No control plane: nothing here sends a signal.
+- No daemon and no persisted history across runs. The report reads the transcripts each time.
+- No async runtime. One blocking refresh per tick is measured in a few milliseconds for a handful of agents.
+- No control plane. Nothing here sends a signal to a process.

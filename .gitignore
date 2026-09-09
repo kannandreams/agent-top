@@ -4,3 +4,4 @@ target/
 *.log
 site/
 __pycache__/
+.wrangler/

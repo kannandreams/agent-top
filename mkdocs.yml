@@ -5,8 +5,9 @@
 #   mise run docs:publish   # build, then upload site/ to Cloudflare Pages
 #
 # The tasks run mkdocs through uv from docs/requirements.txt; no virtualenv,
-# no pip. The site loads nothing from third parties: no web fonts, no
-# analytics, no CDN. Everything it needs is in the built `site/` directory.
+# no pip. The site serves its own font and scripts and has no analytics; the
+# one outside request a page makes is to the GitHub API, for the star, fork
+# and version badge in the header.
 
 site_name: agent-top
 site_description: htop for local coding agents. Processes, subagents, MCP servers, tokens and cost in one terminal view.
@@ -31,8 +32,8 @@ theme:
   language: en
   # No web fonts: the stylesheet names system faces instead.
   font: false
+  logo: assets/favicon.svg
   icon:
-    logo: material/console-line
     repo: fontawesome/brands/github
   favicon: assets/favicon.svg
   palette:
@@ -119,15 +120,13 @@ nav:
       - Tool trace and export: trace.md
       - Snapshots and replay: replay.md
       - Prices: prices.md
+      - Accounting: accounting.md
       - Harness support: harnesses.md
-  - The numbers:
-      - Where the numbers come from: accounting.md
-      - Why this exists: why-this-exists.md
-      - Vision: vision.md
   - Project:
+      - Why agent-top exists: why-this-exists.md
+      - Vision: vision.md
+      - The MCP leak: mcp-leak.md
       - Architecture: architecture.md
-      - Roadmap: roadmap.md
-      - Releasing: releasing.md
       - Changelog: changelog.md
       - Credits: credits.md
   - Blog:
