@@ -6,7 +6,7 @@ hide:
 
 # agent-top
 
-<p class="at-lead">htop for local coding agents. Every Claude Code, Codex, Gemini CLI and OpenCode session on your machine in one terminal view: what each one is doing, what it has spent, and which helper process it left behind.</p>
+<p class="at-lead">agent-top is a terminal dashboard for the coding agents running on your machine. It reads the transcripts the harnesses already write and the process table the OS already keeps, then shows every Claude Code, Codex, Gemini CLI and OpenCode session, and any other coding harness it can see, in one place: what each one is doing, how many tokens and dollars it has spent, and which helper processes it has left behind.</p>
 
 ```sh
 brew install kannandreams/tap/agent-top   # or: cargo binstall agent-top
