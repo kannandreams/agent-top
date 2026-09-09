@@ -125,7 +125,6 @@ nav:
   - Project:
       - Why agent-top exists: why-this-exists.md
       - Vision: vision.md
-      - The MCP leak: mcp-leak.md
       - Architecture: architecture.md
       - Changelog: changelog.md
       - Credits: credits.md

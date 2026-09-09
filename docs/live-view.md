@@ -51,7 +51,7 @@ Below it, **mcp servers** lists one row per server with its pid, calls, errors a
 
 **context** is what each tool's results added to the prompt, and what re-reading them has cost since. See [Context by source](accounting.md#context-by-source) for the method.
 
-**orphaned mcp processes** are servers with no live agent above them: the leak this tool exists to catch. Each says which agent it was orphaned from and when, or that it was already an orphan when agent-top first saw it.
+**orphaned mcp processes** are servers with no live agent above them, a leak agent-top watches for on every tick (the story is in [The MCP server that outlives its agent](blog/posts/the-server-that-outlives-its-agent.md)). Each says which agent it was orphaned from and when, or that it was already an orphan when agent-top first saw it.
 
 ![The stopped session: a transcript with no process, its MCP server with no pid, and the orphan list](screenshots/stopped-and-orphans.png)
 

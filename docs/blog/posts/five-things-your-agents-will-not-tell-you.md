@@ -30,7 +30,7 @@ Select a row and the detail pane below fills in: the session id, the working dir
 
 ## 2. The MCP server that outlived its agent
 
-**The problem.** This is the bug that made me write the tool. A harness starts an MCP server for a session. The session ends, or a subagent finishes, and the server is never told. It sits there holding memory. Do that a few hundred times and the machine starts to swap. Codex has a run of open reports about exactly this, and nothing about it is specific to Codex; every harness that spawns helper processes can leak them.
+**The problem.** A harness starts an MCP server for a session. The session ends, or a subagent finishes, and the server is never told. It sits there holding memory. Do that a few hundred times and the machine starts to swap. Codex has a run of open reports about exactly this, and nothing about it is specific to Codex; every harness that spawns helper processes can leak them. I wrote up how it happens in [The MCP server that outlives its agent](the-server-that-outlives-its-agent.md).
 
 **What agent-top shows.** The process tree under each agent, with MCP servers marked. And below it, in red, any MCP server on the machine that has no live agent above it, with the agent it was orphaned from and how long ago.
 

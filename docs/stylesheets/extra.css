@@ -388,3 +388,14 @@
     transform: none;
   }
 }
+
+/* Sidebar section labels (Guide, Project, Blog): full contrast in both modes,
+ * a size up, and a short rule under each so a group reads as a group. */
+.md-nav--primary .md-nav__item--section > .md-nav__link,
+.md-nav--primary .md-nav__item--section > .md-nav__link[for] {
+  color: var(--at-ink);
+  font-weight: 700;
+  font-size: 0.74rem;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--at-line);
+}

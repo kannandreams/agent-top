@@ -22,7 +22,7 @@ Coding agents have become long-running processes, and you tend to keep several a
 - **Every harness in one view.** Claude Code, Codex, Gemini CLI and OpenCode sessions in a single table, live or recently stopped, so you never tab between four tools to see what is running.
 - **Real tokens and cost.** Counted from the harness's own transcript, never estimated, and priced from a table you can read and edit (Anthropic, OpenAI and Google list prices). Subagents are folded into their parent.
 - **[`agent-top report`](#what-it-all-costs-agent-top-report).** What all of it has cost, across every harness, from the transcripts on disk, grouped by harness, model, project or day. The one place that adds your agent spend up together.
-- **MCP leak detection.** One row per MCP server with its call count, and orphaned servers, the memory leak this tool exists to catch, flagged in red with the agent they were orphaned from.
+- **MCP leak detection.** One row per MCP server with its call count, and orphaned servers, a memory leak agent-top watches for on every tick, flagged in red with the agent they were orphaned from.
 - **Context by source.** Which tool's results are filling the prompt, and what re-reading them on every response since has cost: a `Read` that returned 40k tokens is billed again on every turn for the rest of the session, and no harness shows that. Computed from the usage records alone; no tool output is read.
 - **Tool trace, and OpenTelemetry export.** A waterfall of every tool call, inference and turn, reconstructed from the transcript with no telemetry to switch on. Export it as a Chrome trace for Perfetto, or as OTLP JSON, and `trace --endpoint <url>` posts it straight to Jaeger, Tempo or any OpenTelemetry collector.
 - **Signals the harnesses hide.** How close each agent is to its rate limit (Codex), how much of each prompt is served from cheap cache versus paid at full price, and your live spend velocity in dollars-per-hour across every agent at once.
@@ -44,7 +44,7 @@ What to look at first:
 
 - **STATE** tells you who is working and who is waiting for you.
 - **COST** is what each session has spent so far, at list price.
-- **Red rows in the detail pane** are MCP servers whose agent has gone. They are the leak this tool exists to catch.
+- **Red rows in the detail pane** are MCP servers whose agent has gone: a leak, and one agent-top watches for on every tick.
 
 Keys: `j`/`k` move, `Tab` switches the detail pane between the process tree and the tool trace, `s` sorts, `x` hides stopped sessions, `l` opens the slowest-tools panel, `f` the failed-tools panel, `a` the advice panel, `?` shows the rest, `q` quits.
 
@@ -442,14 +442,20 @@ inspect it exactly as you saw it.
 
 ## Why this exists
 
-The failure that motivated the tool is a leaked MCP process tree: helper
-processes a harness spawns and never reaps, piling up until they leak gigabytes.
-It is a real, still-open class of bug, and it is not one vendor's. `agent-top`
-watches for the symptom rather than the vendor, so a server left alive after its
-agent died shows as a red row with the agent it came from.
+Several coding agents a day, each in its own window, none of them showing the
+others or the machine underneath: the subagents, the MCP servers, the memory
+they hold, or what the day has cost across all of them. `agent-top` is the one
+screen for that, read-only, built from the transcripts the harnesses already
+write and the process table the OS already keeps. The longer version is
+[on the docs site](https://agent-top.pages.dev/why-this-exists/).
 
-See [docs/mcp-leak.md](docs/mcp-leak.md) for the specific reports
-that motivated it and what the tool will and will not do.
+One failure it watches for deserves a mention on its own: a leaked MCP process
+tree, helper processes a harness spawns and never reaps, piling up until they
+leak gigabytes. It is a real, still-open class of bug, and it is not one
+vendor's. `agent-top` watches for the symptom rather than the vendor, so a
+server left alive after its agent died shows as a red row with the agent it
+came from. How that happens, with the reports, is in
+[The MCP server that outlives its agent](https://agent-top.pages.dev/blog/the-server-that-outlives-its-agent/).
 
 ## Where the numbers come from
 
