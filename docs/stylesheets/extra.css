@@ -1,15 +1,28 @@
 /* agent-top docs theme.
  *
- * Flat grey ground, one cobalt blue, monospace for anything that is a label
- * (the header, navigation, headings, tables, cards) and a plain sans for
- * running text. The header is the same colour as the page in both modes, so
- * there is one background, not two. Nothing is loaded from outside the site.
+ * Flat grey ground, one cobalt blue. One sans for every word on the page,
+ * the system's own; JetBrains Mono, served from this site, for code. The
+ * header is the same colour as the page in both modes, so there is one
+ * background, not two. The only outside request the site makes is to the
+ * GitHub API for the star, fork and version badge in the header.
  */
 
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("../assets/fonts/JetBrainsMono.woff2") format("woff2");
+}
+
 :root {
-  --md-text-font: "Avenir Next", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
-  --md-code-font: "JetBrains Mono", "IBM Plex Mono", "SF Mono", "Cascadia Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --md-text-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --md-code-font: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
   --at-mono: var(--md-code-font);
+  /* Command blocks are dark in both modes, like the terminal they quote. */
+  --at-block: #1b1e26;
+  --at-block-line: #2c3140;
+  --at-block-fg: #dfe3ea;
 }
 
 [data-md-color-scheme="default"] {
@@ -99,9 +112,9 @@
   box-shadow: none;
   border-bottom: 1px solid var(--at-line);
 }
-.md-header__title,
-.md-header__button.md-logo {
-  font-family: var(--at-mono);
+.md-header__button.md-logo img {
+  height: 1.3rem;
+  width: 1.3rem;
 }
 .md-header__title {
   font-weight: 700;
@@ -129,14 +142,19 @@
 .md-search__input::placeholder {
   color: var(--at-muted);
 }
+/* The repository link: room for the full name, facts underneath. */
 .md-header__source {
-  font-family: var(--at-mono);
+  width: auto;
+  max-width: 18rem;
+  margin-left: 1rem;
+}
+.md-source__repository {
+  max-width: none;
 }
 
 /* Navigation and table of contents in mono; the current page in blue. */
 .md-nav {
-  font-family: var(--at-mono);
-  font-size: 0.66rem;
+  font-size: 0.68rem;
 }
 .md-nav__title {
   color: var(--at-muted);
@@ -159,9 +177,9 @@
 .md-typeset h2,
 .md-typeset h3,
 .md-typeset h4 {
-  font-family: var(--at-mono);
   color: var(--at-ink);
   letter-spacing: -0.01em;
+  text-wrap: balance;
 }
 .md-typeset h1 {
   font-weight: 700;
@@ -192,14 +210,45 @@
   color: var(--at-ink);
 }
 
-/* Code and tables: flat panels with a hairline. */
+/* Code. Inline code sits on a light panel; a block is a dark terminal panel
+ * in both modes, with highlight colours chosen for that dark ground. */
 .md-typeset code {
   border-radius: 4px;
   padding: 0.05em 0.35em;
+  font-size: 0.78em;
 }
 .md-typeset pre > code {
+  font-size: 0.72rem;
+  line-height: 1.6;
+  padding: 0.9em 1.1em;
   border-radius: 6px;
-  border: 1px solid var(--at-line);
+  border: 1px solid var(--at-block-line);
+  background: var(--at-block);
+  color: var(--at-block-fg);
+}
+.md-typeset pre,
+.md-typeset .highlight {
+  --md-code-bg-color: var(--at-block);
+  --md-code-fg-color: var(--at-block-fg);
+  --md-code-hl-color: rgba(106, 144, 246, 0.18);
+  --md-code-hl-number-color: #f0a05a;
+  --md-code-hl-special-color: #f07aa0;
+  --md-code-hl-function-color: #c9a0f0;
+  --md-code-hl-constant-color: #a5b4fc;
+  --md-code-hl-keyword-color: #7fa3ff;
+  --md-code-hl-string-color: #7dd3a0;
+  --md-code-hl-name-color: var(--at-block-fg);
+  --md-code-hl-operator-color: #9aa1b0;
+  --md-code-hl-punctuation-color: #9aa1b0;
+  --md-code-hl-comment-color: #7b8394;
+  --md-code-hl-generic-color: #9aa1b0;
+  --md-code-hl-variable-color: #dfe3ea;
+}
+.md-typeset .md-clipboard {
+  color: #7b8394;
+}
+.md-typeset .md-clipboard:hover {
+  color: #dfe3ea;
 }
 .md-typeset table:not([class]) {
   border: 1px solid var(--at-line);
@@ -209,8 +258,7 @@
 .md-typeset table:not([class]) th {
   background: var(--at-panel);
   color: var(--at-muted);
-  font-family: var(--at-mono);
-  font-weight: 700;
+  font-weight: 600;
 }
 .md-typeset table:not([class]) td code {
   white-space: nowrap;
@@ -228,14 +276,17 @@
   border-radius: 0;
 }
 
-/* Home page lead. */
+/* Home page lead: the body face, a size up, wrapped so no line is left short. */
 .at-lead {
-  font-family: var(--at-mono);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   line-height: 1.6;
   color: var(--at-ink);
-  max-width: 40em;
+  max-width: 38em;
   margin: 0 0 1.4em;
+  text-wrap: pretty;
+}
+.md-typeset p {
+  text-wrap: pretty;
 }
 
 /* Credits: cards in the spirit of charm.land. A quiet border at rest, a blue
@@ -291,7 +342,6 @@
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
-  font-family: var(--at-mono);
   font-weight: 700;
   font-size: 0.85rem;
   margin: 0 0 0.25rem;
@@ -327,7 +377,6 @@
 }
 .md-post__header,
 .md-post__meta {
-  font-family: var(--at-mono);
   color: var(--at-muted);
 }
 

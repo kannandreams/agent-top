@@ -109,6 +109,20 @@ agent-top is one static binary, and most of what makes it work was written by ot
 <span class="at-link">squidfunk.github.io/mkdocs-material</span>
 </a>
 
+<a class="at-card" href="https://www.jetbrains.com/lp/mono/">
+<span class="at-mark clay">jb</span>
+<span class="at-name">JetBrains Mono <span class="at-tag">Type</span></span>
+<p>The face every command and code block on this site is set in, served from the site itself under the SIL Open Font License.</p>
+<span class="at-link">jetbrains.com/lp/mono</span>
+</a>
+
+<a class="at-card" href="https://mermaid.js.org">
+<span class="at-mark clay">mm</span>
+<span class="at-name">Mermaid <span class="at-tag">Diagrams</span></span>
+<p>Draws the data-flow diagram on the architecture page, rendered to SVG at writing time so the page loads no script.</p>
+<span class="at-link">mermaid.js.org</span>
+</a>
+
 <a class="at-card" href="https://pages.cloudflare.com">
 <span class="at-mark clay">cf</span>
 <span class="at-name">Cloudflare Pages <span class="at-tag">Hosting</span></span>

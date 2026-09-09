@@ -1,4 +1,4 @@
-# Where agent-top's numbers come from
+# Accounting
 
 The whole point of this tool is that its numbers are right, so it is explicit
 about which ones are exact and which are inferred.

@@ -1,5 +1,7 @@
 ---
 title: Changelog
+hide:
+  - toc
 ---
 
 # Changelog
