@@ -70,6 +70,7 @@ extra_css:
 
 hooks:
   - docs/hooks/changelog_links.py
+  - docs/hooks/cache_bust.py
 
 extra:
   generator: false
