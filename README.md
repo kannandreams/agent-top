@@ -11,7 +11,7 @@
 
 Coding agents have become long-running processes, and you tend to keep several at once, each in its own window with its own cost and its own leaks. No single harness shows them together. `agent-top` does, the way `htop` does it for processes and `btop` for the whole machine. At a glance you can see which agent is burning tokens, which is waiting on you, and which MCP server is still alive after the agent that started it died.
 
-**Docs: [agent-top.pages.dev](https://agent-top.pages.dev)**, including [the blog](https://agent-top.pages.dev/blog/) and a guide to every panel.
+**Docs: [agenttop.dev](https://agenttop.dev)**, including [the blog](https://agenttop.dev/blog/) and a guide to every panel.
 
 ![agent-top](https://raw.githubusercontent.com/kannandreams/agent-top/main/docs/demo.gif)
 
@@ -447,7 +447,7 @@ others or the machine underneath: the subagents, the MCP servers, the memory
 they hold, or what the day has cost across all of them. `agent-top` is the one
 screen for that, read-only, built from the transcripts the harnesses already
 write and the process table the OS already keeps. The longer version is
-[on the docs site](https://agent-top.pages.dev/why-this-exists/).
+[on the docs site](https://agenttop.dev/why-this-exists/).
 
 One failure it watches for deserves a mention on its own: a leaked MCP process
 tree, helper processes a harness spawns and never reaps, piling up until they
@@ -455,7 +455,7 @@ leak gigabytes. It is a real, still-open class of bug, and it is not one
 vendor's. `agent-top` watches for the symptom rather than the vendor, so a
 server left alive after its agent died shows as a red row with the agent it
 came from. How that happens, with the reports, is in
-[The MCP server that outlives its agent](https://agent-top.pages.dev/blog/the-server-that-outlives-its-agent/).
+[The MCP server that outlives its agent](https://agenttop.dev/blog/the-server-that-outlives-its-agent/).
 
 ## Where the numbers come from
 
