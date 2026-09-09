@@ -6,31 +6,31 @@ agent-top is a single Rust binary, MIT licensed, source at https://github.com/ka
 
 ## Start here
 
-- [Home](https://agent-top.pages.dev/): what agent-top is and the one-line install.
-- [Getting started](https://agent-top.pages.dev/getting-started/): install, first run, every key.
-- [Why agent-top exists](https://agent-top.pages.dev/why-this-exists/): the problem it solves and where it is going.
+- [Home](https://agenttop.dev/): what agent-top is and the one-line install.
+- [Getting started](https://agenttop.dev/getting-started/): install, first run, every key.
+- [Why agent-top exists](https://agenttop.dev/why-this-exists/): the problem it solves and where it is going.
 
 ## Guide
 
-- [The live view](https://agent-top.pages.dev/live-view/): the header, the agents table, the process tree, the tool trace, MCP servers, context by source, advice.
-- [Cost report](https://agent-top.pages.dev/report/): `agent-top report`, cross-harness cost and tokens by harness, model, project or day.
-- [Tool trace and export](https://agent-top.pages.dev/trace/): `agent-top trace`, Chrome trace and OTLP/JSON export.
-- [Snapshots and replay](https://agent-top.pages.dev/replay/): `--json` and `--replay`, for bug reports and demos.
-- [Prices](https://agent-top.pages.dev/prices/): the built-in price table and overriding it.
-- [Accounting](https://agent-top.pages.dev/accounting/): where every number comes from.
-- [Harness support](https://agent-top.pages.dev/harnesses/): what is read from each of Claude Code, Codex, Gemini CLI and OpenCode.
+- [The live view](https://agenttop.dev/live-view/): the header, the agents table, the process tree, the tool trace, MCP servers, context by source, advice.
+- [Cost report](https://agenttop.dev/report/): `agent-top report`, cross-harness cost and tokens by harness, model, project or day.
+- [Tool trace and export](https://agenttop.dev/trace/): `agent-top trace`, Chrome trace and OTLP/JSON export.
+- [Snapshots and replay](https://agenttop.dev/replay/): `--json` and `--replay`, for bug reports and demos.
+- [Prices](https://agenttop.dev/prices/): the built-in price table and overriding it.
+- [Accounting](https://agenttop.dev/accounting/): where every number comes from.
+- [Harness support](https://agenttop.dev/harnesses/): what is read from each of Claude Code, Codex, Gemini CLI and OpenCode.
 
 ## Project
 
-- [Vision](https://agent-top.pages.dev/vision/): what agent-top is and is not.
-- [Architecture](https://agent-top.pages.dev/architecture/): the two-crate workspace and what happens on every tick.
-- [Changelog](https://agent-top.pages.dev/changelog/): every release.
-- [Credits](https://agent-top.pages.dev/credits/): what it is built on.
+- [Vision](https://agenttop.dev/vision/): what agent-top is and is not.
+- [Architecture](https://agenttop.dev/architecture/): the two-crate workspace and what happens on every tick.
+- [Changelog](https://agenttop.dev/changelog/): every release.
+- [Credits](https://agenttop.dev/credits/): what it is built on.
 
 ## Blog
 
-- [Five things agent-top shows that your agents will not](https://agent-top.pages.dev/blog/five-things-your-agents-will-not-tell-you/)
-- [The MCP server that outlives its agent](https://agent-top.pages.dev/blog/the-server-that-outlives-its-agent/)
+- [Five things agent-top shows that your agents will not](https://agenttop.dev/blog/five-things-your-agents-will-not-tell-you/)
+- [The MCP server that outlives its agent](https://agenttop.dev/blog/the-server-that-outlives-its-agent/)
 
 ## Optional
 

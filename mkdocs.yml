@@ -11,7 +11,7 @@
 
 site_name: agent-top
 site_description: htop for local coding agents. Processes, subagents, MCP servers, tokens and cost in one terminal view.
-site_url: https://agent-top.pages.dev
+site_url: https://agenttop.dev
 repo_url: https://github.com/kannandreams/agent-top
 repo_name: kannandreams/agent-top
 edit_uri: edit/main/docs/
