@@ -136,3 +136,44 @@ crates.io so a retried job does not fail on what already landed.
 (roughly 75 stars, forks or watchers) and has a stable, versioned release
 history. Until then the tap is the distribution channel, and it is the one
 users get from `brew install kannandreams/tap/agent-top`.
+
+## The docs site
+
+The site at [agent-top.pages.dev](https://agent-top.pages.dev) is built from
+`docs/` by Material for MkDocs (`mkdocs.yml` at the repository root) and hosted
+on Cloudflare Pages through its Git integration. There is no deploy step in
+this repository and no token anywhere in it: Cloudflare pulls the `main`
+branch and builds it. The CI workflow `docs.yml` runs the same build in strict
+mode on every pull request that touches the docs, so a broken link fails the
+PR rather than the deploy.
+
+Cloudflare Pages project settings, once, in the dashboard:
+
+| Setting | Value |
+|---|---|
+| Production branch | `main` |
+| Build command | `pip install -r docs/requirements.txt && mkdocs build --strict` |
+| Build output directory | `site` |
+| Environment variable | `PYTHON_VERSION=3.12` |
+
+`docs/_headers` is copied into the output and sets the response headers.
+Preview deployments are built for pull requests automatically.
+
+To work on the site locally:
+
+```sh
+uv venv .venv && uv pip install -r docs/requirements.txt
+.venv/bin/mkdocs serve     # http://127.0.0.1:8000, rebuilds on save
+```
+
+Screenshots are made from the synthetic snapshot, never a live machine:
+
+```sh
+cargo build --release
+vhs docs/screenshots.tape   # the live-view screenshots in docs/screenshots/
+vhs docs/demo.tape          # the README animation
+```
+
+The report screenshots are `freeze --execute "agent-top report ..."` on the
+release machine's own history; a cost total gives nothing away, so those are
+real.

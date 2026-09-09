@@ -1,0 +1,133 @@
+# Documentation site for agent-top, built with Material for MkDocs.
+#
+#   uv venv .venv && uv pip install -r docs/requirements.txt
+#   .venv/bin/mkdocs serve          # http://127.0.0.1:8000
+#   .venv/bin/mkdocs build --strict # what CI and Cloudflare Pages run
+#
+# The site loads nothing from third parties: no web fonts, no analytics, no
+# CDN. Everything it needs is in the built `site/` directory.
+
+site_name: agent-top
+site_description: htop for local coding agents. Processes, subagents, MCP servers, tokens and cost in one terminal view.
+site_url: https://agent-top.pages.dev
+repo_url: https://github.com/kannandreams/agent-top
+repo_name: kannandreams/agent-top
+edit_uri: edit/main/docs/
+copyright: MIT licensed. Made by Kannan Kalidasan.
+
+docs_dir: docs
+site_dir: site
+strict: true
+
+# Recording scripts are source, not pages.
+exclude_docs: |
+  *.tape
+  requirements.txt
+  hooks/
+
+theme:
+  name: material
+  language: en
+  # No web fonts: the stylesheet names system faces instead.
+  font: false
+  icon:
+    logo: material/console-line
+    repo: fontawesome/brands/github
+  favicon: assets/favicon.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Dark
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Light
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - navigation.tracking
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+
+extra_css:
+  - stylesheets/extra.css
+
+hooks:
+  - docs/hooks/changelog_links.py
+
+extra:
+  generator: true
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kannandreams/agent-top
+      name: agent-top on GitHub
+    - icon: fontawesome/solid/cube
+      link: https://crates.io/crates/agent-top
+      name: agent-top on crates.io
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets:
+      base_path:
+        - .
+      check_paths: true
+
+plugins:
+  - search
+  - blog:
+      blog_dir: blog
+      blog_toc: true
+      post_url_format: "{slug}"
+      post_excerpt: required
+      authors_file: "{blog}/.authors.yml"
+      archive: false
+      categories: false
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Guide:
+      - The live view: live-view.md
+      - Cost report: report.md
+      - Tool trace and export: trace.md
+      - Snapshots and replay: replay.md
+      - Prices: prices.md
+      - Harness support: harnesses.md
+  - The numbers:
+      - Where the numbers come from: accounting.md
+      - Why this exists: why-this-exists.md
+      - Vision: vision.md
+  - Project:
+      - Architecture: architecture.md
+      - Roadmap: roadmap.md
+      - Releasing: releasing.md
+      - Changelog: changelog.md
+      - Credits: credits.md
+  - Blog:
+      - blog/index.md

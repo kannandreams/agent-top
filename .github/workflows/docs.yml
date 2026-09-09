@@ -1,0 +1,35 @@
+name: Docs
+
+# Builds the documentation site the way Cloudflare Pages does, in strict mode,
+# so a broken link or a missing screenshot fails the pull request rather than
+# the deploy. Nothing is deployed from here and no secret is needed: Cloudflare
+# Pages builds from the main branch through its own Git integration.
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", "mkdocs.yml", "CHANGELOG.md", ".github/workflows/docs.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["docs/**", "mkdocs.yml", "CHANGELOG.md", ".github/workflows/docs.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Install the site builder
+        run: pip install -r docs/requirements.txt
+
+      - name: Build the site (strict)
+        run: mkdocs build --strict

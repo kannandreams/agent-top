@@ -1,0 +1,291 @@
+/* agent-top docs theme.
+ *
+ * Ground: pale green paper. Identity: deep green, used for the header, links
+ * and headings. Terracotta is the only warm colour and it is spent on one
+ * thing: what you are about to click. Nothing is loaded from outside the
+ * site, so the type is a system stack.
+ */
+
+:root {
+  --md-text-font: "Avenir Next", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --md-code-font: "JetBrains Mono", "SF Mono", "Cascadia Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+
+  --at-paper: #f8faf6;
+  --at-panel: #edf2e8;
+  --at-line: #dce9d9;
+  --at-moss: #375e48;
+  --at-moss-deep: #294736;
+  --at-sage: #5c7265;
+  --at-ink: #1f2a23;
+  --at-clay: #b05139;
+  --at-clay-deep: #a44c37;
+  --at-straw: #f4d891;
+}
+
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: var(--at-moss);
+  --md-primary-fg-color--light: #4d7a5f;
+  --md-primary-fg-color--dark: var(--at-moss-deep);
+  --md-primary-bg-color: var(--at-paper);
+  --md-primary-bg-color--light: rgba(248, 250, 246, 0.7);
+
+  --md-accent-fg-color: var(--at-clay);
+  --md-accent-fg-color--transparent: rgba(176, 81, 57, 0.1);
+  --md-accent-bg-color: var(--at-paper);
+
+  --md-default-bg-color: var(--at-paper);
+  --md-default-fg-color: var(--at-ink);
+  --md-default-fg-color--light: #3e4f44;
+  --md-default-fg-color--lighter: #8a9c8e;
+  --md-default-fg-color--lightest: var(--at-line);
+
+  --md-typeset-a-color: var(--at-moss);
+  --md-typeset-mark-color: rgba(244, 216, 145, 0.6);
+
+  --md-code-bg-color: var(--at-panel);
+  --md-code-fg-color: #2b3a31;
+  --md-code-hl-color: rgba(244, 216, 145, 0.35);
+
+  --md-admonition-fg-color: var(--at-ink);
+  --md-footer-bg-color: var(--at-moss-deep);
+  --md-footer-bg-color--dark: #1f3529;
+  --md-footer-fg-color: #e6ecde;
+  --md-footer-fg-color--light: #b8cbb9;
+  --md-footer-fg-color--lighter: #8ead92;
+}
+
+[data-md-color-scheme="slate"] {
+  --at-paper: #16201b;
+  --at-panel: #1f2b24;
+  --at-line: #2c3b32;
+  --at-ink: #e6ecde;
+  --at-sage: #8ead92;
+  --at-clay: #d9765a;
+  --at-clay-deep: #e28a70;
+
+  --md-primary-fg-color: #1f3529;
+  --md-primary-fg-color--light: #2c4a39;
+  --md-primary-fg-color--dark: #16281f;
+  --md-primary-bg-color: #e6ecde;
+
+  --md-accent-fg-color: var(--at-clay);
+  --md-accent-fg-color--transparent: rgba(217, 118, 90, 0.12);
+
+  --md-default-bg-color: var(--at-paper);
+  --md-default-fg-color: var(--at-ink);
+  --md-default-fg-color--light: #c3d1bc;
+  --md-default-fg-color--lighter: #8a9c8e;
+  --md-default-fg-color--lightest: var(--at-line);
+
+  --md-typeset-a-color: #8ead92;
+  --md-typeset-mark-color: rgba(244, 216, 145, 0.25);
+
+  --md-code-bg-color: var(--at-panel);
+  --md-code-fg-color: #dce4d7;
+  --md-code-hl-color: rgba(244, 216, 145, 0.18);
+
+  --md-admonition-fg-color: var(--at-ink);
+  --md-footer-bg-color: #101713;
+  --md-footer-bg-color--dark: #0f1512;
+}
+
+/* Type. One family, a clear scale, measure under 80 characters. */
+.md-typeset {
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+.md-typeset h1 {
+  color: var(--at-moss);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.6em;
+}
+[data-md-color-scheme="slate"] .md-typeset h1 {
+  color: #b8cbb9;
+}
+.md-typeset h2 {
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  margin-top: 2.2em;
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid var(--at-line);
+}
+.md-typeset h3 {
+  font-weight: 600;
+}
+.md-grid {
+  max-width: 68rem;
+}
+.md-typeset a {
+  text-decoration-color: var(--at-line);
+  text-underline-offset: 0.15em;
+}
+.md-typeset a:hover,
+.md-typeset a:focus {
+  color: var(--at-clay);
+  text-decoration-color: var(--at-clay);
+}
+
+/* Code and tables. */
+.md-typeset code {
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+}
+.md-typeset pre > code {
+  border-radius: 8px;
+  border: 1px solid var(--at-line);
+}
+.md-typeset table:not([class]) {
+  border: 1px solid var(--at-line);
+  border-radius: 8px;
+  font-size: 0.74rem;
+}
+.md-typeset table:not([class]) th {
+  background: var(--at-panel);
+  color: var(--at-sage);
+  font-weight: 600;
+}
+
+/* Screenshots: bordered like a window, never wider than the text column. */
+.md-typeset img {
+  border-radius: 10px;
+  border: 1px solid var(--at-line);
+  display: block;
+  margin: 1.2em auto;
+}
+.md-typeset img.bare {
+  border: 0;
+  border-radius: 0;
+}
+
+/* Header and nav. */
+.md-header {
+  box-shadow: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.md-header__title {
+  font-weight: 700;
+}
+.md-nav__item .md-nav__link--active {
+  color: var(--at-clay);
+  font-weight: 600;
+}
+.md-nav__title {
+  color: var(--at-sage);
+}
+
+/* Home page lead. */
+.at-lead {
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--at-sage);
+  max-width: 34em;
+  margin: 0 0 1.6em;
+}
+.at-install {
+  display: inline-block;
+  margin: 0 0 1.2em;
+}
+
+/* Credits: cards in the spirit of charm.land. A quiet border at rest, a
+ * terracotta edge and a small lift when pointed at. */
+.at-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.9rem;
+  margin: 1.2em 0 2em;
+}
+.at-cards a.at-card,
+.at-cards div.at-card {
+  display: block;
+  position: relative;
+  padding: 1rem 1.1rem 1.05rem;
+  border: 1px solid var(--at-line);
+  border-radius: 14px;
+  background: var(--at-panel);
+  color: var(--md-default-fg-color);
+  text-decoration: none;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+.at-cards a.at-card:hover,
+.at-cards a.at-card:focus-visible {
+  border-color: var(--at-clay);
+  color: var(--md-default-fg-color);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px -14px rgba(41, 71, 54, 0.45);
+  outline: none;
+}
+.at-card .at-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 9px;
+  margin-bottom: 0.7rem;
+  font-family: var(--md-code-font);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--at-paper);
+  background: var(--at-moss);
+}
+[data-md-color-scheme="slate"] .at-card .at-mark {
+  color: #16201b;
+  background: #8ead92;
+}
+.at-card .at-mark.clay {
+  background: var(--at-clay);
+}
+.at-card .at-mark.straw {
+  background: var(--at-straw);
+  color: #5a4a1a;
+}
+.at-card .at-name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin: 0 0 0.25rem;
+}
+.at-card .at-tag {
+  font-weight: 500;
+  font-size: 0.68rem;
+  color: var(--at-sage);
+}
+.at-card p {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--md-default-fg-color--light);
+}
+.at-card .at-link {
+  display: block;
+  margin-top: 0.6rem;
+  font-size: 0.68rem;
+  font-family: var(--md-code-font);
+  color: var(--at-sage);
+}
+.at-cards a.at-card:hover .at-link {
+  color: var(--at-clay);
+}
+
+/* Blog cards on the index. */
+.md-post--excerpt {
+  border: 1px solid var(--at-line);
+  border-radius: 14px;
+  padding: 1.2rem 1.4rem;
+  background: var(--at-panel);
+}
+.md-post__header {
+  color: var(--at-sage);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .at-cards a.at-card {
+    transition: none;
+  }
+  .at-cards a.at-card:hover {
+    transform: none;
+  }
+}

@@ -1,602 +1,1767 @@
 {
-  "schema_version": 1,
-  "taken_at": {
-    "secs_since_epoch": 1788400000,
-    "nanos_since_epoch": 412000000
-  },
-  "host": {
-    "hostname": "workbench",
-    "cpu_percent": 34.2,
-    "cpu_count": 12,
-    "mem_used_bytes": 22978075033,
-    "mem_total_bytes": 34359738368
-  },
-  "agents": [
+ "schema_version": 1,
+ "taken_at": {
+  "secs_since_epoch": 1788400000,
+  "nanos_since_epoch": 412000000
+ },
+ "host": {
+  "hostname": "workbench",
+  "cpu_percent": 34.2,
+  "cpu_count": 12,
+  "mem_used_bytes": 22978075033,
+  "mem_total_bytes": 34359738368
+ },
+ "agents": [
+  {
+   "id": "pid:6980",
+   "name": "api-gateway",
+   "harness": "claude",
+   "state": "running",
+   "activity": "working",
+   "pid": 6980,
+   "session_id": "9f2c1a4e-6b30-4d1f-9a52-0c7e1b884d31",
+   "session_path": "/Users/dev/.claude/projects/-Users-dev-code-api-gateway/9f2c1a4e-6b30-4d1f-9a52-0c7e1b884d31.jsonl",
+   "cwd": "/Users/dev/code/api-gateway",
+   "model": "claude-opus-5",
+   "harness_version": "2.1.259",
+   "usage": {
+    "input": 3200,
+    "cache_write_5m": 0,
+    "cache_write_1h": 96400,
+    "cache_read": 4812000,
+    "output": 41300
+   },
+   "cost_usd": 4.4385,
+   "cost_breakdown": {
+    "input": 0.016,
+    "cache_write_5m": 0.0,
+    "cache_write_1h": 0.964,
+    "cache_read": 2.406,
+    "output": 1.0325,
+    "web_search": 0.02
+   },
+   "price_source": "builtin",
+   "unpriced_tokens": 0,
+   "turns": 34,
+   "subagent_turns": 6,
+   "tool_calls": 128,
+   "web_searches": 2,
+   "spans": [
     {
-      "id": "pid:6980",
-      "name": "api-gateway",
-      "harness": "claude",
-      "state": "running",
-      "activity": "working",
-      "pid": 6980,
-      "session_id": "9f2c1a4e-6b30-4d1f-9a52-0c7e1b884d31",
-      "session_path": null,
-      "cwd": "/Users/dev/code/api-gateway",
-      "model": "claude-opus-5",
-      "harness_version": "2.1.259",
-      "usage": {
-        "input": 1240,
-        "cache_write_5m": 0,
-        "cache_write_1h": 41800,
-        "cache_read": 892400,
-        "output": 12600
-      },
-      "cost_usd": 6.41,
-      "unpriced_tokens": 0,
-      "turns": 34,
-      "subagent_turns": 6,
-      "tool_calls": 128,
-      "spans": [
-        {
-          "id": "toolu_0001",
-          "name": "Read",
-          "started_at": {
-            "secs_since_epoch": 1788399786,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 38,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0002",
-          "name": "Read",
-          "started_at": {
-            "secs_since_epoch": 1788399787,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 44,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0003",
-          "name": "Grep",
-          "started_at": {
-            "secs_since_epoch": 1788399788,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 121,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0004",
-          "name": "Bash",
-          "started_at": {
-            "secs_since_epoch": 1788399795,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 6420,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0005",
-          "name": "Edit",
-          "started_at": {
-            "secs_since_epoch": 1788399804,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 96,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0006",
-          "name": "Task",
-          "started_at": {
-            "secs_since_epoch": 1788399810,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 24800,
-          "sidechain": true,
-          "error": false
-        },
-        {
-          "id": "toolu_0007",
-          "name": "Read",
-          "started_at": {
-            "secs_since_epoch": 1788399811,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 51,
-          "sidechain": true,
-          "error": false
-        },
-        {
-          "id": "toolu_0008",
-          "name": "Grep",
-          "started_at": {
-            "secs_since_epoch": 1788399813,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 402,
-          "sidechain": true,
-          "error": false
-        },
-        {
-          "id": "toolu_0009",
-          "name": "Bash",
-          "started_at": {
-            "secs_since_epoch": 1788399840,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 47900,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0010",
-          "name": "Edit",
-          "started_at": {
-            "secs_since_epoch": 1788399890,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 88,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0011",
-          "name": "Bash",
-          "started_at": {
-            "secs_since_epoch": 1788399896,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 1850,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0012",
-          "name": "WebFetch",
-          "started_at": {
-            "secs_since_epoch": 1788399904,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 2310,
-          "sidechain": false,
-          "error": true
-        },
-        {
-          "id": "toolu_0013",
-          "name": "Read",
-          "started_at": {
-            "secs_since_epoch": 1788399912,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 62,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0014",
-          "name": "Edit",
-          "started_at": {
-            "secs_since_epoch": 1788399920,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 74,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0015",
-          "name": "Bash",
-          "started_at": {
-            "secs_since_epoch": 1788399938,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 31500,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0016",
-          "name": "Bash",
-          "started_at": {
-            "secs_since_epoch": 1788399988,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": null,
-          "sidechain": false,
-          "error": false
-        }
-      ],
-      "age_secs": 2214,
-      "idle_secs": 3,
-      "cpu_percent": 102.3,
-      "rss_bytes": 931135488,
-      "process_count": 4,
-      "mcp_count": 2,
-      "tree": {
-        "pid": 6980,
-        "ppid": 1,
-        "name": "claude",
-        "cmdline": "claude --resume 9f2c1a4e",
-        "kind": "agent",
-        "harness": "claude",
-        "cpu_percent": 12.4,
-        "rss_bytes": 536870912,
-        "age_secs": 2214,
-        "cwd": null,
-        "children": [
-          {
-            "pid": 7042,
-            "ppid": 6980,
-            "name": "node",
-            "cmdline": "npx -y @modelcontextprotocol/server-github",
-            "kind": "mcp",
-            "harness": null,
-            "cpu_percent": 0.6,
-            "rss_bytes": 77594624,
-            "age_secs": 2210,
-            "cwd": null,
-            "children": []
-          },
-          {
-            "pid": 7043,
-            "ppid": 6980,
-            "name": "node",
-            "cmdline": "npx -y @modelcontextprotocol/server-postgres",
-            "kind": "mcp",
-            "harness": null,
-            "cpu_percent": 0.4,
-            "rss_bytes": 63963136,
-            "age_secs": 2210,
-            "cwd": null,
-            "children": []
-          },
-          {
-            "pid": 9120,
-            "ppid": 6980,
-            "name": "zsh",
-            "cmdline": "/bin/zsh -c cargo test --workspace",
-            "kind": "shell",
-            "harness": null,
-            "cpu_percent": 1.1,
-            "rss_bytes": 3145728,
-            "age_secs": 31,
-            "cwd": null,
-            "children": [
-              {
-                "pid": 9121,
-                "ppid": 9120,
-                "name": "cargo",
-                "cmdline": "cargo test --workspace",
-                "kind": "tool",
-                "harness": null,
-                "cpu_percent": 88.2,
-                "rss_bytes": 356515840,
-                "age_secs": 31,
-                "cwd": null,
-                "children": []
-              }
-            ]
-          }
-        ]
-      },
-      "attribution": "harness-registry"
+     "id": "turn:34",
+     "name": "turn",
+     "started_at": {
+      "secs_since_epoch": 1788399786,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": null,
+     "sidechain": false,
+     "error": false,
+     "kind": "turn"
     },
     {
-      "id": "pid:7161",
-      "name": "docs-site",
-      "harness": "claude",
-      "state": "running",
-      "activity": "working",
-      "pid": 7161,
-      "session_id": "4c1d77a0-2e18-4a90-b5c3-9d2f6e0a1177",
-      "session_path": null,
-      "cwd": "/Users/dev/code/docs-site",
-      "model": "claude-sonnet-5",
-      "harness_version": "2.1.259",
-      "usage": {
-        "input": 680,
-        "cache_write_5m": 9400,
-        "cache_write_1h": 214900,
-        "cache_read": 4100,
-        "output": 0
-      },
-      "cost_usd": 0.98,
-      "unpriced_tokens": 0,
-      "turns": 11,
-      "subagent_turns": 2,
-      "tool_calls": 37,
-      "spans": [
-        {
-          "id": "toolu_0020",
-          "name": "Read",
-          "started_at": {
-            "secs_since_epoch": 1788399904,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 41,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0021",
-          "name": "Edit",
-          "started_at": {
-            "secs_since_epoch": 1788399909,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 120,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0022",
-          "name": "Bash",
-          "started_at": {
-            "secs_since_epoch": 1788399922,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 3900,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0023",
-          "name": "Read",
-          "started_at": {
-            "secs_since_epoch": 1788399940,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 55,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0024",
-          "name": "Bash",
-          "started_at": {
-            "secs_since_epoch": 1788399966,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": 12700,
-          "sidechain": false,
-          "error": false
-        },
-        {
-          "id": "toolu_0025",
-          "name": "Edit",
-          "started_at": {
-            "secs_since_epoch": 1788399992,
-            "nanos_since_epoch": 0
-          },
-          "duration_ms": null,
-          "sidechain": false,
-          "error": false
-        }
-      ],
-      "age_secs": 640,
-      "idle_secs": 1,
-      "cpu_percent": 5.2,
-      "rss_bytes": 627048448,
-      "process_count": 2,
-      "mcp_count": 0,
-      "tree": {
-        "pid": 7161,
-        "ppid": 1,
-        "name": "claude",
-        "cmdline": "claude",
-        "kind": "agent",
-        "harness": "claude",
-        "cpu_percent": 3.2,
-        "rss_bytes": 406847488,
-        "age_secs": 640,
-        "cwd": null,
-        "children": [
-          {
-            "pid": 7180,
-            "ppid": 7161,
-            "name": "claude",
-            "cmdline": "claude -p review the diff",
-            "kind": "subagent",
-            "harness": "claude",
-            "cpu_percent": 2.0,
-            "rss_bytes": 220200960,
-            "age_secs": 96,
-            "cwd": null,
-            "children": []
-          }
-        ]
-      },
-      "attribution": "harness-registry"
+     "id": "Read:1",
+     "name": "Read",
+     "started_at": {
+      "secs_since_epoch": 1788399786,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 38,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
     },
     {
-      "id": "pid:7422",
-      "name": "codex:payments",
-      "harness": "codex",
-      "state": "idle",
-      "activity": "waiting",
-      "pid": 7422,
-      "session_id": "019e286b-530f-7922-9c59-5c34a604aa24",
-      "session_path": null,
-      "cwd": "/Users/dev/code/payments",
-      "model": "gpt-5-codex",
-      "harness_version": "0.149.1",
-      "usage": {
-        "input": 31200,
-        "cache_write_5m": 0,
-        "cache_write_1h": 0,
-        "cache_read": 182400,
-        "output": 5900
-      },
-      "cost_usd": 0.0,
-      "unpriced_tokens": 219500,
-      "turns": 22,
-      "subagent_turns": 0,
-      "tool_calls": 64,
-      "spans": [],
-      "age_secs": 1870,
-      "idle_secs": 214,
-      "cpu_percent": 0.9,
-      "rss_bytes": 148897792,
-      "process_count": 2,
-      "mcp_count": 1,
-      "tree": {
-        "pid": 7422,
-        "ppid": 1,
-        "name": "codex",
-        "cmdline": "codex",
-        "kind": "agent",
-        "harness": "codex",
-        "cpu_percent": 0.7,
-        "rss_bytes": 98566144,
-        "age_secs": 1870,
-        "cwd": null,
-        "children": [
-          {
-            "pid": 7440,
-            "ppid": 7422,
-            "name": "node",
-            "cmdline": "npx -y @modelcontextprotocol/server-filesystem",
-            "kind": "mcp",
-            "harness": null,
-            "cpu_percent": 0.2,
-            "rss_bytes": 50331648,
-            "age_secs": 1865,
-            "cwd": null,
-            "children": []
-          }
-        ]
-      },
-      "attribution": "cwd-heuristic"
+     "id": "Read:2",
+     "name": "Read",
+     "started_at": {
+      "secs_since_epoch": 1788399787,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 44,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
     },
     {
-      "id": "pid:7899",
-      "name": "infra-scripts",
-      "harness": "claude",
-      "state": "idle",
-      "activity": "waiting",
-      "pid": 7899,
-      "session_id": "b70e3f12-8c44-4d99-a1e0-5f3b2c9d6e08",
-      "session_path": null,
-      "cwd": "/Users/dev/code/infra-scripts",
-      "model": "claude-sonnet-5",
-      "harness_version": "2.1.259",
-      "usage": {
-        "input": 210,
-        "cache_write_5m": 2800,
-        "cache_write_1h": 61200,
-        "cache_read": 1900,
-        "output": 0
-      },
-      "cost_usd": 0.27,
-      "unpriced_tokens": 0,
-      "turns": 4,
-      "subagent_turns": 0,
-      "tool_calls": 9,
-      "spans": [],
-      "age_secs": 380,
-      "idle_secs": 96,
-      "cpu_percent": 0.9,
-      "rss_bytes": 310378496,
-      "process_count": 1,
-      "mcp_count": 0,
-      "tree": {
-        "pid": 7899,
-        "ppid": 1,
-        "name": "claude",
-        "cmdline": "claude",
-        "kind": "agent",
-        "harness": "claude",
-        "cpu_percent": 0.9,
-        "rss_bytes": 310378496,
-        "age_secs": 380,
-        "cwd": null,
-        "children": []
-      },
-      "attribution": "harness-registry"
+     "id": "Grep:3",
+     "name": "Grep",
+     "started_at": {
+      "secs_since_epoch": 1788399788,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 121,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
     },
     {
-      "id": "session:e81f",
-      "name": "claude:web-checkout",
-      "harness": "claude",
-      "state": "stopped",
-      "activity": "waiting",
-      "pid": null,
-      "session_id": "e81f2b6c-9a03-4f77-8d21-6b0c4e5a7391",
-      "session_path": null,
-      "cwd": "/Users/dev/code/web-checkout",
-      "model": "claude-opus-5",
-      "harness_version": "2.1.259",
-      "usage": {
-        "input": 940,
-        "cache_write_5m": 0,
-        "cache_write_1h": 18600,
-        "cache_read": 402100,
-        "output": 7300
-      },
-      "cost_usd": 3.02,
-      "unpriced_tokens": 0,
-      "turns": 19,
-      "subagent_turns": 3,
-      "tool_calls": 71,
-      "spans": [],
-      "age_secs": 1120,
-      "idle_secs": 1120,
-      "cpu_percent": 0.0,
-      "rss_bytes": 0,
-      "process_count": 0,
-      "mcp_count": 0,
-      "tree": null,
-      "attribution": "transcript-only"
+     "id": "inf:1",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399789,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 3900,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "Bash:4",
+     "name": "Bash",
+     "started_at": {
+      "secs_since_epoch": 1788399795,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 6420,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:2",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399802,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 5200,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "mcp:5",
+     "name": "mcp__github__list_pull_requests",
+     "started_at": {
+      "secs_since_epoch": 1788399808,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 1840,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "Edit:6",
+     "name": "Edit",
+     "started_at": {
+      "secs_since_epoch": 1788399804,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 96,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "Task:7",
+     "name": "Task",
+     "started_at": {
+      "secs_since_epoch": 1788399810,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 24800,
+     "sidechain": true,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "Read:8",
+     "name": "Read",
+     "started_at": {
+      "secs_since_epoch": 1788399811,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 51,
+     "sidechain": true,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "Grep:9",
+     "name": "Grep",
+     "started_at": {
+      "secs_since_epoch": 1788399813,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 402,
+     "sidechain": true,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:3",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399835,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 4100,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "Bash:10",
+     "name": "Bash",
+     "started_at": {
+      "secs_since_epoch": 1788399840,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 47900,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:4",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399889,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 6300,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "Edit:11",
+     "name": "Edit",
+     "started_at": {
+      "secs_since_epoch": 1788399896,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 88,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "Bash:12",
+     "name": "Bash",
+     "started_at": {
+      "secs_since_epoch": 1788399898,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 1850,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "mcp:13",
+     "name": "mcp__postgres__query",
+     "started_at": {
+      "secs_since_epoch": 1788399900,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 640,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "WebFetch:14",
+     "name": "WebFetch",
+     "started_at": {
+      "secs_since_epoch": 1788399904,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 2310,
+     "sidechain": false,
+     "error": true,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:5",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399907,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 8800,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "Read:15",
+     "name": "Read",
+     "started_at": {
+      "secs_since_epoch": 1788399916,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 62,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "Edit:16",
+     "name": "Edit",
+     "started_at": {
+      "secs_since_epoch": 1788399920,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 74,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "Bash:17",
+     "name": "Bash",
+     "started_at": {
+      "secs_since_epoch": 1788399938,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 31500,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:6",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399971,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 12400,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "Bash:18",
+     "name": "Bash",
+     "started_at": {
+      "secs_since_epoch": 1788399988,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": null,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
     }
-  ],
-  "orphans": [
+   ],
+   "age_secs": 2214,
+   "idle_secs": 3,
+   "cpu_percent": 102.3,
+   "rss_bytes": 1038090240,
+   "process_count": 5,
+   "mcp_count": 2,
+   "mcp_servers": [
     {
-      "pid": 6120,
-      "ppid": 1,
+     "name": "github",
+     "pid": 7042,
+     "cmdline": "npx -y @modelcontextprotocol/server-github",
+     "cpu_percent": 0.6,
+     "rss_bytes": 77594624,
+     "age_secs": 2210,
+     "calls": 6,
+     "errors": 1,
+     "last_call": {
+      "secs_since_epoch": 1788399962,
+      "nanos_since_epoch": 0
+     },
+     "matched_by": "name"
+    },
+    {
+     "name": "postgres",
+     "pid": 7043,
+     "cmdline": "npx -y @modelcontextprotocol/server-postgres",
+     "cpu_percent": 0.4,
+     "rss_bytes": 63963136,
+     "age_secs": 2210,
+     "calls": 11,
+     "errors": 0,
+     "last_call": {
+      "secs_since_epoch": 1788399588,
+      "nanos_since_epoch": 0
+     },
+     "matched_by": "name"
+    }
+   ],
+   "context": [
+    {
+     "name": "Read",
+     "origin": "tool",
+     "calls": 41,
+     "tokens": 96400,
+     "cost_usd": 1.21
+    },
+    {
+     "name": "github",
+     "origin": "mcp",
+     "calls": 6,
+     "tokens": 58800,
+     "cost_usd": 0.86
+    },
+    {
+     "name": "Bash",
+     "origin": "tool",
+     "calls": 31,
+     "tokens": 38100,
+     "cost_usd": 0.52
+    },
+    {
+     "name": "other",
+     "origin": "other",
+     "calls": 0,
+     "tokens": 22400,
+     "cost_usd": 0.336
+    },
+    {
+     "name": "Task",
+     "origin": "tool",
+     "calls": 1,
+     "tokens": 12900,
+     "cost_usd": 0.2
+    },
+    {
+     "name": "Grep",
+     "origin": "tool",
+     "calls": 19,
+     "tokens": 9600,
+     "cost_usd": 0.13
+    },
+    {
+     "name": "postgres",
+     "origin": "mcp",
+     "calls": 11,
+     "tokens": 6200,
+     "cost_usd": 0.09
+    },
+    {
+     "name": "Edit",
+     "origin": "tool",
+     "calls": 18,
+     "tokens": 3100,
+     "cost_usd": 0.04
+    }
+   ],
+   "tree": {
+    "pid": 6980,
+    "ppid": 1,
+    "name": "claude",
+    "cmdline": "claude --resume 9f2c1a4e",
+    "kind": "agent",
+    "harness": "claude",
+    "cpu_percent": 12.4,
+    "rss_bytes": 536870912,
+    "age_secs": 2214,
+    "cwd": null,
+    "children": [
+     {
+      "pid": 7042,
+      "ppid": 6980,
       "name": "node",
       "cmdline": "npx -y @modelcontextprotocol/server-github",
       "kind": "mcp",
       "harness": null,
-      "cpu_percent": 0.3,
-      "rss_bytes": 92274688,
-      "age_secs": 9840,
+      "cpu_percent": 0.6,
+      "rss_bytes": 77594624,
+      "age_secs": 2210,
       "cwd": null,
       "children": []
+     },
+     {
+      "pid": 7043,
+      "ppid": 6980,
+      "name": "node",
+      "cmdline": "npx -y @modelcontextprotocol/server-postgres",
+      "kind": "mcp",
+      "harness": null,
+      "cpu_percent": 0.4,
+      "rss_bytes": 63963136,
+      "age_secs": 2210,
+      "cwd": null,
+      "children": []
+     },
+     {
+      "pid": 9120,
+      "ppid": 6980,
+      "name": "zsh",
+      "cmdline": "/bin/zsh -c cargo test --workspace",
+      "kind": "shell",
+      "harness": null,
+      "cpu_percent": 1.1,
+      "rss_bytes": 3145728,
+      "age_secs": 31,
+      "cwd": null,
+      "children": [
+       {
+        "pid": 9121,
+        "ppid": 9120,
+        "name": "cargo",
+        "cmdline": "cargo test --workspace",
+        "kind": "tool",
+        "harness": null,
+        "cpu_percent": 88.2,
+        "rss_bytes": 356515840,
+        "age_secs": 31,
+        "cwd": null,
+        "children": []
+       }
+      ]
+     }
+    ]
+   },
+   "attribution": "harness-registry",
+   "shares_process": false,
+   "parse_warning": null,
+   "rate_limit": null
+  },
+  {
+   "id": "pid:7161",
+   "name": "docs-site",
+   "harness": "claude",
+   "state": "running",
+   "activity": "working",
+   "pid": 7161,
+   "session_id": "4c1d77a0-2e18-4a90-b5c3-9d2f6e0a1177",
+   "session_path": "/Users/dev/.claude/projects/-Users-dev-code-docs-site/4c1d77a0-2e18-4a90-b5c3-9d2f6e0a1177.jsonl",
+   "cwd": "/Users/dev/code/docs-site",
+   "model": "claude-sonnet-5",
+   "harness_version": "2.1.259",
+   "usage": {
+    "input": 1100,
+    "cache_write_5m": 9400,
+    "cache_write_1h": 214900,
+    "cache_read": 1146000,
+    "output": 18700
+   },
+   "cost_usd": 1.3015,
+   "cost_breakdown": {
+    "input": 0.0022,
+    "cache_write_5m": 0.0235,
+    "cache_write_1h": 0.8596,
+    "cache_read": 0.2292,
+    "output": 0.187,
+    "web_search": 0.0
+   },
+   "price_source": "builtin",
+   "unpriced_tokens": 0,
+   "turns": 11,
+   "subagent_turns": 2,
+   "tool_calls": 37,
+   "web_searches": 0,
+   "spans": [
+    {
+     "id": "turn:11",
+     "name": "turn",
+     "started_at": {
+      "secs_since_epoch": 1788399904,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": null,
+     "sidechain": false,
+     "error": false,
+     "kind": "turn"
     },
     {
-      "pid": 6488,
-      "ppid": 1,
+     "id": "Read:1",
+     "name": "Read",
+     "started_at": {
+      "secs_since_epoch": 1788399904,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 41,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:1",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399905,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 4200,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "Edit:2",
+     "name": "Edit",
+     "started_at": {
+      "secs_since_epoch": 1788399909,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 120,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "Bash:3",
+     "name": "Bash",
+     "started_at": {
+      "secs_since_epoch": 1788399922,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 3900,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:2",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399926,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 6100,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "Read:4",
+     "name": "Read",
+     "started_at": {
+      "secs_since_epoch": 1788399940,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 55,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "Task:5",
+     "name": "Task",
+     "started_at": {
+      "secs_since_epoch": 1788399942,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": null,
+     "sidechain": true,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "Bash:6",
+     "name": "Bash",
+     "started_at": {
+      "secs_since_epoch": 1788399966,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 12700,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:3",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399979,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 9800,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "Edit:7",
+     "name": "Edit",
+     "started_at": {
+      "secs_since_epoch": 1788399992,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": null,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    }
+   ],
+   "age_secs": 640,
+   "idle_secs": 1,
+   "cpu_percent": 5.2,
+   "rss_bytes": 627048448,
+   "process_count": 2,
+   "mcp_count": 0,
+   "mcp_servers": [],
+   "context": [
+    {
+     "name": "other",
+     "origin": "other",
+     "calls": 0,
+     "tokens": 41200,
+     "cost_usd": 0.39
+    },
+    {
+     "name": "Read",
+     "origin": "tool",
+     "calls": 14,
+     "tokens": 38600,
+     "cost_usd": 0.36
+    },
+    {
+     "name": "Bash",
+     "origin": "tool",
+     "calls": 9,
+     "tokens": 22100,
+     "cost_usd": 0.21
+    },
+    {
+     "name": "Task",
+     "origin": "tool",
+     "calls": 1,
+     "tokens": 8400,
+     "cost_usd": 0.0845
+    },
+    {
+     "name": "Edit",
+     "origin": "tool",
+     "calls": 11,
+     "tokens": 6900,
+     "cost_usd": 0.07
+    }
+   ],
+   "tree": {
+    "pid": 7161,
+    "ppid": 1,
+    "name": "claude",
+    "cmdline": "claude",
+    "kind": "agent",
+    "harness": "claude",
+    "cpu_percent": 3.2,
+    "rss_bytes": 406847488,
+    "age_secs": 640,
+    "cwd": null,
+    "children": [
+     {
+      "pid": 7180,
+      "ppid": 7161,
+      "name": "claude",
+      "cmdline": "claude -p review the diff",
+      "kind": "subagent",
+      "harness": "claude",
+      "cpu_percent": 2.0,
+      "rss_bytes": 220200960,
+      "age_secs": 96,
+      "cwd": null,
+      "children": []
+     }
+    ]
+   },
+   "attribution": "harness-registry",
+   "shares_process": false,
+   "parse_warning": null,
+   "rate_limit": null
+  },
+  {
+   "id": "pid:7422",
+   "name": "codex:payments",
+   "harness": "codex",
+   "state": "idle",
+   "activity": "waiting",
+   "pid": 7422,
+   "session_id": "019e286b-530f-7922-9c59-5c34a604aa24",
+   "session_path": "/Users/dev/.codex/sessions/2026/09/03/rollout-2026-09-03T09-15-32-019e286b-530f-7922-9c59-5c34a604aa24.jsonl",
+   "cwd": "/Users/dev/code/payments",
+   "model": "gpt-5.5",
+   "harness_version": "0.149.1",
+   "usage": {
+    "input": 41200,
+    "cache_write_5m": 0,
+    "cache_write_1h": 0,
+    "cache_read": 1982400,
+    "output": 15900
+   },
+   "cost_usd": 1.6742,
+   "cost_breakdown": {
+    "input": 0.206,
+    "cache_write_5m": 0.0,
+    "cache_write_1h": 0.0,
+    "cache_read": 0.9912,
+    "output": 0.477,
+    "web_search": 0.0
+   },
+   "price_source": "builtin",
+   "unpriced_tokens": 0,
+   "turns": 22,
+   "subagent_turns": 0,
+   "tool_calls": 64,
+   "web_searches": 0,
+   "spans": [
+    {
+     "id": "turn:22",
+     "name": "turn",
+     "started_at": {
+      "secs_since_epoch": 1788399700,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 86000,
+     "sidechain": false,
+     "error": false,
+     "kind": "turn"
+    },
+    {
+     "id": "exec:1",
+     "name": "exec_command",
+     "started_at": {
+      "secs_since_epoch": 1788399700,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 2400,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:1",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399703,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 5100,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "mcp:2",
+     "name": "repo-fs",
+     "started_at": {
+      "secs_since_epoch": 1788399709,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 380,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "mcp:3",
+     "name": "repo-fs",
+     "started_at": {
+      "secs_since_epoch": 1788399710,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 12900,
+     "sidechain": false,
+     "error": true,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:2",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399723,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 7600,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "patch:4",
+     "name": "apply_patch",
+     "started_at": {
+      "secs_since_epoch": 1788399731,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 140,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "exec:5",
+     "name": "exec_command",
+     "started_at": {
+      "secs_since_epoch": 1788399732,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 41000,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:3",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399773,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 12800,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    }
+   ],
+   "age_secs": 1870,
+   "idle_secs": 214,
+   "cpu_percent": 0.9,
+   "rss_bytes": 272629760,
+   "process_count": 2,
+   "mcp_count": 1,
+   "mcp_servers": [
+    {
+     "name": "repo-fs",
+     "pid": 7440,
+     "cmdline": "npx -y @modelcontextprotocol/server-filesystem",
+     "cpu_percent": 0.2,
+     "rss_bytes": 174063616,
+     "age_secs": 1865,
+     "calls": 14,
+     "errors": 2,
+     "last_call": {
+      "secs_since_epoch": 1788398710,
+      "nanos_since_epoch": 0
+     },
+     "matched_by": "sole"
+    }
+   ],
+   "context": [
+    {
+     "name": "exec_command",
+     "origin": "tool",
+     "calls": 27,
+     "tokens": 44300,
+     "cost_usd": 0.49
+    },
+    {
+     "name": "repo-fs",
+     "origin": "mcp",
+     "calls": 14,
+     "tokens": 31700,
+     "cost_usd": 0.35
+    },
+    {
+     "name": "other",
+     "origin": "other",
+     "calls": 0,
+     "tokens": 26100,
+     "cost_usd": 0.29
+    },
+    {
+     "name": "apply_patch",
+     "origin": "tool",
+     "calls": 12,
+     "tokens": 5800,
+     "cost_usd": 0.0672
+    }
+   ],
+   "tree": {
+    "pid": 7422,
+    "ppid": 1,
+    "name": "codex",
+    "cmdline": "codex",
+    "kind": "agent",
+    "harness": "codex",
+    "cpu_percent": 0.7,
+    "rss_bytes": 98566144,
+    "age_secs": 1870,
+    "cwd": null,
+    "children": [
+     {
+      "pid": 7440,
+      "ppid": 7422,
       "name": "node",
-      "cmdline": "npx -y @modelcontextprotocol/server-slack",
+      "cmdline": "npx -y @modelcontextprotocol/server-filesystem",
       "kind": "mcp",
       "harness": null,
       "cpu_percent": 0.2,
-      "rss_bytes": 74448896,
-      "age_secs": 7215,
+      "rss_bytes": 174063616,
+      "age_secs": 1865,
       "cwd": null,
       "children": []
+     }
+    ]
+   },
+   "attribution": "open-file",
+   "shares_process": false,
+   "parse_warning": null,
+   "rate_limit": {
+    "primary": {
+     "used_percent": 62.0,
+     "window_minutes": 300,
+     "resets_at": {
+      "secs_since_epoch": 1788406000,
+      "nanos_since_epoch": 0
+     }
+    },
+    "secondary": {
+     "used_percent": 81.0,
+     "window_minutes": 10080,
+     "resets_at": {
+      "secs_since_epoch": 1788659200,
+      "nanos_since_epoch": 0
+     }
+    },
+    "plan": "plus",
+    "reached": false
+   }
+  },
+  {
+   "id": "pid:7899",
+   "name": "infra-scripts",
+   "harness": "claude",
+   "state": "idle",
+   "activity": "waiting",
+   "pid": 7899,
+   "session_id": "b70e3f12-8c44-4d99-a1e0-5f3b2c9d6e08",
+   "session_path": "/Users/dev/.claude/projects/-Users-dev-code-infra-scripts/b70e3f12-8c44-4d99-a1e0-5f3b2c9d6e08.jsonl",
+   "cwd": "/Users/dev/code/infra-scripts",
+   "model": "claude-sonnet-5",
+   "harness_version": "2.1.259",
+   "usage": {
+    "input": 210,
+    "cache_write_5m": 2800,
+    "cache_write_1h": 61200,
+    "cache_read": 96300,
+    "output": 2100
+   },
+   "cost_usd": 0.29248,
+   "cost_breakdown": {
+    "input": 0.00042,
+    "cache_write_5m": 0.007,
+    "cache_write_1h": 0.2448,
+    "cache_read": 0.01926,
+    "output": 0.021,
+    "web_search": 0.0
+   },
+   "price_source": "builtin",
+   "unpriced_tokens": 0,
+   "turns": 4,
+   "subagent_turns": 0,
+   "tool_calls": 9,
+   "web_searches": 0,
+   "spans": [
+    {
+     "id": "turn:4",
+     "name": "turn",
+     "started_at": {
+      "secs_since_epoch": 1788399860,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 44000,
+     "sidechain": false,
+     "error": false,
+     "kind": "turn"
+    },
+    {
+     "id": "Read:1",
+     "name": "Read",
+     "started_at": {
+      "secs_since_epoch": 1788399860,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 47,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:1",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399861,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 5200,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "Bash:2",
+     "name": "Bash",
+     "started_at": {
+      "secs_since_epoch": 1788399867,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 18300,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:2",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399886,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 6900,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "Edit:3",
+     "name": "Edit",
+     "started_at": {
+      "secs_since_epoch": 1788399893,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 91,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:3",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399894,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 9800,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
     }
-  ],
-  "totals": {
-    "agents": 5,
-    "running": 2,
-    "idle": 2,
-    "stopped": 1,
-    "tokens": 1891670,
-    "cost_usd": 10.68,
-    "unpriced_tokens": 219500,
-    "processes": 9,
-    "mcp_processes": 3,
-    "orphaned_mcp": 2,
-    "cpu_percent": 109.3,
-    "rss_bytes": 2017460224
+   ],
+   "age_secs": 1420,
+   "idle_secs": 96,
+   "cpu_percent": 0.9,
+   "rss_bytes": 374341632,
+   "process_count": 2,
+   "mcp_count": 1,
+   "mcp_servers": [
+    {
+     "name": "fetch",
+     "pid": 7912,
+     "cmdline": "uvx mcp-server-fetch",
+     "cpu_percent": 0.0,
+     "rss_bytes": 63963136,
+     "age_secs": 1415,
+     "calls": 0,
+     "errors": 0,
+     "last_call": null,
+     "matched_by": "name"
+    }
+   ],
+   "context": [
+    {
+     "name": "other",
+     "origin": "other",
+     "calls": 0,
+     "tokens": 33800,
+     "cost_usd": 0.19
+    },
+    {
+     "name": "Read",
+     "origin": "tool",
+     "calls": 5,
+     "tokens": 11200,
+     "cost_usd": 0.06
+    },
+    {
+     "name": "Bash",
+     "origin": "tool",
+     "calls": 4,
+     "tokens": 4600,
+     "cost_usd": 0.02148
+    }
+   ],
+   "tree": {
+    "pid": 7899,
+    "ppid": 1,
+    "name": "claude",
+    "cmdline": "claude",
+    "kind": "agent",
+    "harness": "claude",
+    "cpu_percent": 0.9,
+    "rss_bytes": 310378496,
+    "age_secs": 1420,
+    "cwd": null,
+    "children": [
+     {
+      "pid": 7912,
+      "ppid": 7899,
+      "name": "uvx",
+      "cmdline": "uvx mcp-server-fetch",
+      "kind": "mcp",
+      "harness": null,
+      "cpu_percent": 0.0,
+      "rss_bytes": 63963136,
+      "age_secs": 1415,
+      "cwd": null,
+      "children": []
+     }
+    ]
+   },
+   "attribution": "harness-registry",
+   "shares_process": false,
+   "parse_warning": null,
+   "rate_limit": null
+  },
+  {
+   "id": "pid:8102",
+   "name": "gemini:mobile-app",
+   "harness": "gemini",
+   "state": "running",
+   "activity": "working",
+   "pid": 8102,
+   "session_id": "0f4b7c2d-91e6-4a3b-8c5d-2e7f9a1b6c3d",
+   "session_path": "/Users/dev/.gemini/tmp/mobile-app/chats/session-2026-09-03T09-22-0f4b7c2d.json",
+   "cwd": "/Users/dev/code/mobile-app",
+   "model": "gemini-3.1-pro",
+   "harness_version": "0.32.1",
+   "usage": {
+    "input": 2900,
+    "cache_write_5m": 0,
+    "cache_write_1h": 0,
+    "cache_read": 1318000,
+    "output": 24600
+   },
+   "cost_usd": 0.5646,
+   "cost_breakdown": {
+    "input": 0.0058,
+    "cache_write_5m": 0.0,
+    "cache_write_1h": 0.0,
+    "cache_read": 0.2636,
+    "output": 0.2952,
+    "web_search": 0.0
+   },
+   "price_source": "builtin",
+   "unpriced_tokens": 0,
+   "turns": 9,
+   "subagent_turns": 0,
+   "tool_calls": 27,
+   "web_searches": 0,
+   "spans": [
+    {
+     "id": "turn:9",
+     "name": "turn",
+     "started_at": {
+      "secs_since_epoch": 1788399929,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": null,
+     "sidechain": false,
+     "error": false,
+     "kind": "turn"
+    },
+    {
+     "id": "read:1",
+     "name": "read_file",
+     "started_at": {
+      "secs_since_epoch": 1788399929,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 29,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "read:2",
+     "name": "read_file",
+     "started_at": {
+      "secs_since_epoch": 1788399930,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 33,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:1",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399931,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 7400,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "shell:3",
+     "name": "run_shell_command",
+     "started_at": {
+      "secs_since_epoch": 1788399939,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 22600,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:2",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399962,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 9100,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "replace:4",
+     "name": "replace",
+     "started_at": {
+      "secs_since_epoch": 1788399972,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 61,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "shell:5",
+     "name": "run_shell_command",
+     "started_at": {
+      "secs_since_epoch": 1788399974,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": null,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    }
+   ],
+   "age_secs": 1450,
+   "idle_secs": 4,
+   "cpu_percent": 41.6,
+   "rss_bytes": 713555968,
+   "process_count": 3,
+   "mcp_count": 0,
+   "mcp_servers": [],
+   "context": [
+    {
+     "name": "other",
+     "origin": "other",
+     "calls": 0,
+     "tokens": 28900,
+     "cost_usd": 0.12
+    },
+    {
+     "name": "read_file",
+     "origin": "tool",
+     "calls": 9,
+     "tokens": 21400,
+     "cost_usd": 0.09
+    },
+    {
+     "name": "run_shell_command",
+     "origin": "tool",
+     "calls": 8,
+     "tokens": 14700,
+     "cost_usd": 0.05
+    },
+    {
+     "name": "replace",
+     "origin": "tool",
+     "calls": 6,
+     "tokens": 2200,
+     "cost_usd": 0.0094
+    }
+   ],
+   "tree": {
+    "pid": 8102,
+    "ppid": 1,
+    "name": "gemini",
+    "cmdline": "gemini",
+    "kind": "agent",
+    "harness": "gemini",
+    "cpu_percent": 4.1,
+    "rss_bytes": 298844160,
+    "age_secs": 1450,
+    "cwd": null,
+    "children": [
+     {
+      "pid": 8390,
+      "ppid": 8102,
+      "name": "zsh",
+      "cmdline": "/bin/zsh -c npm test",
+      "kind": "shell",
+      "harness": null,
+      "cpu_percent": 0.4,
+      "rss_bytes": 2621440,
+      "age_secs": 26,
+      "cwd": null,
+      "children": [
+       {
+        "pid": 8391,
+        "ppid": 8390,
+        "name": "node",
+        "cmdline": "node node_modules/.bin/vitest run",
+        "kind": "tool",
+        "harness": null,
+        "cpu_percent": 37.1,
+        "rss_bytes": 412090368,
+        "age_secs": 26,
+        "cwd": null,
+        "children": []
+       }
+      ]
+     }
+    ]
+   },
+   "attribution": "cwd-heuristic",
+   "shares_process": false,
+   "parse_warning": null,
+   "rate_limit": null
+  },
+  {
+   "id": "pid:8340",
+   "name": "opencode:etl-jobs",
+   "harness": "open-code",
+   "state": "idle",
+   "activity": "waiting",
+   "pid": 8340,
+   "session_id": "ses_7d2f9c4a1b8e3f6a5c0d9e2b4f7a1c8d",
+   "session_path": "/Users/dev/.local/share/opencode/opencode.db",
+   "cwd": "/Users/dev/code/etl-jobs",
+   "model": "deepseek-v4-pro",
+   "harness_version": "1.2.30",
+   "usage": {
+    "input": 96000,
+    "cache_write_5m": 0,
+    "cache_write_1h": 0,
+    "cache_read": 1204000,
+    "output": 21000
+   },
+   "cost_usd": 0.069412,
+   "cost_breakdown": {
+    "input": 0.026880000000000005,
+    "cache_write_5m": 0.0,
+    "cache_write_1h": 0.0,
+    "cache_read": 0.033712,
+    "output": 0.00882,
+    "web_search": 0.0
+   },
+   "price_source": "builtin",
+   "unpriced_tokens": 0,
+   "turns": 15,
+   "subagent_turns": 0,
+   "tool_calls": 44,
+   "web_searches": 0,
+   "spans": [
+    {
+     "id": "turn:15",
+     "name": "turn",
+     "started_at": {
+      "secs_since_epoch": 1788399310,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 52000,
+     "sidechain": false,
+     "error": false,
+     "kind": "turn"
+    },
+    {
+     "id": "bash:1",
+     "name": "bash",
+     "started_at": {
+      "secs_since_epoch": 1788399310,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 3100,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:1",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399314,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 6200,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "edit:2",
+     "name": "edit",
+     "started_at": {
+      "secs_since_epoch": 1788399321,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 84,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "bash:3",
+     "name": "bash",
+     "started_at": {
+      "secs_since_epoch": 1788399322,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 27400,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:2",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399350,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 11800,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    }
+   ],
+   "age_secs": 3100,
+   "idle_secs": 611,
+   "cpu_percent": 0.3,
+   "rss_bytes": 201326592,
+   "process_count": 1,
+   "mcp_count": 0,
+   "mcp_servers": [],
+   "context": [],
+   "tree": {
+    "pid": 8340,
+    "ppid": 1,
+    "name": "opencode",
+    "cmdline": "opencode",
+    "kind": "agent",
+    "harness": "open-code",
+    "cpu_percent": 0.3,
+    "rss_bytes": 201326592,
+    "age_secs": 3100,
+    "cwd": null,
+    "children": []
+   },
+   "attribution": "cwd-heuristic",
+   "shares_process": false,
+   "parse_warning": null,
+   "rate_limit": null
+  },
+  {
+   "id": "session:e81f",
+   "name": "claude:web-checkout",
+   "harness": "claude",
+   "state": "stopped",
+   "activity": "waiting",
+   "pid": null,
+   "session_id": "e81f2b6c-9a03-4f77-8d21-6b0c4e5a7391",
+   "session_path": "/Users/dev/.claude/projects/-Users-dev-code-web-checkout/e81f2b6c-9a03-4f77-8d21-6b0c4e5a7391.jsonl",
+   "cwd": "/Users/dev/code/web-checkout",
+   "model": "claude-opus-5",
+   "harness_version": "2.1.259",
+   "usage": {
+    "input": 3760,
+    "cache_write_5m": 0,
+    "cache_write_1h": 74400,
+    "cache_read": 2412600,
+    "output": 29300
+   },
+   "cost_usd": 2.7016,
+   "cost_breakdown": {
+    "input": 0.0188,
+    "cache_write_5m": 0.0,
+    "cache_write_1h": 0.744,
+    "cache_read": 1.2063,
+    "output": 0.7325,
+    "web_search": 0.0
+   },
+   "price_source": "builtin",
+   "unpriced_tokens": 0,
+   "turns": 19,
+   "subagent_turns": 0,
+   "tool_calls": 71,
+   "web_searches": 0,
+   "spans": [],
+   "age_secs": 1120,
+   "idle_secs": 1120,
+   "cpu_percent": 0.0,
+   "rss_bytes": 0,
+   "process_count": 0,
+   "mcp_count": 0,
+   "mcp_servers": [
+    {
+     "name": "github",
+     "pid": null,
+     "cmdline": null,
+     "cpu_percent": 0.0,
+     "rss_bytes": 0,
+     "age_secs": null,
+     "calls": 9,
+     "errors": 0,
+     "last_call": {
+      "secs_since_epoch": 1788398820,
+      "nanos_since_epoch": 0
+     },
+     "matched_by": "transcript-only"
+    }
+   ],
+   "context": [
+    {
+     "name": "Read",
+     "origin": "tool",
+     "calls": 28,
+     "tokens": 61400,
+     "cost_usd": 0.71
+    },
+    {
+     "name": "Bash",
+     "origin": "tool",
+     "calls": 24,
+     "tokens": 40200,
+     "cost_usd": 0.47
+    },
+    {
+     "name": "other",
+     "origin": "other",
+     "calls": 0,
+     "tokens": 30600,
+     "cost_usd": 0.41
+    },
+    {
+     "name": "github",
+     "origin": "mcp",
+     "calls": 9,
+     "tokens": 19300,
+     "cost_usd": 0.25
+    },
+    {
+     "name": "Grep",
+     "origin": "tool",
+     "calls": 10,
+     "tokens": 8100,
+     "cost_usd": 0.1291
+    }
+   ],
+   "tree": null,
+   "attribution": "transcript-only",
+   "shares_process": false,
+   "parse_warning": null,
+   "rate_limit": null
   }
+ ],
+ "orphans": [
+  {
+   "pid": 6120,
+   "ppid": 1,
+   "name": "node",
+   "cmdline": "npx -y @modelcontextprotocol/server-github",
+   "kind": "mcp",
+   "harness": null,
+   "cpu_percent": 0.3,
+   "rss_bytes": 92274688,
+   "age_secs": 9840,
+   "cwd": null,
+   "children": []
+  },
+  {
+   "pid": 6488,
+   "ppid": 1,
+   "name": "node",
+   "cmdline": "npx -y @modelcontextprotocol/server-slack",
+   "kind": "mcp",
+   "harness": null,
+   "cpu_percent": 0.2,
+   "rss_bytes": 74448896,
+   "age_secs": 7215,
+   "cwd": null,
+   "children": []
+  }
+ ],
+ "orphan_origins": [
+  {
+   "pid": 6120,
+   "first_seen": {
+    "secs_since_epoch": 1788389800,
+    "nanos_since_epoch": 0
+   },
+   "orphaned_at": {
+    "secs_since_epoch": 1788390400,
+    "nanos_since_epoch": 0
+   },
+   "parent": {
+    "pid": 6011,
+    "agent_id": "pid:6011",
+    "name": "billing-api"
+   }
+  },
+  {
+   "pid": 6488,
+   "first_seen": {
+    "secs_since_epoch": 1788396400,
+    "nanos_since_epoch": 0
+   },
+   "orphaned_at": null,
+   "parent": null
+  }
+ ],
+ "advice": [
+  {
+   "agent_id": "pid:6980",
+   "agent_name": "api-gateway",
+   "rule": "expensive-source",
+   "subject": "github",
+   "pid": null,
+   "headline": "github MCP server: 6 calls added 58.8k tokens to the prompt, re-read at a cost of $0.86 since",
+   "action": "ask it for smaller results, or drop it from this project's MCP config",
+   "cost_usd": 0.86,
+   "tokens": 58800,
+   "calls": 6,
+   "rss_bytes": 0
+  },
+  {
+   "agent_id": "pid:7422",
+   "agent_name": "codex:payments",
+   "rule": "growing-mcp-server",
+   "subject": "repo-fs",
+   "pid": 7440,
+   "headline": "repo-fs (pid 7440) grew from 48 MB to 166 MB over 14m with no calls",
+   "action": "a server that grows while unused is likely leaking; watch it, and kill it if it outlives its agent",
+   "cost_usd": 0.0,
+   "tokens": 0,
+   "calls": 14,
+   "rss_bytes": 174063616
+  },
+  {
+   "agent_id": "pid:7899",
+   "agent_name": "infra-scripts",
+   "rule": "idle-mcp-server",
+   "subject": "fetch",
+   "pid": 7912,
+   "headline": "fetch (pid 7912) has answered no calls in 23m and holds 61 MB",
+   "action": "remove it from this project's MCP config; its tool definitions are sent with every response",
+   "cost_usd": 0.0,
+   "tokens": 0,
+   "calls": 0,
+   "rss_bytes": 63963136
+  }
+ ],
+ "totals": {
+  "agents": 7,
+  "running": 3,
+  "idle": 3,
+  "stopped": 1,
+  "tokens": 13731670,
+  "cost_usd": 11.042292,
+  "unpriced_tokens": 0,
+  "processes": 15,
+  "mcp_processes": 4,
+  "orphaned_mcp": 2,
+  "cpu_percent": 151.2,
+  "rss_bytes": 3226992640
+ }
 }

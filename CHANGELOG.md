@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **A documentation site and a blog**, built with Material for MkDocs from the `docs/` directory (`mkdocs.yml` at the repository root) and hosted on Cloudflare Pages. It carries a guide to every panel, the cost report, the trace export, snapshots and replay, prices and harness support; the existing accounting, architecture, roadmap and releasing pages; a credits page; and a first post, *Five things agent-top shows that your agents will not*. Every screenshot of the live view is `docs/demo-snapshot.json` replayed through `--replay`, taken by `vhs docs/screenshots.tape`; the report screenshots are real, because a cost total gives nothing away. The site loads nothing from third parties.
+- The synthetic demo snapshot now carries every section the current UI can show: seven agents across all four harnesses, MCP server rows, context by source, advice, orphan origins and a Codex rate limit. The README animation is regenerated from it.
+
+### Fixed
+- The detail pane's `web searches` line ran its label into its value (`web searches2`); the label is now `web search` and the value has its column.
+
 ## [0.15.2] - 2026-09-07
 
 ### Changed

@@ -1,0 +1,8 @@
+# Response headers for Cloudflare Pages. The site is static and loads nothing
+# from third parties, so these can be strict.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin

@@ -1,0 +1,2 @@
+# Build dependencies for the documentation site (mkdocs.yml at the repo root).
+mkdocs-material==9.7.7
