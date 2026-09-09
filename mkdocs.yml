@@ -1,8 +1,10 @@
 # Documentation site for agent-top, built with Material for MkDocs.
 #
-#   uv venv .venv && uv pip install -r docs/requirements.txt
-#   .venv/bin/mkdocs serve          # http://127.0.0.1:8000
-#   .venv/bin/mkdocs build --strict # what CI and Cloudflare Pages run
+#   uv run --with-requirements docs/requirements.txt mkdocs serve          # http://127.0.0.1:8000
+#   uv run --with-requirements docs/requirements.txt mkdocs build --strict # what CI and Cloudflare Pages run
+#
+# uv makes a throwaway environment from docs/requirements.txt; there is no
+# virtualenv to create or activate.
 #
 # The site loads nothing from third parties: no web fonts, no analytics, no
 # CDN. Everything it needs is in the built `site/` directory.

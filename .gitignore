@@ -3,5 +3,4 @@ target/
 .claude/settings.local.json
 *.log
 site/
-.venv/
 __pycache__/

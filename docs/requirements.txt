@@ -1,2 +1,3 @@
 # Build dependencies for the documentation site (mkdocs.yml at the repo root).
+# Used through uv: `uv run --with-requirements docs/requirements.txt mkdocs build --strict`
 mkdocs-material==9.7.7

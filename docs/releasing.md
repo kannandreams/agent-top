@@ -152,18 +152,18 @@ Cloudflare Pages project settings, once, in the dashboard:
 | Setting | Value |
 |---|---|
 | Production branch | `main` |
-| Build command | `pip install -r docs/requirements.txt && mkdocs build --strict` |
+| Build command | `curl -LsSf https://astral.sh/uv/install.sh \| sh && $HOME/.local/bin/uv run --python 3.12 --with-requirements docs/requirements.txt mkdocs build --strict` |
 | Build output directory | `site` |
-| Environment variable | `PYTHON_VERSION=3.12` |
+| Environment variable | none needed; uv fetches Python 3.12 itself |
 
+The build command installs uv into the build container and runs mkdocs from a throwaway environment pinned by `docs/requirements.txt`; nothing is installed with pip.
 `docs/_headers` is copied into the output and sets the response headers.
 Preview deployments are built for pull requests automatically.
 
 To work on the site locally:
 
 ```sh
-uv venv .venv && uv pip install -r docs/requirements.txt
-.venv/bin/mkdocs serve     # http://127.0.0.1:8000, rebuilds on save
+uv run --with-requirements docs/requirements.txt mkdocs serve   # http://127.0.0.1:8000, rebuilds on save
 ```
 
 Screenshots are made from the synthetic snapshot, never a live machine:
