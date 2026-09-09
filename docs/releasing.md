@@ -140,31 +140,36 @@ users get from `brew install kannandreams/tap/agent-top`.
 ## The docs site
 
 The site at [agent-top.pages.dev](https://agent-top.pages.dev) is built from
-`docs/` by Material for MkDocs (`mkdocs.yml` at the repository root) and hosted
-on Cloudflare Pages through its Git integration. There is no deploy step in
-this repository and no token anywhere in it: Cloudflare pulls the `main`
-branch and builds it. The CI workflow `docs.yml` runs the same build in strict
-mode on every pull request that touches the docs, so a broken link fails the
-PR rather than the deploy.
+`docs/` by Material for MkDocs (`mkdocs.yml` at the repository root) and
+published to Cloudflare Pages as a ready-made directory: it is built here, on
+the release machine, and uploaded with wrangler. Cloudflare builds nothing, so
+there is no build command to keep working on their side and no token anywhere
+in this repository. The CI workflow `docs.yml` runs the same strict build on
+every pull request that touches the docs, so a broken link fails the PR.
 
-Cloudflare Pages project settings, once, in the dashboard:
-
-| Setting | Value |
-|---|---|
-| Production branch | `main` |
-| Build command | `curl -LsSf https://astral.sh/uv/install.sh \| sh && $HOME/.local/bin/uv run --python 3.12 --with-requirements docs/requirements.txt mkdocs build --strict` |
-| Build output directory | `site` |
-| Environment variable | none needed; uv fetches Python 3.12 itself |
-
-The build command installs uv into the build container and runs mkdocs from a throwaway environment pinned by `docs/requirements.txt`; nothing is installed with pip.
-`docs/_headers` is copied into the output and sets the response headers.
-Preview deployments are built for pull requests automatically.
-
-To work on the site locally:
+Every Python step goes through uv, which makes a throwaway environment from
+`docs/requirements.txt`; there is no virtualenv to create and nothing is
+installed with pip. The tasks are in `mise.toml`:
 
 ```sh
-uv run --with-requirements docs/requirements.txt mkdocs serve   # http://127.0.0.1:8000, rebuilds on save
+mise run docs:serve     # preview at http://127.0.0.1:8000, rebuilds on save
+mise run docs:build     # strict build into site/, the check CI runs
+mise run docs:publish   # docs:build, then upload site/ to Cloudflare Pages
 ```
+
+Publishing needs a one-time browser login, which stores a token in your home
+directory, never in the repo:
+
+```sh
+npx wrangler login
+```
+
+`docs:publish` deploys to the Pages project `agent-top` as its `main`
+(production) branch. Publish after the docs change has merged, the way a
+release is cut after its commit: the site is whatever was last uploaded, not
+whatever is on `main`. `docs/_headers` is copied into the output and sets the
+response headers. If the project ever gets another name, change it in the
+task, in `site_url` in `mkdocs.yml`, and in the docs link in the README.
 
 Screenshots are made from the synthetic snapshot, never a live machine:
 
