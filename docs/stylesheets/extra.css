@@ -1,8 +1,9 @@
 /* agent-top docs theme.
  *
- * Flat grey ground, one cobalt blue. One sans for every word on the page,
- * the system's own; JetBrains Mono, served from this site, for code. The
- * header is the same colour as the page in both modes, so there is one
+ * Flat grey ground, one cobalt blue. Two faces, both served from this site:
+ * JetBrains Mono at 400 for everything you read, Geist at 600 for everything
+ * that names a thing (headings, the site title, section labels, card names).
+ * The header is the same colour as the page in both modes, so there is one
  * background, not two. The only outside request the site makes is to the
  * GitHub API for the star, fork and version badge in the header.
  */
@@ -14,11 +15,19 @@
   font-display: swap;
   src: url("../assets/fonts/JetBrainsMono.woff2") format("woff2");
 }
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../assets/fonts/Geist.woff2") format("woff2");
+}
 
 :root {
-  --md-text-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --md-text-font: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
   --md-code-font: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
   --at-mono: var(--md-code-font);
+  --at-display: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   /* Command blocks are dark in both modes, like the terminal they quote. */
   --at-block: #1b1e26;
   --at-block-line: #2c3140;
@@ -117,7 +126,11 @@
   width: 1.3rem;
 }
 .md-header__title {
-  font-weight: 700;
+  font-family: var(--at-display);
+  font-weight: 600;
+}
+.md-header__topic:first-child .md-ellipsis::after {
+  font-family: var(--at-mono);
 }
 .md-header__topic:first-child .md-ellipsis::after {
   content: "htop for local coding agents";
@@ -170,29 +183,33 @@
 
 /* Type. Mono headings, sans body, measure under 80 characters. */
 .md-typeset {
-  font-size: 0.8rem;
-  line-height: 1.65;
+  font-size: 0.74rem;
+  line-height: 1.7;
+  font-weight: 400;
 }
 .md-typeset h1,
 .md-typeset h2,
 .md-typeset h3,
-.md-typeset h4 {
+.md-typeset h4,
+.md-typeset h5 {
+  font-family: var(--at-display);
+  font-weight: 600;
   color: var(--at-ink);
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
 .md-typeset h1 {
-  font-weight: 700;
+  font-size: 1.9em;
   margin-bottom: 0.6em;
 }
 .md-typeset h2 {
-  font-weight: 700;
+  font-size: 1.4em;
   margin-top: 2.2em;
   padding-bottom: 0.25em;
   border-bottom: 1px solid var(--at-line);
 }
 .md-typeset h3 {
-  font-weight: 600;
+  font-size: 1.1em;
 }
 .md-grid {
   max-width: 68rem;
@@ -278,7 +295,7 @@
 
 /* Home page lead: the body face, a size up, wrapped so no line is left short. */
 .at-lead {
-  font-size: 0.95rem;
+  font-size: 0.86rem;
   line-height: 1.6;
   color: var(--at-ink);
   max-width: 38em;
@@ -342,7 +359,8 @@
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
-  font-weight: 700;
+  font-family: var(--at-display);
+  font-weight: 600;
   font-size: 0.85rem;
   margin: 0 0 0.25rem;
 }
@@ -393,8 +411,9 @@
  * a size up, and a short rule under each so a group reads as a group. */
 .md-nav--primary .md-nav__item--section > .md-nav__link,
 .md-nav--primary .md-nav__item--section > .md-nav__link[for] {
+  font-family: var(--at-display);
   color: var(--at-ink);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.74rem;
   padding-bottom: 0.3em;
   border-bottom: 1px solid var(--at-line);

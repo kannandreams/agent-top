@@ -84,20 +84,20 @@ agent-top is one static binary, and most of what makes it work was written by ot
 
 </div>
 
-## Made with
+## Uses
 
 <div class="at-cards">
 
 <a class="at-card" href="https://github.com/charmbracelet/vhs">
 <span class="at-mark clay">vhs</span>
-<span class="at-name">VHS <span class="at-tag">Recording</span></span>
+<span class="at-name">VHS <span class="at-tag">Recording, by Charm</span></span>
 <p>Records the demo animation and takes every screenshot of the live view, from a tape file checked into the repo.</p>
 <span class="at-link">github.com/charmbracelet/vhs</span>
 </a>
 
 <a class="at-card" href="https://github.com/charmbracelet/freeze">
 <span class="at-mark clay">fz</span>
-<span class="at-name">Freeze <span class="at-tag">Screenshots</span></span>
+<span class="at-name">Freeze <span class="at-tag">Screenshots, by Charm</span></span>
 <p>Turns the report and plain-text output into the images on these pages.</p>
 <span class="at-link">github.com/charmbracelet/freeze</span>
 </a>
@@ -112,8 +112,15 @@ agent-top is one static binary, and most of what makes it work was written by ot
 <a class="at-card" href="https://www.jetbrains.com/lp/mono/">
 <span class="at-mark clay">jb</span>
 <span class="at-name">JetBrains Mono <span class="at-tag">Type</span></span>
-<p>The face every command and code block on this site is set in, served from the site itself under the SIL Open Font License.</p>
+<p>The face of everything you read on this site, text and code alike, served from the site itself under the SIL Open Font License.</p>
 <span class="at-link">jetbrains.com/lp/mono</span>
+</a>
+
+<a class="at-card" href="https://vercel.com/font">
+<span class="at-mark clay">gt</span>
+<span class="at-name">Geist <span class="at-tag">Type, by Vercel</span></span>
+<p>The face of every heading and label on this site, served from the site itself under the SIL Open Font License.</p>
+<span class="at-link">vercel.com/font</span>
 </a>
 
 <a class="at-card" href="https://mermaid.js.org">
@@ -162,13 +169,6 @@ agent-top is one static binary, and most of what makes it work was written by ot
 <span class="at-name">btop <span class="at-tag">The look</span></span>
 <p>Meters, ramps and a whole machine on one screen. The header and the colour ramps owe it a debt.</p>
 <span class="at-link">github.com/aristocratos/btop</span>
-</a>
-
-<a class="at-card" href="https://charm.land">
-<span class="at-mark straw">ch</span>
-<span class="at-name">Charm <span class="at-tag">This page</span></span>
-<p>The card grid on this page is borrowed from how Charm presents its own tools.</p>
-<span class="at-link">charm.land</span>
 </a>
 
 </div>
