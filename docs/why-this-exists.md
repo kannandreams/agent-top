@@ -12,4 +12,4 @@ I wanted one screen for that. The metadata already exists. Every harness writes 
 
 That is the direction: observability for the agents on your machine. Metrics, cost and the cross-harness report are there today. Advice on bad deals, failed-tool and slowest-tool views, and rate-limit warnings came next. Alerts, error tracking and a fuller FinOps history are where it goes from here. Throughout, it stays read-only, sends nothing anywhere, and ships as one binary.
 
-The longer view of what agent-top is and is not is in [Vision](vision.md).
+For the fuller picture — what the tool is, and what it deliberately is not — see [Vision](vision.md).
