@@ -126,7 +126,7 @@ nav:
       - Architecture: architecture.md
       - Changelog: changelog.md
       - Credits: credits.md
-  - Blog:
+  - Blogs:
       - blog/index.md
   - GitHub: https://github.com/kannandreams/agent-top
   - crates.io: https://crates.io/crates/agent-top

@@ -60,6 +60,13 @@ def on_nav(nav, config, files):
     for item in nav.items:
         if item.title == NAV_LABEL:
             item.title = f"Security · {n} advisor{'y' if n == 1 else 'ies'}"
+            # The stylesheet colours this link green, and it cannot read the
+            # count to know whether green is the truth. So the state goes into
+            # the target instead: a clean scan keeps the plain page URL, a
+            # scan with findings points at the panel, which the stylesheet
+            # matches separately and colours as a warning.
+            if n:
+                item.url = "/security/#what-the-scans-say"
     return nav
 
 

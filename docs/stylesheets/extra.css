@@ -455,10 +455,20 @@
   color: var(--md-default-fg-color--light);
 }
 /* The sidebar's scan link carries a number, so it reads as a figure rather
- * than a page name. */
-.md-nav__link[href="/security/"] {
+ * than a page name. Its colour has to follow the count, and CSS cannot read
+ * the count, so docs/hooks/security_scan.py encodes the state in the target:
+ * a clean scan links to the page, a scan with findings links to the panel's
+ * anchor. Green is therefore never shown over a non-zero number. */
+.md-nav__link[href="/security/"],
+.md-nav__link[href^="/security/#"] {
   font-family: var(--at-mono);
   font-size: 0.66rem;
+}
+.md-nav__link[href="/security/"] {
+  color: var(--at-green);
+}
+.md-nav__link[href^="/security/#"] {
+  color: var(--at-warn);
 }
 
 /* Blog index. */
@@ -492,6 +502,22 @@
   font-size: 0.74rem;
   padding-bottom: 0.3em;
   border-bottom: 1px solid var(--at-line);
+}
+
+/* A bookmark before the Blogs label. Material makes .md-nav__link a flex row
+ * with its own gap and align-items: flex-start, so the spacing is left to that
+ * gap rather than a margin of our own, and the icon is nudged down to sit on
+ * the text's centre instead of the top of the line box. */
+.md-nav--primary .md-nav__item--section .md-nav__link[href$="blog/"]::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.85em;
+  height: 0.85em;
+  margin-top: 0.16em;
+  background-color: currentColor;
+  --at-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linejoin='round'><path d='M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1z'/></svg>");
+  -webkit-mask: var(--at-icon) no-repeat center / contain;
+  mask: var(--at-icon) no-repeat center / contain;
 }
 
 /* Site title in the header: the mono face, like the tool's own name. */
