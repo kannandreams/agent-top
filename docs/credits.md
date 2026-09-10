@@ -93,7 +93,7 @@ agent-top is one static binary, and most of what makes it work was written by ot
 <span class="at-star" aria-hidden="true">★</span>
 <span class="at-mark">tf</span>
 <span class="at-name">Tuff <span class="at-tag">By the agent-top creator</span></span>
-<p>Installs and tracks the skills and MCP servers this repository hands its coding agents — including the agent-top skill below.</p>
+<p>Installs and tracks the skills and MCP servers this repository hands its coding agents, including the agent-top skill below.</p>
 <span class="at-link">tuffcli.dev</span>
 </a>
 
