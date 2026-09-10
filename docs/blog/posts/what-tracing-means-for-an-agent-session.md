@@ -20,7 +20,7 @@ The usual way to get a trace is instrumentation: you put OpenTelemetry calls aro
 
 Take Claude Code's JSONL. A tool call is a `tool_use` block; the answer is a `tool_result` a few lines later carrying the same `tool_use_id`. Codex pairs `function_call` and `function_call_output` by `call_id`. Both harnesses stamp the surrounding lines with a timestamp. That's a span: an id to pair begin and end, a start time, an end time once the pair completes. The file was never trying to be a trace — it's an append-only record of a conversation — but a trace is just what you get once you fold matching begin/end pairs into intervals.
 
-This has one consequence worth dwelling on: the trace is retroactive. You don't decide to trace a session before it starts. You point at a transcript, today, for a session that ended last Tuesday, and get the same trace you'd have gotten if OpenTelemetry had been wired in from the first line. Nothing has to be switched on in the harness, which also means it works the same for every harness that writes a transcript with paired call/result records and a timestamp — Claude Code, Codex, Gemini CLI, OpenCode — without four different SDKs to integrate.
+One consequence follows: the trace is retroactive. You don't decide to trace a session before it starts. You point at a transcript, today, for a session that ended last Tuesday, and get the same trace you'd have gotten if OpenTelemetry had been wired in from the first line. Nothing has to be switched on in the harness, which also means it works the same for every harness that writes a transcript with paired call/result records and a timestamp — Claude Code, Codex, Gemini CLI, OpenCode — without four different SDKs to integrate.
 
 ## Building the tree
 
@@ -53,7 +53,7 @@ fn parent_turn<'a>(spans: &[&'a ToolSpan], i: usize) -> Option<&'a ToolSpan> {
 
 Subagent spans prefer a subagent turn of their own if the transcript carries one, and fall back to the main turn otherwise — which is the whole rule for keeping a subagent's fan-out on its own branch of the tree instead of flattening it into the parent's.
 
-The other thing worth being honest about is spans that never close. A tool call issued right as the transcript ends, or a session that's still running when you export it, has no end timestamp. Inventing one — "assume it took as long as the last call" — would make a trace that lies. So an open span keeps its start and gets no end: in Chrome trace format that's a begin event (`"ph": "B"`) with no matching end, which Perfetto draws as a slice with no closing edge instead of a slice with a fabricated width; in OTLP, where an end time is mandatory, it gets one equal to its start plus an `agent_top.open` attribute, so a reader can tell "zero duration" from "we don't know."
+The other case is a span that never closes. A tool call issued right as the transcript ends, or a session that's still running when you export it, has no end timestamp. Inventing one — "assume it took as long as the last call" — would make a trace that lies. So an open span keeps its start and gets no end: in Chrome trace format that's a begin event (`"ph": "B"`) with no matching end, which Perfetto draws as a slice with no closing edge instead of a slice with a fabricated width; in OTLP, where an end time is mandatory, it gets one equal to its start plus an `agent_top.open` attribute, so a reader can tell "zero duration" from "we don't know."
 
 ## Two shapes, two audiences
 
@@ -76,7 +76,7 @@ You don't need Perfetto to get the first read. `Tab` in the detail pane switches
 
 The header line above the waterfall is the one number that answers the question people actually ask, which is "why has this agent been busy for eight minutes": the share of the window that was tool time versus inference time, with overlapping tool calls merged rather than summed so five parallel calls that each took four seconds don't get counted as twenty seconds of tool time. If that share is mostly tool, one call is the long pole and it's usually the widest bar on the tools track. If it's mostly the gap, the model was thinking — and no span log fixes a slow model, but at least you've ruled out the tool.
 
-## A debugging session, not a demo
+## Debugging a slow turn
 
 Say a turn took nine minutes and you want to know why before you decide whether to file it as a bug against the harness, the MCP server, or your own prompt.
 
@@ -92,7 +92,7 @@ Open it in Perfetto. Three things to check, roughly in order of how often each o
 
 **Did the subagent track run serially when it should have run in parallel?** Subagent spans sit on their own tracks specifically so a fan-out that should overlap and doesn't is visible as five bars stacked with gaps between them instead of five bars stacked on top of each other. That shape — sequential when the intent was parallel — is easy to miss in a transcript and impossible to miss in a waterfall.
 
-None of this requires you to have decided, ahead of time, that this session might need tracing. That's the actual point: the same file that exists because the harness needed to remember what happened is the input, so the debugging tool is available after the fact, for every session you already ran, not just the ones you had the foresight to watch live.
+None of this requires you to have decided, ahead of time, that this session might need tracing. The input is the same file the harness wrote to remember what happened, so the trace is available after the fact, for every session you have already run.
 
 ## Try it
 
