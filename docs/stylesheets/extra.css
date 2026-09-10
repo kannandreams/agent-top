@@ -43,6 +43,7 @@
   --at-blue: #2453e0;
   --at-blue-deep: #1a3fb3;
   --at-blue-soft: #9db2ee;
+  --at-gold: #a8790a;
 
   --md-primary-fg-color: var(--at-paper);
   --md-primary-fg-color--light: var(--at-paper);
@@ -84,6 +85,7 @@
   --at-blue: #6a90f6;
   --at-blue-deep: #8fadff;
   --at-blue-soft: #2f4a9c;
+  --at-gold: #f0b93d;
 
   --md-primary-fg-color: var(--at-paper);
   --md-primary-fg-color--light: var(--at-paper);
@@ -343,11 +345,11 @@
 }
 .at-card .at-star {
   position: absolute;
-  top: 0.85rem;
-  right: 0.95rem;
-  font-size: 0.75rem;
+  top: 0.8rem;
+  right: 0.9rem;
+  font-size: 1.15rem;
   line-height: 1;
-  color: var(--at-blue);
+  color: var(--at-gold);
 }
 .at-card .at-mark {
   display: inline-flex;
