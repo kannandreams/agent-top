@@ -1,0 +1,144 @@
+{
+  "version": 3,
+  "capabilities": [
+    {
+      "name": "add-harness-adapter",
+      "type": "skill",
+      "version": "0.1.0",
+      "version_scheme": "declared",
+      "description": "Added from existing agent assets.",
+      "target": "claude",
+      "installed_path": ".claude/skills/add-harness-adapter",
+      "sha256": "fbf7cbde23fe5e49ba3deae57796bad35f7084631dcf9afbcfae29c97ce92015",
+      "ownership": "imported",
+      "source": {
+        "kind": "local",
+        "path": ".claude/skills/add-harness-adapter"
+      }
+    },
+    {
+      "name": "agent-top",
+      "type": "skill",
+      "version": "0.1.0",
+      "version_scheme": "declared",
+      "description": "What this skill helps the agent do.",
+      "target": "claude",
+      "installed_path": ".claude/skills/agent-top",
+      "sha256": "4d7954534cc0542fe2cd0aa52522d2c8d80ca3e8ca0954b58fcfa8f405bac03e",
+      "ownership": "generated",
+      "source": {
+        "kind": "local",
+        "path": ".claude/skills/agent-top"
+      }
+    },
+    {
+      "name": "agent-top",
+      "type": "skill",
+      "version": "0.1.0",
+      "version_scheme": "declared",
+      "description": "What this skill helps the agent do.",
+      "target": "open-agents",
+      "installed_path": ".agents/skills/agent-top",
+      "sha256": "4d7954534cc0542fe2cd0aa52522d2c8d80ca3e8ca0954b58fcfa8f405bac03e",
+      "ownership": "generated",
+      "source": {
+        "kind": "local",
+        "path": ".claude/skills/agent-top"
+      }
+    },
+    {
+      "name": "linear",
+      "type": "mcp-server",
+      "version": "1.0.0",
+      "version_scheme": "declared",
+      "description": "Find, create, and update Linear issues, projects, and comments. Authenticates with a Linear API key; the interactive OAuth flow is not used.",
+      "target": "open-agents",
+      "installed_path": ".agents/mcp-servers/linear",
+      "sha256": "75c6bbf56eb410be3773a3d231c635c2ed82fd09a74e5d7602266a0196b19082",
+      "ownership": "generated",
+      "source": {
+        "kind": "catalog",
+        "id": "linear",
+        "version": "1.0.0"
+      },
+      "managed_mcp_entry": {
+        "configPath": ".agents/mcp.json",
+        "baselineHash": "9da360676f180e89f18f63bf2c381983b32b89846e01974b2fbfe32d9482d673"
+      },
+      "server": {
+        "transport": "http",
+        "args": [],
+        "url": "https://mcp.linear.app/mcp",
+        "env": {},
+        "headers": {
+          "Authorization": {
+            "from_env": "LINEAR_API_KEY",
+            "format": "Bearer {}"
+          }
+        }
+      }
+    },
+    {
+      "name": "rust-best-practices",
+      "type": "skill",
+      "version": "1.1.1",
+      "version_scheme": "declared",
+      "description": "Installed from git source.",
+      "target": "open-agents",
+      "installed_path": ".agents/skills/rust-best-practices",
+      "sha256": "976353d7abc027e010217dfa8884170eb85387bd572367282abe9ac55c24bba2",
+      "ownership": "generated",
+      "source": {
+        "kind": "git",
+        "url": "https://github.com/apollographql/skills",
+        "path": "skills/rust-best-practices",
+        "ref": "c288eb80629dd2309eed81f23d693f66a452d043"
+      }
+    },
+    {
+      "name": "tuff-capabilities",
+      "type": "skill",
+      "version": "1.0.0",
+      "version_scheme": "declared",
+      "description": "Index of project tools and workflows installed via Tuff. Consult when a task involves one of the capabilities listed below, to find the exact invocation command.",
+      "target": "open-agents",
+      "installed_path": ".agents/skills/tuff-capabilities",
+      "sha256": "6d93d16ba352a452cdfb24f7eb0429a370911980fe760092897af2d30f03d41a",
+      "ownership": "generated",
+      "source": {
+        "kind": "local",
+        "path": ""
+      }
+    },
+    {
+      "name": "tuff-cli-guide",
+      "type": "skill",
+      "version": "0.1.0",
+      "version_scheme": "declared",
+      "description": "Guide for using Tuff CLI commands inside this repository.",
+      "target": "claude",
+      "installed_path": ".claude/skills/tuff-cli-guide",
+      "sha256": "d9a6b383baf189a6b2df247e2a7dde1e499e991ed64c9f8f21fbacd3d6caf665",
+      "ownership": "generated",
+      "source": {
+        "kind": "local",
+        "path": ""
+      }
+    },
+    {
+      "name": "tuff-cli-guide",
+      "type": "skill",
+      "version": "0.1.0",
+      "version_scheme": "declared",
+      "description": "Guide for using Tuff CLI commands inside this repository.",
+      "target": "open-agents",
+      "installed_path": ".agents/skills/tuff-cli-guide",
+      "sha256": "d9a6b383baf189a6b2df247e2a7dde1e499e991ed64c9f8f21fbacd3d6caf665",
+      "ownership": "generated",
+      "source": {
+        "kind": "local",
+        "path": ""
+      }
+    }
+  ]
+}
