@@ -338,6 +338,17 @@
   transform: translateY(-2px);
   outline: none;
 }
+.at-cards a.at-card.at-featured {
+  border-color: var(--at-blue);
+}
+.at-card .at-star {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.95rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--at-blue);
+}
 .at-card .at-mark {
   display: inline-flex;
   align-items: center;

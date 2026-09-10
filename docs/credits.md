@@ -89,6 +89,14 @@ agent-top is one static binary, and most of what makes it work was written by ot
 
 <div class="at-cards">
 
+<a class="at-card at-featured" href="https://tuffcli.dev">
+<span class="at-star" aria-hidden="true">★</span>
+<span class="at-mark">tf</span>
+<span class="at-name">Tuff <span class="at-tag">By the agent-top creator</span></span>
+<p>Installs and tracks the skills and MCP servers this repository hands its coding agents — including the agent-top skill below.</p>
+<span class="at-link">tuffcli.dev</span>
+</a>
+
 <a class="at-card" href="https://github.com/charmbracelet/vhs">
 <span class="at-mark clay">vhs</span>
 <span class="at-name">VHS <span class="at-tag">Recording, by Charm</span></span>

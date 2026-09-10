@@ -1,0 +1,7 @@
+{
+  "agents": [
+    "open-agents",
+    "claude"
+  ],
+  "defaultAgent": "open-agents"
+}

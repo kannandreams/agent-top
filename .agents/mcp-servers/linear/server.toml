@@ -1,0 +1,15 @@
+id = "linear"
+version = "1.0.0"
+type = "mcp-server"
+description = "Find, create, and update Linear issues, projects, and comments. Authenticates with a Linear API key; the interactive OAuth flow is not used."
+
+[server]
+transport = "http"
+args = []
+url = "https://mcp.linear.app/mcp"
+
+[server.env]
+
+[server.headers.Authorization]
+from_env = "LINEAR_API_KEY"
+format = "Bearer {}"
