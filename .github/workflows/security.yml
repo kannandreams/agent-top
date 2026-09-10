@@ -1,0 +1,77 @@
+name: Security
+
+# Three checks, each answering a different question:
+#
+#   supply-chain  is any crate we depend on subject to a RustSec advisory, an
+#                 unexpected licence, or a source that is not crates.io?
+#   code-scan     does the code itself contain a pattern CodeQL recognises as
+#                 a vulnerability?
+#   published     does the vulnerability count on agenttop.dev still match what
+#                 a fresh scan says?
+#
+# The daily schedule is the point of the first one: an advisory published
+# against an unchanged Cargo.lock is a new vulnerability in a release that has
+# already shipped, and nothing in a push-triggered pipeline would catch it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 06:15 UTC daily. Off the hour, because everyone schedules on the hour.
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  supply-chain:
+    name: supply chain (cargo-deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories bans licenses sources
+
+  code-scan:
+    name: code scan (CodeQL)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+
+      # Rust needs no build for CodeQL: the extractor reads the source tree
+      # directly, so there is no toolchain step and no target cache here.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: rust
+          build-mode: none
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:rust"
+
+  published:
+    name: published count is true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      # Fails when docs/data/security.json claims a vulnerability count that a
+      # fresh scan disagrees with, so the number on the site cannot go stale
+      # while still being presented as current.
+      - name: Check the published figures against a fresh scan
+        run: python3 scripts/security_report.py --check

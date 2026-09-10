@@ -71,6 +71,7 @@ extra_css:
 hooks:
   - docs/hooks/changelog_links.py
   - docs/hooks/cache_bust.py
+  - docs/hooks/security_scan.py
 
 extra:
   generator: false
@@ -129,3 +130,8 @@ nav:
       - blog/index.md
   - GitHub: https://github.com/kannandreams/agent-top
   - crates.io: https://crates.io/crates/agent-top
+  # Root-relative on purpose: the Security page already sits under Project, and
+  # naming the file twice would make mkdocs read this as the page's position in
+  # the nav, which breaks its previous/next footer. docs/hooks/security_scan.py
+  # rewrites this label to the count the last scan actually found.
+  - Security scan: /security/

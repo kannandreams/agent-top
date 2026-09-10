@@ -1,0 +1,12 @@
+{
+  "vulnerabilities": 0,
+  "warnings": 0,
+  "dependencies": 279,
+  "advisory_db": {
+    "advisories": 1243,
+    "commit": "b50980aad8b8",
+    "updated": "2026-09-09"
+  },
+  "checked_at": "2026-09-10",
+  "tool": "cargo-audit 0.22.2"
+}

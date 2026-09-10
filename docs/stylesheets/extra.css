@@ -44,6 +44,8 @@
   --at-blue-deep: #1a3fb3;
   --at-blue-soft: #9db2ee;
   --at-gold: #a8790a;
+  --at-green: #2e7d4f;
+  --at-warn: #c2410c;
 
   --md-primary-fg-color: var(--at-paper);
   --md-primary-fg-color--light: var(--at-paper);
@@ -86,6 +88,8 @@
   --at-blue-deep: #8fadff;
   --at-blue-soft: #2f4a9c;
   --at-gold: #f0b93d;
+  --at-green: #57c98a;
+  --at-warn: #fb923c;
 
   --md-primary-fg-color: var(--at-paper);
   --md-primary-fg-color--light: var(--at-paper);
@@ -402,6 +406,59 @@
 }
 .at-cards a.at-card:hover .at-link {
   color: var(--at-blue);
+}
+
+/* Security page: the scan result, rendered from docs/data/security.json by
+ * docs/hooks/security_scan.py. The state class is chosen by the hook, which is
+ * the only side that knows the count. */
+.at-scan {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 1rem;
+  align-items: baseline;
+  padding: 1.1rem 1.3rem;
+  margin: 1.2em 0 1.6em;
+  border: 1px solid var(--at-line);
+  border-left: 3px solid var(--at-muted);
+  border-radius: 8px;
+  background: var(--at-panel);
+}
+.at-scan--clean {
+  border-left-color: var(--at-green);
+}
+.at-scan--flagged {
+  border-left-color: var(--at-warn);
+}
+.at-scan__count {
+  font-family: var(--at-display);
+  font-size: 2.4rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--at-ink);
+}
+.at-scan--clean .at-scan__count {
+  color: var(--at-green);
+}
+.at-scan--flagged .at-scan__count {
+  color: var(--at-warn);
+}
+.at-scan__label {
+  font-family: var(--at-display);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.at-scan__detail {
+  grid-column: 2;
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.55;
+  color: var(--md-default-fg-color--light);
+}
+/* The sidebar's scan link carries a number, so it reads as a figure rather
+ * than a page name. */
+.md-nav__link[href="/security/"] {
+  font-family: var(--at-mono);
+  font-size: 0.66rem;
 }
 
 /* Blog index. */

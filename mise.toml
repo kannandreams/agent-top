@@ -27,6 +27,16 @@ description = "Run the TUI"
 raw = true
 run = "cargo run --"
 
+# Supply-chain checks. Needs cargo-deny and cargo-audit:
+#   cargo install --locked cargo-deny cargo-audit
+[tasks.security]
+description = "Advisory, licence and source checks over the dependency tree"
+run = ["cargo deny check advisories bans licenses sources", { task = "security:report" }]
+
+[tasks."security:report"]
+description = "Rescan with cargo-audit and rewrite docs/data/security.json"
+run = "python3 scripts/security_report.py"
+
 # The documentation site (mkdocs.yml at the root, pages in docs/). Every
 # Python step goes through uv, which makes a throwaway environment from
 # docs/requirements.txt; nothing is installed with pip and there is no venv.

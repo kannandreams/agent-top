@@ -1,0 +1,60 @@
+# cargo-deny: the supply-chain gate for agent-top.
+#
+#   cargo deny check          # everything below, what CI runs
+#   cargo deny check licenses # one section at a time
+#
+# The binary ships as one static file that reads a developer's transcripts, so
+# the dependency tree is part of the security story: every crate must come from
+# crates.io, carry a permissive licence, and be free of a RustSec advisory.
+
+[graph]
+all-features = true
+
+[advisories]
+# A crate with a RustSec advisory fails the build. The daily scheduled run in
+# .github/workflows/security.yml is the point of this: an advisory published
+# against an unchanged Cargo.lock is caught within a day rather than at the
+# next release.
+ignore = []
+
+[licenses]
+# Every licence in the tree today, and nothing else: a new dependency under a
+# copyleft or unknown licence fails rather than shipping quietly inside the
+# binary. An SPDX "OR" expression only needs one of its options allowed, so
+# MPL-2.0 and LGPL alternatives resolve to MIT without being listed here.
+#
+# Two entries below are not reached on every platform (a Windows-only crate,
+# a build dependency), and cargo-deny warns about an allowed licence it never
+# encountered. The list is kept whole rather than trimmed to one platform's
+# graph, so that warning is turned off instead.
+unused-allowed-license = "allow"
+allow = [
+  "0BSD",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "CDLA-Permissive-2.0",
+  "ISC",
+  "MIT",
+  "Unicode-3.0",
+  "Unicode-DFS-2016",
+  "Unlicense",
+  "WTFPL",
+  "Zlib",
+]
+
+[bans]
+# Duplicate versions are a size and audit-surface problem, not a correctness
+# one, so they are reported without failing the build. A wildcard version
+# requirement is refused outright: it makes the tree unreproducible.
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+# crates.io and nothing else. No git dependency, no alternative registry, so
+# every byte compiled into the binary is a published, checksummed crate.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
