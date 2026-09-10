@@ -478,17 +478,16 @@ can disagree on cost and how to reconcile them, is
 
 ## Security
 
-agent-top reads a developer's transcripts and process table, so the dependency
-tree and the code are both part of the security story. Three checks run in
-[the Security workflow](https://github.com/kannandreams/agent-top/actions/workflows/security.yml):
-`cargo-deny` over advisories, licences and sources; CodeQL over the code; and a
-check that the vulnerability count published on the site still matches a fresh
-scan. The supply-chain rules are in [`deny.toml`](deny.toml): crates.io only,
-no git dependencies, and a permissive-licence allowlist. Run them yourself with
-`mise run security`.
+Three checks run in
+[the Security workflow](https://github.com/kannandreams/agent-top/actions/workflows/security.yml),
+on every push and pull request and daily: `cargo-deny` over advisories, licences
+and sources; CodeQL over the code; and a check that the vulnerability count
+published on the site still matches a fresh scan. The supply-chain rules are in
+[`deny.toml`](deny.toml): crates.io only, no git dependencies, and a
+permissive-licence allowlist. Run them yourself with `mise run security`.
 
 The current count, with the advisory database revision it was measured against,
-is [on the docs site](https://agenttop.dev/security/), and the same figures are
+is [on the docs site](https://agenttop.dev/security/); the same figures are
 published as [JSON](https://agenttop.dev/data/security.json).
 
 ## Development
