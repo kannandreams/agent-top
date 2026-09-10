@@ -24,7 +24,7 @@
       "description": "What this skill helps the agent do.",
       "target": "claude",
       "installed_path": ".claude/skills/agent-top",
-      "sha256": "4d7954534cc0542fe2cd0aa52522d2c8d80ca3e8ca0954b58fcfa8f405bac03e",
+      "sha256": "af30a32558fdc3c024417106a509eb5f3027fa72cca1b69fafcc188877e39039",
       "ownership": "generated",
       "source": {
         "kind": "local",
@@ -39,7 +39,7 @@
       "description": "What this skill helps the agent do.",
       "target": "open-agents",
       "installed_path": ".agents/skills/agent-top",
-      "sha256": "4d7954534cc0542fe2cd0aa52522d2c8d80ca3e8ca0954b58fcfa8f405bac03e",
+      "sha256": "af30a32558fdc3c024417106a509eb5f3027fa72cca1b69fafcc188877e39039",
       "ownership": "generated",
       "source": {
         "kind": "local",
