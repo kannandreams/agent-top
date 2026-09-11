@@ -212,7 +212,7 @@ jobs:
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           if [ -z "${TAP_TOKEN}" ]; then
-            echo "::warning::HOMEBREW_TAP_TOKEN is not set; skipping the tap bump. See docs/releasing.md."
+            echo "::warning::HOMEBREW_TAP_TOKEN is not set; skipping the tap bump. Set that repository secret to a token with Contents: read and write on kannandreams/homebrew-tap, then re-run this job."
             exit 0
           fi
           ./packaging/homebrew/render-formula.sh "$VERSION" staging > /tmp/agent-top.rb
@@ -237,7 +237,7 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           if [ -z "${CARGO_REGISTRY_TOKEN}" ]; then
-            echo "::warning::CARGO_REGISTRY_TOKEN is not set; skipping crates.io. See docs/releasing.md."
+            echo "::warning::CARGO_REGISTRY_TOKEN is not set; skipping crates.io. Set that repository secret to a crates.io publish token, then re-run this job."
             exit 0
           fi
           # The core crate first: agent-top depends on it by version.
