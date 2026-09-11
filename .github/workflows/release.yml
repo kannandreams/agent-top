@@ -186,7 +186,13 @@ jobs:
           notes="$(awk -v v="$version" '
             $0 ~ "^## \\[" v "\\]" { seen = 1; next }
             seen && /^## / { exit }
-            seen { print }
+            seen { line[n++] = $0 }
+            END {
+              first = 0
+              while (first < n && line[first] ~ /^[[:space:]]*$/) { first++ }
+              while (n > first && line[n - 1] ~ /^[[:space:]]*$/) { n-- }
+              for (i = first; i < n; i++) { print line[i] }
+            }
           ' CHANGELOG.md)"
           if ! printf '%s' "$notes" | grep -q '[^[:space:]]'; then
             echo "CHANGELOG.md has no entries under '## [$version]'" >&2
