@@ -249,15 +249,11 @@ fn run(terminal: &mut ratatui::DefaultTerminal, source: &mut Source, interval: D
             }
             let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
             match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => {
-                    if app.overlay != app::Overlay::None {
-                        app.close_overlay();
-                    } else {
-                        return Ok(Exit::Quit);
-                    }
-                }
                 KeyCode::Char('c') if ctrl => return Ok(Exit::Quit),
-                _ => app.on_key(key.code),
+                // Every other key's quit/close decision lives in `on_key`,
+                // testable there instead of on this real terminal loop.
+                _ if app.on_key(key.code) => return Ok(Exit::Quit),
+                _ => {}
             }
             if let Some(latest) = app.upgrade_requested.take() {
                 return Ok(Exit::Upgrade(latest));

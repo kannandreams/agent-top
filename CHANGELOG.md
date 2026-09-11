@@ -4,12 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-11
+
 ### Added
 - **A documentation site and a blog**, built with Material for MkDocs from the `docs/` directory (`mkdocs.yml` at the repository root) and hosted on Cloudflare Pages. It carries a guide to every panel, the cost report, the trace export, snapshots and replay, prices and harness support; the existing accounting, architecture, roadmap and releasing pages; a credits page; and a first post, *Five things agent-top shows that your agents will not*. Every screenshot of the live view is `docs/demo-snapshot.json` replayed through `--replay`, taken by `vhs docs/screenshots.tape`; the report screenshots are real, because a cost total gives nothing away. The site serves its own font and has no analytics; its one outside request is to the GitHub API for the header badge.
 - The synthetic demo snapshot now carries every section the current UI can show: seven agents across all four harnesses, MCP server rows, context by source, advice, orphan origins and a Codex rate limit. The README animation is regenerated from it.
 
 ### Fixed
 - The detail pane's `web searches` line ran its label into its value (`web searches2`); the label is now `web search` and the value has its column.
+- `q` on the update popup quit the question, not the app: it closed the popup exactly as it does every other overlay, which for this one meant recording "not now" for a version nobody had actually declined. `q` now quits agent-top outright, leaving that version un-declined for next launch; only `n` or `Esc` records a decline. Found live when the v0.15.1 popup was dismissed this way instead of answered.
 
 ## [0.15.2] - 2026-09-07
 

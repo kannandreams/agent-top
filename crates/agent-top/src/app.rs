@@ -267,20 +267,27 @@ impl App {
         self.selected_id = Some(self.rows[self.selected].id.clone());
     }
 
-    pub fn on_key(&mut self, code: KeyCode) {
-        // The update question takes `u` and `n` for itself while it is open.
+    /// Handle one keypress. Returns `true` when the app should exit: `q` or
+    /// `Esc` with nothing open, or `q` on the update popup specifically. That
+    /// popup asks a real question, so the generic "close whatever's open"
+    /// key must not read as a quiet decline the way it does for every other
+    /// overlay; quitting leaves the version un-declined for next launch,
+    /// and only `n`/`Esc`, below, actually says no.
+    pub fn on_key(&mut self, code: KeyCode) -> bool {
+        // The update question takes `u`, `n` and `q` for itself while it is open.
         if self.overlay == Overlay::Update {
             match code {
                 KeyCode::Char('u') | KeyCode::Char('y') | KeyCode::Enter => {
                     if self.installer.steps().is_some() {
                         self.upgrade_requested = self.latest();
                     }
-                    return;
+                    return false;
                 }
                 KeyCode::Char('n') | KeyCode::Esc => {
                     self.close_overlay();
-                    return;
+                    return false;
                 }
+                KeyCode::Char('q') => return true,
                 _ => {}
             }
         }
@@ -318,9 +325,16 @@ impl App {
             KeyCode::Char('l') => self.toggle(Overlay::SlowTools),
             KeyCode::Char('f') => self.toggle(Overlay::FailedTools),
             KeyCode::Char('a') => self.toggle(Overlay::Advice),
-            KeyCode::Esc => self.close_overlay(),
+            KeyCode::Esc | KeyCode::Char('q') => {
+                if self.overlay != Overlay::None {
+                    self.close_overlay();
+                } else {
+                    return true;
+                }
+            }
             _ => {}
         }
+        false
     }
 
     /// Open the given overlay, or close it if it is already the one showing.
@@ -458,6 +472,36 @@ mod tests {
         *app.update.lock().unwrap() = Some("10.0.0".into());
         app.maybe_prompt_update();
         assert_eq!(app.overlay, Overlay::Update);
+    }
+
+    /// `q` on the update popup quits instead of quietly declining the
+    /// version: the popup is a real question, and `q` closing it the way it
+    /// closes every other overlay would record a "not now" nobody chose.
+    /// Only `n`/`Esc` records that. Regression for the v0.15.1 live test,
+    /// where a `q` press was read back as a decline.
+    #[test]
+    fn q_on_the_update_popup_quits_without_declining_the_version() {
+        let mut app = App::new(snapshot(0));
+        *app.update.lock().unwrap() = Some("9.9.9".into());
+        app.maybe_prompt_update();
+        assert_eq!(app.overlay, Overlay::Update);
+
+        assert!(app.on_key(KeyCode::Char('q')), "q quits");
+        assert_eq!(app.update_dismissed, None, "quitting is not a decline");
+
+        // Esc, unlike q, is a deliberate decline and is remembered.
+        app.overlay = Overlay::Update;
+        assert!(!app.on_key(KeyCode::Esc));
+        assert_eq!(app.update_dismissed.as_deref(), Some("9.9.9"));
+
+        // q still closes every other overlay without quitting.
+        let mut app = App::new(snapshot(0));
+        app.overlay = Overlay::Help;
+        assert!(!app.on_key(KeyCode::Char('q')));
+        assert_eq!(app.overlay, Overlay::None);
+
+        // q with nothing open quits, same as before.
+        assert!(app.on_key(KeyCode::Char('q')));
     }
 
     #[test]
