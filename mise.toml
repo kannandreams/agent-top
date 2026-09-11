@@ -52,3 +52,8 @@ run = "uv run --with-requirements docs/requirements.txt mkdocs build --strict"
 description = "Build the docs site and upload site/ to Cloudflare Pages (needs `npx wrangler login` once)"
 depends = ["docs:build"]
 run = "npx --yes wrangler@4 pages deploy site --project-name agent-top --branch main --commit-dirty=true"
+
+# Git hooks live in .githooks and are not used until git is pointed at them.
+[tasks.hooks]
+description = "Point git at .githooks (strips agent attribution trailers from commit messages)"
+run = "git config core.hooksPath .githooks"

@@ -172,7 +172,7 @@ jobs:
           pattern: dist-*
           merge-multiple: true
 
-      - name: Check the tag matches the version in Cargo.toml
+      - name: Check the tag matches the version and the changelog
         run: |
           version="${GITHUB_REF_NAME#v}"
           manifest="$(awk -F'"' '/^version = /{print $2; exit}' Cargo.toml)"
@@ -180,16 +180,32 @@ jobs:
             echo "tag $GITHUB_REF_NAME does not match workspace version $manifest" >&2
             exit 1
           fi
+          # Read this version's own section, not whichever section comes
+          # first. v0.16.0 was released with an empty `## [Unreleased]` left
+          # above its entries and published that heading as its notes.
+          notes="$(awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { seen = 1; next }
+            seen && /^## / { exit }
+            seen { print }
+          ' CHANGELOG.md)"
+          if ! printf '%s' "$notes" | grep -q '[^[:space:]]'; then
+            echo "CHANGELOG.md has no entries under '## [$version]'" >&2
+            exit 1
+          fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
+          {
+            echo "NOTES<<CHANGELOG_SECTION_EOF"
+            printf '%s\n' "$notes"
+            echo "CHANGELOG_SECTION_EOF"
+          } >> "$GITHUB_ENV"
 
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes="$(awk '/^## /{ if (seen++) exit } seen' CHANGELOG.md)"
           gh release create "$GITHUB_REF_NAME" staging/* \
             --title "agent-top $GITHUB_REF_NAME" \
-            --notes "${notes:-See CHANGELOG.md.}"
+            --notes "$NOTES"
 
       - name: Update the Homebrew tap
         env:

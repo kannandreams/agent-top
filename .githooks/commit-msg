@@ -1,0 +1,24 @@
+#!/bin/sh
+# Commits and releases here are authored by the repository owner alone.
+#
+# Agent tooling adds `Co-Authored-By: Claude ...`, `Claude-Session:` and a
+# "Generated with Claude Code" footer from its own session instructions, which
+# is how v0.16.0's release commit shipped with two of them. Stripping the
+# trailers at commit time settles it once instead of per session.
+#
+# Install: mise run hooks  (sets core.hooksPath to .githooks)
+
+msg="$1"
+tmp="$msg.no-attribution"
+
+awk '
+  /^[Cc]o-[Aa]uthored-[Bb]y:.*([Cc]laude|[Aa]nthropic)/ { next }
+  /^Claude-Session:/ { next }
+  /Generated with \[Claude Code\]/ { next }
+  /^https:\/\/claude\.ai\/code\/session_/ { next }
+  { line[n++] = $0 }
+  END {
+    while (n > 0 && line[n - 1] ~ /^[[:space:]]*$/) { n-- }
+    for (i = 0; i < n; i++) { print line[i] }
+  }
+' "$msg" > "$tmp" && mv "$tmp" "$msg"
