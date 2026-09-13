@@ -57,6 +57,10 @@ Inside tmux, zellij, WezTerm or kitty, a popup offers `o`. It splits a pane to t
 
 The pane is an ordinary agent-top. `q` in it quits, and the multiplexer closes the pane, so nothing is left behind.
 
+![In tmux: m opens the MCP servers popup, o moves it into a pane on the right, then l and Enter fill the left pane with the slowest tools and Esc brings the table back](views-and-panes.gif){ .bare }
+
+The recording is a real tmux session inside the terminal recorder, replaying the synthetic snapshot; `docs/views-and-panes.tape` and `docs/tmux-demo.sh` make it.
+
 !!! info "What `o` runs"
 
     The multiplexer is recognised from the variable each one sets in its shells. The command is the one in the table, with `agent-top` being the path of the binary that is running and `<flags>` the `--interval-ms`, `--stopped-window-min` and `--replay` values of this run, if any were given. Nothing else is started, and nothing about an agent is touched.

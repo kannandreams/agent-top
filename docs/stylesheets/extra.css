@@ -46,6 +46,9 @@
   --at-gold: #a8790a;
   --at-green: #2e7d4f;
   --at-warn: #c2410c;
+  --at-key: #b4530a;
+  --at-key-bg: rgba(194, 65, 12, 0.08);
+  --at-key-line: rgba(194, 65, 12, 0.22);
 
   --md-primary-fg-color: var(--at-paper);
   --md-primary-fg-color--light: var(--at-paper);
@@ -90,6 +93,9 @@
   --at-gold: #f0b93d;
   --at-green: #57c98a;
   --at-warn: #fb923c;
+  --at-key: #f0a05a;
+  --at-key-bg: rgba(240, 160, 90, 0.10);
+  --at-key-line: rgba(240, 160, 90, 0.24);
 
   --md-primary-fg-color: var(--at-paper);
   --md-primary-fg-color--light: var(--at-paper);
@@ -239,6 +245,18 @@
   border-radius: 4px;
   padding: 0.05em 0.35em;
   font-size: 0.78em;
+}
+/* Inline code is mostly keys (`Esc`, `Enter`, `o`) and commands, and on the
+ * grey panel it read as body text. Orange ink on a faint orange ground, with
+ * a hairline, makes it read as a key cap in both modes. Links keep their
+ * colour; blocks keep the terminal panel. */
+.md-typeset :not(pre) > code {
+  color: var(--at-key);
+  background: var(--at-key-bg);
+  border: 1px solid var(--at-key-line);
+}
+.md-typeset a > code {
+  color: inherit;
 }
 .md-typeset pre > code {
   font-size: 0.72rem;
