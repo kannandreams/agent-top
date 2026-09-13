@@ -74,8 +74,7 @@ drops between turns shrink it by less, and that shrink is taken off the
 cost. OpenCode records one cost per reply rather than one per kind of token, so
 for an OpenCode row the price table divides that figure between input, cache
 and output, and the rows add up to OpenCode's own prompt-side share; a model the
-table does not price, which includes the DeepSeek models OpenCode often runs,
-gets tokens only. And the split is
+table does not price gets tokens only. And the split is
 per response, so two tools answered together are assumed the same size; if that
 matters, the `agent-top trace` export has each call's duration, which is often
 a fair proxy.
