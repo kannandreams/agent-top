@@ -26,7 +26,7 @@ Joining a process to a transcript is the one place a heuristic can be wrong, so 
 
 ## MCP servers
 
-Calls are counted from the transcript's own tool names: Claude Code's `mcp__<server>__<tool>`, Gemini's `mcp_<server>_<tool>`, and the server Codex names in each `mcp_tool_call_end` event. The process is matched to the server by name in its command line, or by elimination when exactly one process and one server are left. OpenCode MCP counts are still to come.
+Calls are counted from the transcript's own tool names: Claude Code's `mcp__<server>__<tool>`, Gemini's `mcp_<server>_<tool>`, and the server Codex names in each `mcp_tool_call_end` event. OpenCode names an MCP tool `<server>_<tool>` with no prefix, so the name alone cannot say where the server ends; agent-top reads the server names from OpenCode's config (the global `opencode.json` or `.jsonc`, and the project's, from the session directory up to the repository root), names only, and counts a tool whose name starts with one of them. A server set only through `OPENCODE_CONFIG` in the agent's own shell is not visible from outside and is not counted. The process is matched to the server by name in its command line, or by elimination when exactly one process and one server are left.
 
 ## Drift
 

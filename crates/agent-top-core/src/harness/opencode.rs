@@ -30,9 +30,24 @@
 //!   (`completed` / `error` / ...) and `time` `{start,end}` in epoch ms, which
 //!   is one tool span. `step-start` / `step-finish`, `reasoning`, `text` and
 //!   `patch` parts are not read.
-//! * MCP tool naming was not observable here (no MCP server is configured), so
-//!   per-server MCP counts are not produced for OpenCode yet; every tool part
-//!   is counted as a tool call and a span.
+//! * MCP calls (verified on OpenCode 1.18.15, 2026-09-13, with a filesystem
+//!   server named `scratch_fs` and a live session): an MCP call is an ordinary
+//!   `tool` part whose `tool` is the server name and the tool name joined by
+//!   `_`, each with every character outside `[a-zA-Z0-9_-]` replaced by `_`
+//!   (`scratch_fs_list_directory`). There is no `mcp` prefix and nothing else
+//!   in the part marks it as MCP; a call the server rejects has `status`
+//!   `error`. So the name alone cannot say where the server ends, and a
+//!   built-in tool with an underscore would look the same. The server names
+//!   come from OpenCode's config instead, key names of `mcp` only: the global
+//!   `config.json`, `opencode.json` and `opencode.jsonc` in
+//!   `$XDG_CONFIG_HOME/opencode` (or `~/.config/opencode`); `opencode.jsonc`,
+//!   `opencode.json` and `.opencode/opencode.json[c]` in the session directory
+//!   and each parent up to the worktree root; and `~/.opencode`. A tool part
+//!   is an MCP call when its name starts with a configured server's sanitised
+//!   name and `_`, the longest such name winning. A server configured only
+//!   through `OPENCODE_CONFIG` in the agent's own environment cannot be seen
+//!   from outside the process and is not counted. Every tool part, MCP or not,
+//!   is still counted as a tool call and a span.
 //! * Context by source is not produced either: the session row carries
 //!   totals, and sizing each tool's results needs per-message usage in
 //!   message order, which is a `message` table read this adapter does not
@@ -117,6 +132,174 @@ pub fn recent_sessions(db: &Path, since: SystemTime) -> Vec<Session> {
         })
     });
     rows.map(|it| it.flatten().collect()).unwrap_or_default()
+}
+
+/// Where OpenCode's config lives, for reading MCP server names. The fields are
+/// the roots that differ per machine, so a test can point them elsewhere.
+#[derive(Debug, Clone, Default)]
+pub struct ConfigRoots {
+    /// `$XDG_CONFIG_HOME/opencode`, or `~/.config/opencode`.
+    pub global: Option<PathBuf>,
+    /// The home directory, for `~/.opencode`.
+    pub home: Option<PathBuf>,
+}
+
+impl ConfigRoots {
+    pub fn detect() -> ConfigRoots {
+        let home = std::env::var_os("HOME").map(PathBuf::from);
+        let global = std::env::var_os("XDG_CONFIG_HOME")
+            .map(|d| PathBuf::from(d).join("opencode"))
+            .or_else(|| home.as_ref().map(|h| h.join(".config/opencode")));
+        ConfigRoots { global, home }
+    }
+}
+
+/// Every config file OpenCode would read for a session in `directory`, in no
+/// particular order: the global files, the project files from `directory` up
+/// to the worktree root (the nearest parent holding `.git`, else the
+/// filesystem root), and `~/.opencode`. Files that do not exist are left out
+/// by the caller.
+fn config_files(directory: &Path, roots: &ConfigRoots) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    if let Some(g) = &roots.global {
+        for name in ["config.json", "opencode.json", "opencode.jsonc"] {
+            files.push(g.join(name));
+        }
+    }
+    let project = |dir: &Path, files: &mut Vec<PathBuf>| {
+        for name in ["opencode.jsonc", "opencode.json"] {
+            files.push(dir.join(name));
+            files.push(dir.join(".opencode").join(name));
+        }
+    };
+    for dir in directory.ancestors() {
+        project(dir, &mut files);
+        if dir.join(".git").exists() {
+            break;
+        }
+    }
+    if let Some(h) = &roots.home {
+        for name in ["opencode.jsonc", "opencode.json"] {
+            files.push(h.join(".opencode").join(name));
+        }
+    }
+    files
+}
+
+/// The MCP server names configured for a session in `directory`: the keys of
+/// every `mcp` section OpenCode would read, and nothing else from those files.
+/// Sorted and deduplicated.
+pub fn mcp_server_names(directory: &Path, roots: &ConfigRoots) -> Vec<String> {
+    let mut names: Vec<String> = config_files(directory, roots)
+        .iter()
+        .filter_map(|f| std::fs::read_to_string(f).ok())
+        .filter_map(|text| serde_json::from_str::<serde_json::Value>(&strip_jsonc(&text)).ok())
+        .filter_map(|v| v.get("mcp").and_then(|m| m.as_object()).map(|m| m.keys().cloned().collect::<Vec<_>>()))
+        .flatten()
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
+
+/// JSON with comments, as OpenCode's `.jsonc` files are, turned into JSON:
+/// `//` and `/* */` comments outside strings are removed, and a comma right
+/// before a closing `}` or `]` is dropped.
+fn strip_jsonc(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    let mut in_string = false;
+    while let Some(c) = chars.next() {
+        if in_string {
+            out.push(c);
+            match c {
+                '\\' => {
+                    if let Some(n) = chars.next() {
+                        out.push(n);
+                    }
+                }
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        match (c, chars.peek()) {
+            ('"', _) => {
+                in_string = true;
+                out.push(c);
+            }
+            ('/', Some('/')) => {
+                for n in chars.by_ref() {
+                    if n == '\n' {
+                        out.push('\n');
+                        break;
+                    }
+                }
+            }
+            ('/', Some('*')) => {
+                chars.next();
+                let mut prev = ' ';
+                for n in chars.by_ref() {
+                    if prev == '*' && n == '/' {
+                        break;
+                    }
+                    prev = n;
+                }
+            }
+            _ => out.push(c),
+        }
+    }
+    // Trailing commas: a comma followed only by whitespace and a closer.
+    let bytes: Vec<char> = out.chars().collect();
+    let mut cleaned = String::with_capacity(out.len());
+    let mut in_string = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if in_string {
+            cleaned.push(c);
+            if c == '\\' && i + 1 < bytes.len() {
+                cleaned.push(bytes[i + 1]);
+                i += 1;
+            } else if c == '"' {
+                in_string = false;
+            }
+        } else if c == '"' {
+            in_string = true;
+            cleaned.push(c);
+        } else if c == ',' {
+            let next = bytes[i + 1..].iter().find(|n| !n.is_whitespace());
+            if !matches!(next, Some('}') | Some(']')) {
+                cleaned.push(c);
+            }
+        } else {
+            cleaned.push(c);
+        }
+        i += 1;
+    }
+    cleaned
+}
+
+/// A name as OpenCode puts it into a tool key: every character outside
+/// `[a-zA-Z0-9_-]` becomes `_`.
+fn sanitize(name: &str) -> String {
+    name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' }).collect()
+}
+
+/// The configured server an OpenCode tool name belongs to, if any. The tool
+/// key is `<server>_<tool>` with both halves sanitised, so a name matches a
+/// server when it starts with the sanitised server name and `_` and has a tool
+/// name after it. Of several matches (`github` and `github_enterprise`) the
+/// longest is the server.
+pub fn mcp_server_of<'a>(tool_name: &str, servers: &'a [String]) -> Option<&'a str> {
+    servers
+        .iter()
+        .map(|s| (s, sanitize(s)))
+        .filter(|(_, key)| {
+            tool_name.len() > key.len() + 1 && tool_name.starts_with(key.as_str()) && tool_name.as_bytes()[key.len()] == b'_'
+        })
+        .max_by_key(|(_, key)| key.len())
+        .map(|(s, _)| s.as_str())
 }
 
 /// The model id inside OpenCode's `model` JSON blob (`{"id":...}`); the raw
@@ -218,6 +401,8 @@ pub struct OpenCodeTranscript {
     summary: SessionSummary,
     /// The `time_updated` last read, so an unchanged session is not re-scanned.
     last_updated: Option<i64>,
+    /// Where to look for the config that names MCP servers.
+    config: ConfigRoots,
 }
 
 impl OpenCodeTranscript {
@@ -233,7 +418,14 @@ impl OpenCodeTranscript {
             retention,
             summary: SessionSummary { harness: Some(Harness::OpenCode), spans: retention.log(), ..Default::default() },
             last_updated: None,
+            config: ConfigRoots::detect(),
         }
+    }
+
+    /// Read MCP server names from these roots instead of this machine's.
+    pub fn with_config(mut self, config: ConfigRoots) -> Self {
+        self.config = config;
+        self
     }
 
     fn conn(&mut self) -> Option<&Connection> {
@@ -246,6 +438,7 @@ impl OpenCodeTranscript {
     fn reload(&mut self) -> rusqlite::Result<()> {
         let retention = self.retention;
         let id = self.session_id.clone();
+        let config = self.config.clone();
         let Some(conn) = self.conn() else { return Ok(()) };
 
         // The parent row plus every subagent row (parent_id = this session),
@@ -323,6 +516,32 @@ impl OpenCodeTranscript {
         };
         let sub_ids: HashSet<&str> = ids.iter().filter(|(_, s)| *s).map(|(i, _)| i.as_str()).collect();
         let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+
+        // MCP calls per server, over every tool part rather than the bounded
+        // span window, since a count is the whole session. Only when the
+        // config names a server: without one, no name can be told apart from
+        // a built-in tool, and nothing is guessed.
+        let servers = summary.cwd.as_deref().map(|d| mcp_server_names(d, &config)).unwrap_or_default();
+        if !servers.is_empty() {
+            let sql = format!(
+                "SELECT json_extract(data,'$.tool'), json_extract(data,'$.state.status'), \
+                 json_extract(data,'$.state.time.end'), json_extract(data,'$.state.time.start') \
+                 FROM part WHERE json_extract(data,'$.type') = 'tool' AND session_id IN ({placeholders})"
+            );
+            let mut stmt = conn.prepare(&sql)?;
+            let params: Vec<&dyn rusqlite::ToSql> = ids.iter().map(|(i, _)| i as &dyn rusqlite::ToSql).collect();
+            let mut rows = stmt.query(params.as_slice())?;
+            while let Some(r) = rows.next()? {
+                let Some(name) = r.get::<_, Option<String>>(0)? else { continue };
+                let Some(server) = mcp_server_of(&name, &servers) else { continue };
+                let error = r.get::<_, Option<String>>(1)?.as_deref() == Some("error");
+                let at = r.get::<_, Option<i64>>(2)?.or(r.get::<_, Option<i64>>(3)?).and_then(from_ms);
+                let u = summary.mcp.entry(server.to_string()).or_default();
+                u.calls += 1;
+                u.errors += u64::from(error);
+                u.last_call = u.last_call.max(at);
+            }
+        }
 
         // Every span this scan will add, so the bounded log can keep the newest
         // across all three kinds rather than dropping one kind first.
@@ -656,6 +875,98 @@ mod tests {
         let ctx2 = AttributeContext { cwd: Some(Path::new("/tmp/other")), ..ctx };
         assert!(adapter.attribute(&root, None, &ctx2).0.is_empty());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Values from a real OpenCode 1.18.15 session on 2026-09-13 with a
+    /// filesystem server named `scratch_fs`: one call that listed a directory
+    /// and one the server refused. The config is `.jsonc` with a comment and a
+    /// trailing comma, and names a second server whose name is a prefix of
+    /// the first and a third with a character OpenCode sanitises.
+    #[test]
+    fn counts_mcp_calls_per_configured_server() {
+        let dir = std::env::temp_dir().join(format!("agent-top-oc-mcp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let project = dir.join("repo/sub");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::create_dir_all(dir.join("repo/.git")).unwrap();
+        std::fs::write(
+            dir.join("repo/opencode.jsonc"),
+            r#"{
+  // servers for this repo
+  "mcp": {
+    "scratch_fs": { "type": "local", "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp/x"] },
+    "scratch": { "type": "remote", "url": "https://example.invalid/mcp" },
+    "my.api": { "type": "remote", "url": "https://example.invalid/api", },
+  },
+}"#,
+        )
+        .unwrap();
+        // A config above the worktree root is not OpenCode's to read.
+        std::fs::write(dir.join("opencode.json"), r#"{"mcp":{"outside":{}}}"#).unwrap();
+        let db = make_db(&dir);
+        let conn = Connection::open(&db).unwrap();
+        conn.execute("UPDATE session SET directory = ?1", [project.to_string_lossy()]).unwrap();
+        let tool = |tool: &str, call: &str, status: &str, start: i64, end: i64| {
+            format!(
+                "{{\"type\":\"tool\",\"tool\":\"{tool}\",\"callID\":\"{call}\",\"state\":{{\"status\":\"{status}\",\"time\":{{\"start\":{start},\"end\":{end}}}}}}}"
+            )
+        };
+        for (i, sid, data) in [
+            (
+                10,
+                "ses_parent",
+                tool("scratch_fs_list_directory", "call_00_7aG02jznvnkRRCWvUZzh2824", "completed", 1789297396598, 1789297396604),
+            ),
+            (
+                11,
+                "ses_parent",
+                tool("scratch_fs_read_text_file", "call_00_1pkIe0AHF5h5X8VTC0EH3246", "error", 1789297397807, 1789297397810),
+            ),
+            (12, "ses_child", tool("scratch_search", "call_00_child", "completed", 1789297398000, 1789297398100)),
+            (13, "ses_parent", tool("my_api_get", "call_00_api", "completed", 1789297399000, 1789297399050)),
+            (14, "ses_parent", tool("outside_thing", "call_00_out", "completed", 1789297399100, 1789297399150)),
+        ] {
+            conn.execute("INSERT INTO part VALUES (?1, 'm', ?2, ?3, ?4)", rusqlite::params![format!("p{i}"), sid, 1000 + i as i64, data])
+                .unwrap();
+        }
+        drop(conn);
+
+        let roots = ConfigRoots { global: Some(dir.join("no-global")), home: Some(dir.join("no-home")) };
+        assert_eq!(mcp_server_names(&project, &roots), vec!["my.api".to_string(), "scratch".into(), "scratch_fs".into()]);
+
+        let mut t = OpenCodeTranscript::new(&session_path(&db, "ses_parent"), SpanRetention::Recent).with_config(roots);
+        t.refresh().unwrap();
+        let s = t.summary();
+        assert_eq!(s.tool_calls, 8, "every tool part is still a tool call");
+        assert_eq!(s.mcp.len(), 3, "{:?}", s.mcp);
+        let fs = &s.mcp["scratch_fs"];
+        assert_eq!((fs.calls, fs.errors), (2, 1), "the longer server name wins over its prefix");
+        assert_eq!(fs.last_call, from_ms(1789297397810));
+        assert_eq!(s.mcp["scratch"].calls, 1, "a subagent's call counts for the session");
+        assert_eq!(s.mcp["my.api"].calls, 1, "matched through the sanitised name, filed under the configured one");
+        assert!(!s.mcp.contains_key("outside"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn no_configured_server_means_no_mcp_guess() {
+        assert_eq!(mcp_server_of("scratch_fs_list_directory", &[]), None);
+        let servers = vec!["github".to_string(), "github_enterprise".to_string()];
+        assert_eq!(mcp_server_of("github_enterprise_search", &servers), Some("github_enterprise"));
+        assert_eq!(mcp_server_of("github_search", &servers), Some("github"));
+        assert_eq!(mcp_server_of("github_", &servers), None, "a server name with no tool after it");
+        assert_eq!(mcp_server_of("githubsearch", &servers), None);
+        assert_eq!(mcp_server_of("todowrite", &servers), None);
+    }
+
+    #[test]
+    fn jsonc_comments_and_trailing_commas_are_stripped_but_strings_are_kept() {
+        let text = r#"{ "a": "http://x//y", /* block, */ "b": [1, 2,], // line
+ "c": "a \"quoted, }\" value", }"#;
+        let v: serde_json::Value = serde_json::from_str(&strip_jsonc(text)).unwrap();
+        assert_eq!(v["a"], "http://x//y");
+        assert_eq!(v["b"], serde_json::json!([1, 2]));
+        assert_eq!(v["c"], "a \"quoted, }\" value");
     }
 
     #[test]

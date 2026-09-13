@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **MCP call counts for OpenCode.** OpenCode rows now get per-server MCP rows with calls, errors and the last call, like Claude Code, Codex and Gemini. OpenCode writes an MCP call as an ordinary tool part named `<server>_<tool>`, with no prefix and nothing else marking it, so the server names are read from OpenCode's own config: the `mcp` key names in the global `config.json`, `opencode.json` and `opencode.jsonc`, and in the project's `opencode.json[c]` and `.opencode/` files from the session directory up to the repository root. Only the names are read, never a server's command, URL or environment. A tool counts as an MCP call when its name starts with a configured server's name (sanitised the way OpenCode sanitises it) and `_`, the longest name winning; with no configured server nothing is guessed. A server set only through `OPENCODE_CONFIG` in the agent's own shell is not visible from outside the process and is not counted. Verified against a live OpenCode 1.18.15 session with a filesystem MCP server.
+
 ## [0.17.0] - 2026-09-13
 
 ### Added
