@@ -198,6 +198,41 @@ cache_read = 0.075
 cache_write_5m = 0.75
 cache_write_1h = 0.75
 
+# DeepSeek, checked 2026-09-13 at https://api-docs.deepseek.com/quick_start/pricing.
+# DeepSeek bills two rates: peak hours (01:00-04:00 and 06:00-10:00 UTC,
+# Monday to Friday) and off-peak, which is exactly half. The peak rate is
+# carried here, so a total is the list price and off-peak use is over-priced
+# rather than under. `cache_read` is the cache-hit input rate. DeepSeek has no
+# cache write charge, so the cache-write rates are the cache-miss input price.
+# `deepseek-flash` is the current id; `deepseek-v4-flash` is its retired name,
+# still accepted and billed the same, and the name OpenCode sessions record.
+# OpenCode rows keep OpenCode's own cost; for them these rates only divide it
+# between input, cache and output.
+
+[[model]]
+prefix = "deepseek-v4-pro"
+input = 1.32
+output = 3.96
+cache_read = 0.044
+cache_write_5m = 1.32
+cache_write_1h = 1.32
+
+[[model]]
+prefix = "deepseek-flash"
+input = 0.30
+output = 1.20
+cache_read = 0.006
+cache_write_5m = 0.30
+cache_write_1h = 0.30
+
+[[model]]
+prefix = "deepseek-v4-flash"
+input = 0.30
+output = 1.20
+cache_read = 0.006
+cache_write_5m = 0.30
+cache_write_1h = 0.30
+
 # OpenAI, standard tier, checked 2026-09-05 at
 # https://developers.openai.com/api/docs/pricing. Codex reports
 # `cached_input_tokens` separately, which the adapter maps to cache reads;
