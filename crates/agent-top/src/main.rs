@@ -2,6 +2,7 @@
 
 mod app;
 mod format;
+mod pane;
 mod report;
 mod trace;
 mod ui;
@@ -121,6 +122,47 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Start on the slowest-tools panel, filling the terminal. Same keys as
+    /// the main view; q quits. Meant for a second pane or window.
+    Slow,
+    /// Start on the failed-tool-calls panel, filling the terminal.
+    Fails,
+    /// Start on the advice panel, filling the terminal.
+    Advice,
+    /// Start on the MCP servers panel, every server under every agent and
+    /// the orphans, filling the terminal.
+    Mcp,
+}
+
+impl Command {
+    /// The panel a view subcommand starts on; `None` for the others.
+    fn panel(&self) -> Option<app::Panel> {
+        match self {
+            Command::Slow => Some(app::Panel::SlowTools),
+            Command::Fails => Some(app::Panel::FailedTools),
+            Command::Advice => Some(app::Panel::Advice),
+            Command::Mcp => Some(app::Panel::Mcp),
+            Command::Trace { .. } | Command::Report { .. } => None,
+        }
+    }
+}
+
+/// The flags of this run that a pane opened with `o` must carry, so it shows
+/// the same thing: the interval, the stopped window, and a replayed file made
+/// absolute, since the pane may not start in this directory.
+fn forwarded_args(cli: &Cli) -> Vec<String> {
+    let mut v = Vec::new();
+    if cli.interval_ms != 1000 {
+        v.extend(["--interval-ms".to_string(), cli.interval_ms.to_string()]);
+    }
+    if cli.stopped_window_min != 30 {
+        v.extend(["--stopped-window-min".to_string(), cli.stopped_window_min.to_string()]);
+    }
+    if let Some(path) = &cli.replay {
+        let abs = std::path::absolute(path).unwrap_or_else(|_| path.clone());
+        v.extend(["--replay".to_string(), abs.to_string_lossy().into_owned()]);
+    }
+    v
 }
 
 /// Where frames come from: this machine, or a snapshot someone saved earlier.
@@ -209,8 +251,13 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    let start = Start {
+        interval: Duration::from_millis(cli.interval_ms.max(100)),
+        pinned: cli.command.as_ref().and_then(Command::panel),
+        forwarded: forwarded_args(&cli),
+    };
     let mut terminal = ratatui::init();
-    let result = run(&mut terminal, &mut source, Duration::from_millis(cli.interval_ms.max(100)));
+    let result = run(&mut terminal, &mut source, &start);
     ratatui::restore();
     match result? {
         Exit::Quit => Ok(()),
@@ -226,8 +273,24 @@ enum Exit {
     Upgrade(String),
 }
 
-fn run(terminal: &mut ratatui::DefaultTerminal, source: &mut Source, interval: Duration) -> Result<Exit> {
+/// How the TUI was started.
+struct Start {
+    interval: Duration,
+    /// A view subcommand's panel: the run fills the terminal with it and has
+    /// no table to go back to.
+    pinned: Option<app::Panel>,
+    /// The flags a pane opened with `o` repeats.
+    forwarded: Vec<String>,
+}
+
+fn run(terminal: &mut ratatui::DefaultTerminal, source: &mut Source, start: &Start) -> Result<Exit> {
+    let interval = start.interval;
     let mut app = app::App::new(source.collect());
+    if let Some(p) = start.pinned {
+        app.standalone = true;
+        app.pin(p);
+    }
+    app.multiplexer = pane::Multiplexer::detect();
     // The update check runs only for a live session, not a replayed snapshot,
     // and is the one call agent-top makes on its own (a version lookup, no data
     // sent). See the update module.
@@ -257,6 +320,14 @@ fn run(terminal: &mut ratatui::DefaultTerminal, source: &mut Source, interval: D
             }
             if let Some(latest) = app.upgrade_requested.take() {
                 return Ok(Exit::Upgrade(latest));
+            }
+            // `o`: open the panel in a pane of the multiplexer. The split
+            // command returns at once, so it runs inline; the footer says
+            // what happened either way.
+            if let (Some(p), Some(mux)) = (app.open_requested.take(), app.multiplexer) {
+                match pane::open(mux, &start.forwarded, p.command()) {
+                    Ok(msg) | Err(msg) => app.notify(msg),
+                }
             }
         }
         if last_tick.elapsed() >= interval {

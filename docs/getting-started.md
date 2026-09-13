@@ -38,6 +38,9 @@ If the table is empty, no supported agent is running or has written a transcript
 | `l` | slowest tools, across every agent |
 | `f` | failed tool calls |
 | `a` | advice: oversized results, idle and growing MCP servers |
+| `m` | MCP servers under every agent, and the orphans |
+| `Enter` on a popup | fill the terminal with that panel; `Esc` goes back |
+| `o` on a popup | open that panel in a new tmux, zellij, WezTerm or kitty pane |
 | `?` | help, the version and how to upgrade |
 | `q` | quit |
 
@@ -47,6 +50,7 @@ If the table is empty, no supported agent is running or has written a transcript
 agent-top --once                  # print the table once and exit
 agent-top --json                  # one snapshot as JSON, for scripts and bug reports
 agent-top --replay snap.json      # render a saved snapshot, keys and all
+agent-top mcp                     # start on the MCP servers panel; also slow, fails, advice
 agent-top report --since 7d       # what every harness cost this week
 agent-top trace --session 9f2c -o trace.json   # one session as a Perfetto trace
 agent-top --interval-ms 500       # faster refresh

@@ -1,7 +1,7 @@
 //! Rendering. Layout, top to bottom: header (host gauges + totals), agent
 //! table, optional detail pane (process tree + token breakdown), key bar.
 
-use crate::app::{App, DetailView, Overlay};
+use crate::app::{App, DetailView, Overlay, Panel};
 use crate::format::{age, bytes, cost, cpu_cell, duration_ms, mem_cell, short_cmd, short_model, tokens, tokens_cell, truncate};
 use agent_top_core::{Agent, AgentState, Attribution, McpMatch, OrphanOrigin, ProcKind, ProcNode, SpanKind, ToolSpan};
 use ratatui::Frame;
@@ -186,6 +186,17 @@ fn dim(text: impl Into<String>) -> Span<'static> {
 
 pub fn draw(f: &mut Frame, app: &mut App) {
     let area = f.area();
+    // A pinned panel takes the table's and the detail pane's place; the header
+    // and footer stay, so a dedicated pane is still recognisably agent-top and
+    // still shows the burn rate.
+    if let Some(p) = app.pinned {
+        let [header, body, footer] = Layout::vertical([Constraint::Length(6), Constraint::Min(4), Constraint::Length(1)]).areas(area);
+        draw_header(f, app, header);
+        draw_pinned(f, body, app, p);
+        draw_footer(f, app, footer);
+        draw_overlay(f, area, app);
+        return;
+    }
     // With the detail pane open, the agents table takes only the height its
     // rows need (a border, a title, a header and one line each, capped so a
     // long list still scrolls), and the detail pane gets the rest of the
@@ -204,14 +215,175 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_detail(f, app, detail);
     }
     draw_footer(f, app, footer);
+    draw_overlay(f, area, app);
+}
+
+fn draw_overlay(f: &mut Frame, area: Rect, app: &App) {
     match app.overlay {
         Overlay::Help => draw_help(f, area),
-        Overlay::SlowTools => draw_tool_panel(f, area, &app.snapshot, ToolPanel::Slow),
-        Overlay::FailedTools => draw_tool_panel(f, area, &app.snapshot, ToolPanel::Failed),
-        Overlay::Advice => draw_advice_panel(f, area, &app.snapshot),
+        Overlay::Panel(p) => draw_peek(f, area, app, p),
         Overlay::Update => draw_update(f, area, app),
         Overlay::None => {}
     }
+}
+
+// ── panels ──────────────────────────────────────────────────────────────────
+//
+// A panel's content is built once, as lines, and drawn either as a peek (a
+// centred popup, rows capped to the popup) or pinned (the whole terminal, every
+// row, scrollable). The key hints differ; the content does not.
+
+/// The MCP panel's colour, the same magenta the detail pane uses for servers.
+const MCP: Color = Color::Magenta;
+
+/// One panel's lines and the colour of its frame.
+struct PanelBody {
+    accent: Color,
+    /// The popup width the peek asks for; the terminal may give less.
+    width: u16,
+    lines: Vec<Line<'static>>,
+}
+
+/// Build a panel's content. `cap` limits rows to what a popup can show, with
+/// an "… n more" line; `None` shows everything. `width` is the room for text.
+fn panel_body(p: Panel, snap: &agent_top_core::Snapshot, cap: Option<usize>, width: usize) -> PanelBody {
+    match p {
+        Panel::SlowTools => PanelBody { accent: Color::Rgb(220, 160, 40), width: 66, lines: tool_lines(snap, ToolPanel::Slow, cap) },
+        Panel::FailedTools => PanelBody { accent: Color::Red, width: 66, lines: tool_lines(snap, ToolPanel::Failed, cap) },
+        Panel::Advice => PanelBody { accent: ADVICE, width: 84, lines: advice_lines(snap, width) },
+        Panel::Mcp => PanelBody { accent: MCP, width: 92, lines: mcp_lines(snap, cap, width) },
+    }
+}
+
+/// The frame every panel is drawn in: its title in its colour, and the command
+/// that starts agent-top on it alone, so the standalone form is learnt by
+/// seeing it.
+fn panel_block(p: Panel, snap: &agent_top_core::Snapshot, accent: Color) -> Block<'static> {
+    let title = match p {
+        Panel::Advice if !snap.advice.is_empty() => format!(" advice ({}) ", snap.advice.len()),
+        _ => format!(" {} ", p.title()),
+    };
+    Block::default()
+        .borders(ratatui::widgets::Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(accent))
+        .title(Span::styled(title, Style::default().fg(accent).bold()))
+        .title_bottom(Line::from(Span::styled(format!(" agent-top {} ", p.command()), Style::default().fg(DIM))).right_aligned())
+}
+
+/// A panel as a centred popup over whatever is underneath, with the ways on
+/// from here on its last lines: Enter to fill the terminal, `o` to open it in
+/// a pane when there is a multiplexer to ask, and the panel's key or Esc to
+/// close. The `o` line shows the command that would run, before it runs.
+fn draw_peek(f: &mut Frame, area: Rect, app: &App, p: Panel) {
+    let snap = &app.snapshot;
+    // Rows are capped to what fits a popup of the usual height; the pinned
+    // form has no cap.
+    let cap = (area.height.saturating_sub(12) as usize).clamp(4, 20);
+    let probe = panel_body(p, snap, Some(cap), 80);
+    let w = probe.width.min(area.width.saturating_sub(2));
+    let inner = w.saturating_sub(4) as usize;
+    let body = panel_body(p, snap, Some(cap), inner);
+    let mut lines = body.lines;
+    lines.push(Line::raw(""));
+    lines.push(Line::from(vec![
+        Span::styled("  Enter", Style::default().fg(body.accent).bold()),
+        Span::styled(format!(" full screen · {} or Esc to close", p.key()), Style::default().fg(DIM)),
+    ]));
+    if let Some(mux) = app.multiplexer {
+        lines.push(Line::from(vec![
+            Span::styled("  o", Style::default().fg(body.accent).bold()),
+            Span::styled(format!(" open in a {} pane:  ", mux.label()), Style::default().fg(DIM)),
+            Span::styled(truncate(&mux.describe(p.command()), inner.saturating_sub(28)), Style::default().fg(ACCENT)),
+        ]));
+    }
+    let h = (lines.len() as u16 + 2).clamp(6, area.height.saturating_sub(2));
+    let popup = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };
+    f.render_widget(Clear, popup);
+    f.render_widget(Paragraph::new(Text::from(lines)).block(panel_block(p, snap, body.accent)), popup);
+}
+
+/// A panel filling the terminal between the header and the footer: every row,
+/// scrolled by the movement keys. The scroll offset is clamped here, where the
+/// height is known.
+fn draw_pinned(f: &mut Frame, area: Rect, app: &mut App, p: Panel) {
+    let body = panel_body(p, &app.snapshot, None, area.width.saturating_sub(4) as usize);
+    let visible = area.height.saturating_sub(2) as usize;
+    let max = body.lines.len().saturating_sub(visible) as u16;
+    app.scroll = app.scroll.min(max);
+    let block = panel_block(p, &app.snapshot, body.accent);
+    f.render_widget(Paragraph::new(Text::from(body.lines)).block(block).scroll((app.scroll, 0)), area);
+}
+
+/// Every MCP server under every agent on screen, then the orphans. The
+/// per-agent rows in the detail pane show one agent's servers; this is the
+/// machine's.
+fn mcp_lines(snap: &agent_top_core::Snapshot, cap: Option<usize>, width: usize) -> Vec<Line<'static>> {
+    let now = snap.taken_at;
+    let cap = cap.unwrap_or(usize::MAX);
+    let rows: Vec<(&Agent, &agent_top_core::McpServer)> =
+        snap.agents.iter().flat_map(|a| a.mcp_servers.iter().map(move |m| (a, m))).collect();
+    let agents_with = snap.agents.iter().filter(|a| !a.mcp_servers.is_empty()).count();
+    let mut lines: Vec<Line> = Vec::new();
+    if rows.is_empty() {
+        lines.push(Line::styled("  no MCP servers under any agent on screen", Style::default().fg(DIM)));
+    } else {
+        lines.push(Line::styled(
+            format!("  {} servers under {agents_with} agents · calls from the transcript; pid? = process guessed", rows.len()),
+            Style::default().fg(DIM),
+        ));
+        lines.push(Line::styled(
+            format!(
+                "  {:<14} {:<14} {:>6} {:>5} {:>3} {:>9} {:>5} {:>6}",
+                "agent", "server", "pid", "calls", "err", "last call", "cpu", "rss"
+            ),
+            Style::default().fg(DIM),
+        ));
+        for (a, m) in rows.iter().take(cap) {
+            let (pid, cpu, rss) = match m.pid {
+                Some(pid) if m.matched_by == McpMatch::Sole => (format!("{pid}?"), format!("{:.1}%", m.cpu_percent), bytes(m.rss_bytes)),
+                Some(pid) => (pid.to_string(), format!("{:.1}%", m.cpu_percent), bytes(m.rss_bytes)),
+                None => ("-".into(), "-".into(), "-".into()),
+            };
+            let last = match m.last_call {
+                Some(t) => format!("{} ago", age(now.duration_since(t).unwrap_or_default().as_secs())),
+                None => "-".into(),
+            };
+            let err_style = if m.errors > 0 { Style::default().fg(Color::Red) } else { Style::default().fg(DIM) };
+            lines.push(Line::from(vec![
+                Span::raw(format!("  {:<14} ", truncate(&a.name, 14))),
+                Span::styled(format!("{:<14} ", truncate(&m.name, 14)), Style::default().fg(MCP)),
+                Span::styled(format!("{pid:>6} "), Style::default().fg(DIM)),
+                Span::raw(format!("{:>5} ", m.calls)),
+                Span::styled(format!("{:>3} ", m.errors), err_style),
+                Span::styled(format!("{last:>9} {cpu:>5} {rss:>6}"), Style::default().fg(DIM)),
+            ]));
+        }
+        if rows.len() > cap {
+            lines.push(Line::styled(format!("  … {} more", rows.len() - cap), Style::default().fg(DIM)));
+        }
+    }
+    if !snap.orphans.is_empty() {
+        lines.push(Line::raw(""));
+        lines.push(Line::from(vec![
+            Span::styled("  orphaned mcp processes", Style::default().fg(Color::Red).bold()),
+            Span::styled("  (no live agent ancestor; likely leaked)", Style::default().fg(DIM)),
+        ]));
+        for o in snap.orphans.iter().take(cap) {
+            lines.push(Line::from(vec![
+                Span::styled(format!("  {:>6} ", o.pid), Style::default().fg(Color::Red)),
+                Span::styled(format!("{:>6} {:>6}  ", bytes(o.rss_bytes), age(o.age_secs)), Style::default().fg(DIM)),
+                Span::raw(short_cmd(o, width.saturating_sub(24))),
+            ]));
+            if let Some(origin) = snap.orphan_origins.iter().find(|x| x.pid == o.pid) {
+                lines.push(Line::styled(format!("         {}", orphan_origin(origin, now)), Style::default().fg(DIM)));
+            }
+        }
+        if snap.orphans.len() > cap {
+            lines.push(Line::styled(format!("  … {} more", snap.orphans.len() - cap), Style::default().fg(DIM)));
+        }
+    }
+    lines
 }
 
 /// The upgrade question: which version is out, which this is, and the exact
@@ -272,13 +444,11 @@ fn draw_update(f: &mut Frame, area: Rect, app: &App) {
 /// nor the red of failure. Advice is a suggestion, not an alarm.
 const ADVICE: Color = Color::Rgb(190, 140, 255);
 
-/// A centred popup listing every piece of advice on the snapshot: one
-/// headline with its numbers, and under it, dimmed, what could be done. The
-/// rules and their thresholds live in `agent_top_core::advice`.
-fn draw_advice_panel(f: &mut Frame, area: Rect, snap: &agent_top_core::Snapshot) {
+/// Every piece of advice on the snapshot: one headline with its numbers, and
+/// under it, dimmed, what could be done. The rules and their thresholds live
+/// in `agent_top_core::advice`.
+fn advice_lines(snap: &agent_top_core::Snapshot, inner: usize) -> Vec<Line<'static>> {
     let advice = &snap.advice;
-    let w = 84.min(area.width.saturating_sub(2));
-    let inner = w.saturating_sub(4) as usize;
     let mut lines: Vec<Line> = Vec::new();
     if advice.is_empty() {
         lines.push(Line::styled("  nothing to suggest: no oversized results, idle servers or growing servers", Style::default().fg(DIM)));
@@ -310,17 +480,8 @@ fn draw_advice_panel(f: &mut Frame, area: Rect, snap: &agent_top_core::Snapshot)
         }
     }
     lines.push(Line::raw(""));
-    lines.push(Line::styled("  read from the numbers on screen; nothing is done for you · a or Esc to close", Style::default().fg(DIM)));
-    let h = (lines.len() as u16 + 2).clamp(6, area.height.saturating_sub(2));
-    let popup = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };
-    f.render_widget(Clear, popup);
-    let title = if advice.is_empty() { " advice ".to_string() } else { format!(" advice ({}) ", advice.len()) };
-    let block = Block::default()
-        .borders(ratatui::widgets::Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(ADVICE))
-        .title(Span::styled(title, Style::default().fg(ADVICE).bold()));
-    f.render_widget(Paragraph::new(Text::from(lines)).block(block), popup);
+    lines.push(Line::styled("  read from the numbers on screen; nothing is done for you", Style::default().fg(DIM)));
+    lines
 }
 
 /// Greedy word wrap to `width` columns; a single overlong word stands alone.
@@ -388,14 +549,10 @@ fn tool_stats(snap: &agent_top_core::Snapshot) -> Vec<ToolStat> {
     by.into_values().collect()
 }
 
-/// A centred popup: the slow-tools or failed-tools leaderboard, from the tool
-/// spans already on screen. Amber for time, red for failures, so the panel is
-/// recognisable at a glance.
-fn draw_tool_panel(f: &mut Frame, area: Rect, snap: &agent_top_core::Snapshot, panel: ToolPanel) {
-    let (title, accent, key) = match panel {
-        ToolPanel::Slow => ("slowest tools", Color::Rgb(220, 160, 40), "l"),
-        ToolPanel::Failed => ("failed tool calls", Color::Red, "f"),
-    };
+/// The slow-tools or failed-tools leaderboard, from the tool spans already on
+/// screen. Amber for time, red for failures, so the panel is recognisable at
+/// a glance.
+fn tool_lines(snap: &agent_top_core::Snapshot, panel: ToolPanel, cap: Option<usize>) -> Vec<Line<'static>> {
     let mut stats = tool_stats(snap);
     match panel {
         ToolPanel::Slow => stats.sort_by(|a, b| b.total_ms.cmp(&a.total_ms).then(b.max_ms.cmp(&a.max_ms))),
@@ -404,11 +561,6 @@ fn draw_tool_panel(f: &mut Frame, area: Rect, snap: &agent_top_core::Snapshot, p
             stats.sort_by(|a, b| b.errors.cmp(&a.errors).then(b.calls.cmp(&a.calls)));
         }
     }
-
-    let w = 66.min(area.width.saturating_sub(2));
-    let h = (stats.len() as u16 + 6).clamp(8, 26).min(area.height.saturating_sub(2));
-    let popup = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };
-    f.render_widget(Clear, popup);
 
     let mut lines: Vec<Line> = Vec::new();
     if stats.is_empty() {
@@ -423,7 +575,7 @@ fn draw_tool_panel(f: &mut Frame, area: Rect, snap: &agent_top_core::Snapshot, p
             ToolPanel::Failed => format!("  {:<22}{:>8}{:>8}{:>9}", "tool", "fails", "calls", "fail%"),
         };
         lines.push(Line::styled(header, Style::default().fg(DIM)));
-        let cap = h.saturating_sub(5) as usize;
+        let cap = cap.unwrap_or(usize::MAX);
         for s in stats.iter().take(cap) {
             let line = match panel {
                 ToolPanel::Slow => {
@@ -449,14 +601,8 @@ fn draw_tool_panel(f: &mut Frame, area: Rect, snap: &agent_top_core::Snapshot, p
         }
     }
     lines.push(Line::raw(""));
-    lines.push(Line::styled(format!("  aggregated from the tool trace on screen · {key} or Esc to close"), Style::default().fg(DIM)));
-
-    let block = Block::default()
-        .borders(ratatui::widgets::Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(accent))
-        .title(Span::styled(format!(" {title} "), Style::default().fg(accent).bold()));
-    f.render_widget(Paragraph::new(Text::from(lines)).block(block), popup);
+    lines.push(Line::styled("  aggregated from the tool trace on screen", Style::default().fg(DIM)));
+    lines
 }
 
 /// The spend velocity, coloured by how fast: dim near zero, then amber and red
@@ -1177,26 +1323,57 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
 
     let amber = Color::Rgb(220, 160, 40);
     let mut left = Vec::new();
-    // Navigation and view.
-    left.extend(key("↑↓/jk", "select", ACCENT));
-    left.extend(key("s", format!("sort:{}{}", app.sort.label(), if app.sort_desc { "↑" } else { "↓" }).as_str(), ACCENT));
-    left.extend(key("r", "reverse", ACCENT));
-    left.extend(key("t", if app.show_detail { "hide detail" } else { "show detail" }, ACCENT));
-    left.extend(key("Tab", if app.detail == DetailView::Tree { "trace" } else { "tree" }, ACCENT));
-    // `x` only matters when there are stopped sessions to hide; hiding it
-    // otherwise keeps a key that does nothing off the bar.
-    if app.snapshot.totals.stopped > 0 {
-        left.extend(key("x", if app.show_stopped { "hide stopped" } else { "show stopped" }, ACCENT));
-    }
-    left.extend(key("p", if app.paused { "resume" } else { "pause" }, ACCENT));
-    // The analytics panels, each in the colour of its panel.
-    left.push(sep());
-    left.extend(key("l", "slow tools", amber));
-    left.extend(key("f", "fails", Color::Red));
+    // The panels, each in the colour of its panel; the pinned one is named
+    // as the way back.
     let n = app.snapshot.advice.len();
-    left.extend(key("a", if n > 0 { format!("advice ({n})") } else { "advice".to_string() }.as_str(), ADVICE));
-    left.push(sep());
-    left.extend(key("?", "help", ACCENT));
+    let advice_label = if n > 0 { format!("advice ({n})") } else { "advice".to_string() };
+    let panel_keys = |left: &mut Vec<Span<'static>>| {
+        for p in Panel::ALL {
+            let (label, colour) = match p {
+                Panel::SlowTools => ("slow tools".to_string(), amber),
+                Panel::FailedTools => ("fails".to_string(), Color::Red),
+                Panel::Advice => (advice_label.clone(), ADVICE),
+                Panel::Mcp => ("mcp".to_string(), MCP),
+            };
+            let label = if app.pinned == Some(p) && !app.standalone { format!("{label} ▸ table") } else { label };
+            left.extend(key(&p.key().to_string(), &label, colour));
+        }
+    };
+    if let Some(notice) = app.current_notice() {
+        // A fresh notice takes the bar for a few seconds: it is the answer to
+        // the key the user just pressed.
+        left.push(Span::styled(format!(" {notice}"), Style::default().fg(ACCENT)));
+    } else if app.pinned.is_some() {
+        left.extend(key("↑↓/jk", "scroll", ACCENT));
+        if !app.standalone {
+            left.extend(key("Esc", "table", ACCENT));
+        }
+        if app.multiplexer.is_some() {
+            left.extend(key("o", "open in pane", ACCENT));
+        }
+        left.extend(key("p", if app.paused { "resume" } else { "pause" }, ACCENT));
+        left.push(sep());
+        panel_keys(&mut left);
+        left.push(sep());
+        left.extend(key("?", "help", ACCENT));
+    } else {
+        // Navigation and view.
+        left.extend(key("↑↓/jk", "select", ACCENT));
+        left.extend(key("s", format!("sort:{}{}", app.sort.label(), if app.sort_desc { "↑" } else { "↓" }).as_str(), ACCENT));
+        left.extend(key("r", "reverse", ACCENT));
+        left.extend(key("t", if app.show_detail { "hide detail" } else { "show detail" }, ACCENT));
+        left.extend(key("Tab", if app.detail == DetailView::Tree { "trace" } else { "tree" }, ACCENT));
+        // `x` only matters when there are stopped sessions to hide; hiding it
+        // otherwise keeps a key that does nothing off the bar.
+        if app.snapshot.totals.stopped > 0 {
+            left.extend(key("x", if app.show_stopped { "hide stopped" } else { "show stopped" }, ACCENT));
+        }
+        left.extend(key("p", if app.paused { "resume" } else { "pause" }, ACCENT));
+        left.push(sep());
+        panel_keys(&mut left);
+        left.push(sep());
+        left.extend(key("?", "help", ACCENT));
+    }
 
     // The version badge and quit sit together at the right end. When the update
     // check has found a newer version, the badge turns amber and shows the
@@ -1233,6 +1410,18 @@ fn draw_help(f: &mut Frame, area: Rect) {
             Span::styled("advice", Style::default().fg(ADVICE)),
             Span::raw(": oversized results, idle and growing MCP servers"),
         ]),
+        Line::from(vec![
+            Span::raw("  m            "),
+            Span::styled("mcp servers", Style::default().fg(MCP)),
+            Span::raw(": every server under every agent, and the orphans"),
+        ]),
+        Line::raw(""),
+        Line::from(vec![Span::styled("panels", Style::default().fg(ACCENT).bold())]),
+        Line::raw("  Each of l f a m is a popup over the table. On the popup:"),
+        Line::raw("  Enter        fill the terminal with it; j k scroll, Esc back"),
+        Line::raw("  o            open it in a new pane of the tmux, zellij,"),
+        Line::raw("               WezTerm or kitty this runs in (shown only then)"),
+        Line::raw("  agent-top slow | fails | advice | mcp   start on that panel"),
         Line::raw(""),
         Line::from(vec![Span::styled(format!("agent-top {}", crate::VERSION), Style::default().fg(ACCENT).bold())]),
         Line::raw("  upgrade   asked once when a newer version is out (u runs the"),
@@ -1628,7 +1817,7 @@ mod tests {
         a.spans.push(sp("Read", 120, false));
         let mut app = App::new(snapshot(vec![a]));
 
-        app.overlay = Overlay::SlowTools;
+        app.overlay = Overlay::Panel(Panel::SlowTools);
         let out = render(&mut app, 100, 40);
         assert!(out.contains("slowest tools"), "{out}");
         // Bash's total (25s) beats Read's, so Bash is the first data row.
@@ -1641,7 +1830,7 @@ mod tests {
         assert!(bash_line.contains("25.0s") || bash_line.contains("25s"), "bash total: {bash_line}");
         let _ = read_line;
 
-        app.overlay = Overlay::FailedTools;
+        app.overlay = Overlay::Panel(Panel::FailedTools);
         let out = render(&mut app, 100, 40);
         assert!(out.contains("failed tool calls"), "{out}");
         assert!(out.lines().any(|l| l.contains("Bash")), "the failing tool is listed: {out}");
@@ -1656,7 +1845,7 @@ mod tests {
         let mut snap = snapshot(vec![agent("worker", Vec::new())]);
         let mut app = App::new(snap.clone());
         app.on_key(ratatui::crossterm::event::KeyCode::Char('a'));
-        assert_eq!(app.overlay, Overlay::Advice);
+        assert_eq!(app.overlay, Overlay::Panel(Panel::Advice));
         let out = render(&mut app, 100, 40);
         assert!(out.contains("nothing to suggest"), "{out}");
         app.on_key(ratatui::crossterm::event::KeyCode::Char('a'));
@@ -1691,7 +1880,7 @@ mod tests {
             },
         ];
         let mut app = App::new(snap);
-        app.overlay = Overlay::Advice;
+        app.overlay = Overlay::Panel(Panel::Advice);
         let out = render(&mut app, 100, 40);
         println!("{out}");
         assert!(out.contains("advice (2)"), "{out}");
@@ -1871,6 +2060,119 @@ mod tests {
             (0..buf.area.width).rev().find(|x| buf[(*x, y)].symbol() == METER_FULL).map(|x| buf[(x, y)].fg).expect("row has a bar")
         };
         assert_ne!(tip_of("Short"), tip_of("Long"), "length must change the colour, not just the width");
+    }
+
+    fn mcp_snapshot() -> Snapshot {
+        use agent_top_core::{McpServer, OrphanParent};
+        let server = |name: &str, pid: Option<u32>, calls: u64, by: McpMatch| McpServer {
+            name: name.into(),
+            pid,
+            cmdline: None,
+            cpu_percent: 0.2,
+            rss_bytes: 40 << 20,
+            age_secs: Some(300),
+            calls,
+            errors: 0,
+            last_call: Some(SystemTime::UNIX_EPOCH + Duration::from_secs(100)),
+            matched_by: by,
+        };
+        let mut a = agent("with-mcp", Vec::new());
+        a.mcp_servers = vec![server("filesystem", Some(5001), 17, McpMatch::Name), server("linear", None, 3, McpMatch::TranscriptOnly)];
+        let mut b = agent("other-repo", Vec::new());
+        b.mcp_servers = vec![server("scratchfs", Some(5002), 2, McpMatch::Sole)];
+        let mut snap = snapshot(vec![a, b]);
+        snap.orphans = vec![ProcNode {
+            pid: 6001,
+            ppid: Some(1),
+            name: "node".into(),
+            cmdline: "node chrome-devtools-mcp".into(),
+            kind: ProcKind::Mcp,
+            harness: None,
+            cpu_percent: 0.0,
+            rss_bytes: 30 << 20,
+            age_secs: 900,
+            cwd: None,
+            children: Vec::new(),
+        }];
+        snap.orphan_origins = vec![OrphanOrigin {
+            pid: 6001,
+            first_seen: SystemTime::UNIX_EPOCH,
+            orphaned_at: Some(SystemTime::UNIX_EPOCH + Duration::from_secs(40)),
+            parent: Some(OrphanParent { pid: 4242, agent_id: "pid:4242".into(), name: "tuff-25".into() }),
+        }];
+        snap
+    }
+
+    /// The MCP panel is the machine's servers, not one agent's: every agent's
+    /// rows, a guessed pid marked, and the orphans with where they came from.
+    /// Pinned, it replaces the table; the footer says how to get back.
+    #[test]
+    fn the_pinned_mcp_panel_lists_every_agents_servers_and_the_orphans() {
+        let mut app = App::new(mcp_snapshot());
+        app.pin(Panel::Mcp);
+        let out = render(&mut app, 120, 30);
+        assert!(out.contains("3 servers under 2 agents"), "{out}");
+        assert!(out.lines().any(|l| l.contains("with-mcp") && l.contains("filesystem") && l.contains("5001")), "{out}");
+        assert!(
+            out.lines().any(|l| l.contains("other-repo") && l.contains("scratchfs") && l.contains("5002?")),
+            "a sole match is marked: {out}"
+        );
+        assert!(out.lines().any(|l| l.contains("linear") && l.contains(" - ")), "no process, no pid: {out}");
+        assert!(out.contains("orphaned from tuff-25 (pid 4242) 2m ago"), "{out}");
+        assert!(out.contains("agent-top mcp"), "the standalone command is on the frame: {out}");
+        assert!(!out.contains("AGENT ") || !out.contains("HARNESS"), "the table is gone: {out}");
+        assert!(out.contains("Esc") && out.contains("table"), "the footer offers the way back: {out}");
+        // Scrolling past the end is clamped where the height is known.
+        app.scroll = u16::MAX;
+        render(&mut app, 120, 30);
+        assert!(app.scroll < 30, "clamped to the content: {}", app.scroll);
+    }
+
+    /// The peek carries the ways on from it: Enter always, `o` with the exact
+    /// command only inside a multiplexer.
+    #[test]
+    fn a_peek_offers_enter_and_the_pane_command_only_inside_a_multiplexer() {
+        let mut app = App::new(mcp_snapshot());
+        app.overlay = Overlay::Panel(Panel::Mcp);
+        let out = render(&mut app, 120, 40);
+        assert!(out.contains("full screen · m or Esc to close"), "{out}");
+        assert!(!out.contains("open in a"), "no multiplexer, no o: {out}");
+        assert!(out.contains("filesystem") && out.contains("AGENT"), "the table is still underneath: {out}");
+
+        app.multiplexer = Some(crate::pane::Multiplexer::Tmux);
+        let out = render(&mut app, 120, 40);
+        assert!(out.contains("open in a tmux pane:  tmux split-window -h -d 'agent-top mcp'"), "{out}");
+
+        // A standalone run keeps the peeks and drops the way back.
+        app.standalone = true;
+        app.pin(Panel::Mcp);
+        let out = render(&mut app, 120, 30);
+        assert!(!out.contains("▸ table"), "{out}");
+        app.overlay = Overlay::Panel(Panel::Advice);
+        let out = render(&mut app, 120, 30);
+        assert!(out.contains("nothing to suggest"), "a peek over a pinned panel: {out}");
+    }
+
+    /// Every panel, pinned and peeked, at the sizes people actually use.
+    #[test]
+    fn every_panel_survives_a_narrow_terminal_pinned_and_peeked() {
+        let spans = vec![span("SomeVeryLongToolName", 100, Some(2_500), false, true), span("Bash", 159, None, false, false)];
+        let mut snap = mcp_snapshot();
+        snap.agents.push(agent("tuff-25", spans));
+        for p in Panel::ALL {
+            let mut app = App::new(snap.clone());
+            app.multiplexer = Some(crate::pane::Multiplexer::Zellij);
+            for (w, h) in [(40u16, 12u16), (60, 10), (200, 60), (24, 8)] {
+                app.pin(p);
+                let out = render(&mut app, w, h);
+                assert!(out.lines().all(|l| l.chars().count() <= w as usize), "pinned {p:?} overflows {w} columns");
+                app.pinned = None;
+                app.overlay = Overlay::Panel(p);
+                let out = render(&mut app, w, h);
+                assert!(out.lines().all(|l| l.chars().count() <= w as usize), "peeked {p:?} overflows {w} columns");
+                app.overlay = Overlay::None;
+            }
+        }
     }
 
     /// The panel must not panic or overflow at the sizes people actually use.

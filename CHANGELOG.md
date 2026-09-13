@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **Views and panes: every panel in four sizes.** The popups (`l` slowest tools, `f` failed tool calls, `a` advice) no longer have to share one terminal with the table. `Enter` on a popup fills the terminal with the panel: every row, scrolled with `j` `k` and the page keys, `Esc` or the panel's key back to the table, the other panels' keys still opening popups over it. `agent-top slow`, `agent-top fails`, `agent-top advice` and `agent-top mcp` start on that panel alone, with the same keys and the run's flags given before the command (`agent-top --replay snap.json mcp`); a dedicated view does not ask the upgrade question, leaving it to the main one. Inside tmux, zellij, WezTerm or kitty, a popup offers `o`: it splits a pane to the right and starts the dedicated command in it with this run's `--interval-ms`, `--stopped-window-min` and `--replay` (made absolute), keeps the focus where it was under tmux and kitty, closes the popup because the pane now shows it, and reports the result in the footer for a few seconds. The popup shows the exact command before it is pressed; the multiplexer is recognised from `$TMUX`, `$ZELLIJ`, `$WEZTERM_PANE` or `$KITTY_WINDOW_ID`, tmux first when nested. This is the second thing agent-top starts of its own accord after the upgrade: itself, in the user's multiplexer, on one keypress. The frame of every panel names its command in the bottom right corner.
+- **`m`: the MCP servers panel.** The detail pane lists one agent's servers; this panel lists the machine's: one row per server under every agent on screen (agent, server, pid with `?` for a match by elimination, calls, errors, last call, CPU, memory), then the orphaned MCP processes with where each came from.
+
+### Changed
+- The help popup gains a `panels` section, and the footer shows `m mcp` beside the other panel keys. When a panel fills the terminal the footer shows scroll, `Esc table`, and `o open in pane` when there is a multiplexer.
+
 ## [0.16.0] - 2026-09-11
 
 ### Added

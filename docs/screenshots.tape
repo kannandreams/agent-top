@@ -17,6 +17,10 @@ Set TypingSpeed 0ms
 Hide
 Type "export COLORTERM=truecolor PS1='$ '"
 Enter
+# Pretend to be inside tmux so the popups show their `o` line; nothing is
+# split, since the key is never pressed here.
+Type "export TMUX=screenshot"
+Enter
 Type "alias agent-top='./target/release/agent-top --replay docs/demo-snapshot.json'"
 Enter
 Type "clear"
@@ -71,6 +75,17 @@ Sleep 1s
 Screenshot docs/screenshots/failed-tools.png
 Sleep 1500ms
 Type "f"
+# The MCP servers panel: as a popup, then filling the terminal.
+Type "m"
+Sleep 1s
+Screenshot docs/screenshots/mcp-peek.png
+Sleep 1500ms
+Enter
+Sleep 1s
+Screenshot docs/screenshots/mcp-full.png
+Sleep 1500ms
+Escape
+Sleep 500ms
 Type "?"
 Sleep 1s
 Screenshot docs/screenshots/help.png

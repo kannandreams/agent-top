@@ -113,6 +113,7 @@ nav:
   - Getting started: getting-started.md
   - Guide:
       - The live view: live-view.md
+      - Views and panes: views-and-panes.md
       - Cost report: report.md
       - Tool trace and export: trace.md
       - Snapshots and replay: replay.md

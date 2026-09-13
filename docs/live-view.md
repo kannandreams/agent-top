@@ -1,5 +1,5 @@
 ---
-description: "A tour of every panel in the live view: the header, the agents table, the process tree, the tool trace, MCP servers, context by source, and the advice, slow-tools and failed-tools popups."
+description: "A tour of every panel in the live view: the header, the agents table, the process tree, the tool trace, MCP servers, context by source, and the advice, slow-tools, failed-tools and MCP servers popups."
 ---
 
 # The live view
@@ -69,7 +69,7 @@ The same data leaves the terminal as a file with `agent-top trace`; see [Tool tr
 
 ## The popups
 
-Three keys open a panel over the table. The same key, or `Esc`, closes it.
+Four keys open a panel over the table. The same key, or `Esc`, closes it. `Enter` on a popup fills the terminal with it, each panel has a command of its own such as `agent-top mcp`, and inside tmux, zellij, WezTerm or kitty `o` opens it in a new pane. [Views and panes](views-and-panes.md) covers those.
 
 **`a` advice** is the meter read for you: one sentence per thing that looks like a bad deal on the machine right now, the numbers behind it, and what you could do. Three rules, applied only to live agents and only to figures already on screen:
 
@@ -84,6 +84,10 @@ Nothing is done for you. agent-top never signals a process or edits a config; it
 **`l` slowest tools** ranks every tool by the time it took, across every agent: calls, total, average, max. **`f` failed tool calls** ranks them by how often they failed.
 
 ![The slowest tools leaderboard](screenshots/slowest-tools.png)
+
+**`m` MCP servers** is the machine's list rather than one agent's: every server under every agent with its pid, calls, errors and last call, then the orphaned processes and where each came from.
+
+![The MCP servers popup](screenshots/mcp-peek.png)
 
 ## The plain-text view
 

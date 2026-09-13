@@ -47,7 +47,7 @@ What to look at first:
 - **COST** is what each session has spent so far, at list price.
 - **Red rows in the detail pane** are MCP servers whose agent has gone: a leak, and one agent-top watches for on every tick.
 
-Keys: `j`/`k` move, `Tab` switches the detail pane between the process tree and the tool trace, `s` sorts, `x` hides stopped sessions, `l` opens the slowest-tools panel, `f` the failed-tools panel, `a` the advice panel, `?` shows the rest, `q` quits.
+Keys: `j`/`k` move, `Tab` switches the detail pane between the process tree and the tool trace, `s` sorts, `x` hides stopped sessions, `l` opens the slowest-tools panel, `f` the failed-tools panel, `a` the advice panel, `m` the MCP servers panel, `?` shows the rest, `q` quits. `Enter` on a panel fills the terminal with it; inside tmux, zellij, WezTerm or kitty, `o` opens it in a new pane. See [Views and panes](https://agent-top.pages.dev/views-and-panes/).
 
 Other ways to run it:
 
@@ -193,6 +193,19 @@ main table stays uncluttered. Press `l` for the **slowest tools** (ranked by
 time, with calls, total, average and max) and `f` for **failed tool calls**
 (ranked by failures, with the fail rate). Each closes with the same key or
 `Esc`, and is accented amber or red so you know which one is open.
+
+### Views and panes
+
+Every popup (`l`, `f`, `a`, and `m` for the MCP servers under every agent)
+comes in four sizes. The popup over the table is for a quick look. `Enter`
+on it fills the terminal with the panel, every row, scrollable, `Esc` back.
+`agent-top slow`, `agent-top fails`, `agent-top advice` and `agent-top mcp`
+start on that panel alone, for a second window or a pane you split yourself.
+And inside tmux, zellij, WezTerm or kitty, `o` on a popup splits a pane to
+the right and starts that command in it, with this run's flags; the popup
+shows the exact command before you press anything. What runs, per
+multiplexer, is in the docs:
+[Views and panes](https://agent-top.pages.dev/views-and-panes/).
 
 ### Advice
 
@@ -432,6 +445,7 @@ agent-top                        # interactive, refreshes every second
 agent-top --interval-ms 500      # faster refresh
 agent-top --stopped-window-min 120   # keep stopped sessions visible for two hours
 agent-top --replay snap.json     # render a saved --json snapshot, keys and all, reading nothing local
+agent-top slow | fails | advice | mcp   # start on that panel alone, for a second pane or window
 agent-top trace --session <id|prefix|path> [--format chrome|otlp] [-o FILE] [--endpoint URL]
 agent-top report [--since 7d|all|YYYY-MM-DD] [--by harness|model|project|day] [--json]
 ```

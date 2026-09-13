@@ -57,6 +57,10 @@ Nothing else opens a connection. `--json` and `--replay` never touch the network
 
 Accepting the upgrade prompt (`u`) runs a fixed command line chosen by detecting how the running binary was installed: `brew update && brew upgrade agent-top`, `cargo binstall -y agent-top`, or `cargo install --locked agent-top`. It is never a string built from input, and it never runs through a shell. The command is printed before it runs, and it runs only on that keypress.
 
+## The one other thing it starts: itself, in your multiplexer
+
+Pressing `o` on a panel popup inside tmux, zellij, WezTerm or kitty runs that multiplexer's split command with agent-top's own binary path, this run's flags and the panel's subcommand as the arguments, for example `tmux split-window -h -d -c <cwd> 'agent-top mcp'`. The multiplexer is recognised from the variable it sets (`$TMUX`, `$ZELLIJ`, `$WEZTERM_PANE`, `$KITTY_WINDOW_ID`); the command is shown on the popup before the key is pressed; nothing goes through a shell except the single quoted string tmux requires. It starts a second agent-top and nothing else, and it changes nothing on disk. The full table is in [Views and panes](views-and-panes.md).
+
 ## Local files it touches
 
 **Reads:** the transcripts, the process table, and `~/.config/agent-top/prices.toml` if it exists. A malformed price file is reported on stderr and ignored; the built-in prices still apply. See [Prices](prices.md).

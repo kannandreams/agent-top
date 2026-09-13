@@ -77,20 +77,73 @@ const RATE_WINDOW: Duration = Duration::from_secs(10);
 /// cost arrives in per-turn lumps that a short window would make jump around.
 const BURN_WINDOW: Duration = Duration::from_secs(60);
 
-/// Which full-screen popup, if any, is over the table.
+/// A panel that can be peeked at as a popup over the table, pinned to the
+/// whole terminal with Enter, started on its own with `agent-top <command>`,
+/// or opened in a multiplexer pane with `o`. One key per panel, wherever it
+/// is shown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Overlay {
-    None,
-    Help,
+pub enum Panel {
     /// Tool calls ranked by how much time they took.
     SlowTools,
     /// Tool calls ranked by how often they failed.
     FailedTools,
     /// What looks like a bad deal right now, and what to do about it.
     Advice,
+    /// Every MCP server under every agent, and the orphans.
+    Mcp,
+}
+
+impl Panel {
+    pub const ALL: [Panel; 4] = [Panel::SlowTools, Panel::FailedTools, Panel::Advice, Panel::Mcp];
+
+    /// The key that shows the panel, in every mode.
+    pub fn key(self) -> char {
+        match self {
+            Panel::SlowTools => 'l',
+            Panel::FailedTools => 'f',
+            Panel::Advice => 'a',
+            Panel::Mcp => 'm',
+        }
+    }
+
+    /// The subcommand that starts agent-top on this panel: `agent-top mcp`.
+    pub fn command(self) -> &'static str {
+        match self {
+            Panel::SlowTools => "slow",
+            Panel::FailedTools => "fails",
+            Panel::Advice => "advice",
+            Panel::Mcp => "mcp",
+        }
+    }
+
+    pub fn title(self) -> &'static str {
+        match self {
+            Panel::SlowTools => "slowest tools",
+            Panel::FailedTools => "failed tool calls",
+            Panel::Advice => "advice",
+            Panel::Mcp => "mcp servers",
+        }
+    }
+
+    fn from_key(c: char) -> Option<Panel> {
+        Panel::ALL.into_iter().find(|p| p.key() == c)
+    }
+}
+
+/// Which popup, if any, floats over the screen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Overlay {
+    None,
+    Help,
+    /// A panel peeked at over whatever is underneath: the table, or a
+    /// pinned panel.
+    Panel(Panel),
     /// A newer agent-top is available: upgrade now, or not now.
     Update,
 }
+
+/// How long a footer notice stays on screen.
+const NOTICE_FOR: Duration = Duration::from_secs(5);
 
 pub struct App {
     pub snapshot: Snapshot,
@@ -102,6 +155,21 @@ pub struct App {
     pub show_detail: bool,
     pub detail: DetailView,
     pub overlay: Overlay,
+    /// A panel filling the terminal instead of the table and detail pane.
+    pub pinned: Option<Panel>,
+    /// Started with `agent-top <panel>`: there is no table to go back to, so
+    /// Esc with nothing open does nothing, and the update question is left to
+    /// the main view.
+    pub standalone: bool,
+    /// Lines scrolled off the top of the pinned panel. The renderer clamps it
+    /// to the panel's height each frame.
+    pub scroll: u16,
+    /// The multiplexer this run is inside, if any; decides whether `o` is offered.
+    pub multiplexer: Option<crate::pane::Multiplexer>,
+    /// Set when the user pressed `o`: the main loop opens that panel in a pane.
+    pub open_requested: Option<Panel>,
+    /// A one-line message for the footer, with when it was set.
+    pub notice: Option<(String, Instant)>,
     pub show_stopped: bool,
     pub paused: bool,
     pub cpu_history: Vec<u64>,
@@ -140,6 +208,12 @@ impl App {
             show_detail: true,
             detail: DetailView::Tree,
             overlay: Overlay::None,
+            pinned: None,
+            standalone: false,
+            scroll: 0,
+            multiplexer: None,
+            open_requested: None,
+            notice: None,
             show_stopped: true,
             paused: false,
             cpu_history: Vec::new(),
@@ -168,7 +242,9 @@ impl App {
     /// after the check starts and on every tick, since the answer can arrive
     /// from the network a moment after start.
     pub fn maybe_prompt_update(&mut self) {
-        if self.update_prompted || self.overlay != Overlay::None {
+        // A dedicated pane leaves the question to the main view, so two
+        // agent-top windows do not ask it twice.
+        if self.update_prompted || self.overlay != Overlay::None || self.standalone {
             return;
         }
         let Some(latest) = self.latest() else { return };
@@ -267,6 +343,80 @@ impl App {
         self.selected_id = Some(self.rows[self.selected].id.clone());
     }
 
+    /// Fill the terminal with a panel. The peek that led here closes: it is
+    /// the same panel at a bigger size, not a second copy.
+    pub fn pin(&mut self, p: Panel) {
+        self.pinned = Some(p);
+        self.overlay = Overlay::None;
+        self.scroll = 0;
+    }
+
+    /// Back to the table. A standalone run has no table, so it stays put.
+    fn unpin(&mut self) {
+        if !self.standalone {
+            self.pinned = None;
+            self.scroll = 0;
+        }
+    }
+
+    /// Show a line in the footer for a few seconds.
+    pub fn notify(&mut self, text: impl Into<String>) {
+        self.notice = Some((text.into(), Instant::now()));
+    }
+
+    /// The footer notice, if it is still fresh.
+    pub fn current_notice(&self) -> Option<&str> {
+        self.notice.as_ref().filter(|(_, at)| at.elapsed() < NOTICE_FOR).map(|(t, _)| t.as_str())
+    }
+
+    /// A panel's key: closes its peek, switches a peek to it, returns from it
+    /// when it is pinned, or opens it as a peek.
+    fn panel_key(&mut self, p: Panel) {
+        match self.overlay {
+            Overlay::Panel(open) if open == p => self.overlay = Overlay::None,
+            Overlay::Panel(_) => self.overlay = Overlay::Panel(p),
+            _ if self.pinned == Some(p) => self.unpin(),
+            _ => self.overlay = Overlay::Panel(p),
+        }
+    }
+
+    /// The panel `o` would open in a pane: the peek if one is open, else the
+    /// pinned panel.
+    fn panel_in_front(&self) -> Option<Panel> {
+        match self.overlay {
+            Overlay::Panel(p) => Some(p),
+            Overlay::None => self.pinned,
+            _ => None,
+        }
+    }
+
+    /// Movement keys scroll the pinned panel when one fills the screen, and
+    /// move the table's selection otherwise.
+    fn scroll_or_select(&mut self, code: KeyCode) {
+        let page: u16 = 10;
+        if self.pinned.is_some() && self.overlay == Overlay::None {
+            self.scroll = match code {
+                KeyCode::Char('j') | KeyCode::Down => self.scroll.saturating_add(1),
+                KeyCode::Char('k') | KeyCode::Up => self.scroll.saturating_sub(1),
+                KeyCode::PageDown => self.scroll.saturating_add(page),
+                KeyCode::PageUp => self.scroll.saturating_sub(page),
+                KeyCode::Char('g') | KeyCode::Home => 0,
+                KeyCode::Char('G') | KeyCode::End => u16::MAX,
+                _ => self.scroll,
+            };
+            return;
+        }
+        match code {
+            KeyCode::Char('j') | KeyCode::Down => self.select(self.selected + 1),
+            KeyCode::Char('k') | KeyCode::Up => self.select(self.selected.saturating_sub(1)),
+            KeyCode::Char('g') | KeyCode::Home => self.select(0),
+            KeyCode::Char('G') | KeyCode::End => self.select(usize::MAX),
+            KeyCode::PageDown => self.select(self.selected + page as usize),
+            KeyCode::PageUp => self.select(self.selected.saturating_sub(page as usize)),
+            _ => {}
+        }
+    }
+
     /// Handle one keypress. Returns `true` when the app should exit: `q` or
     /// `Esc` with nothing open, or `q` on the update popup specifically. That
     /// popup asks a real question, so the generic "close whatever's open"
@@ -292,12 +442,13 @@ impl App {
             }
         }
         match code {
-            KeyCode::Char('j') | KeyCode::Down => self.select(self.selected + 1),
-            KeyCode::Char('k') | KeyCode::Up => self.select(self.selected.saturating_sub(1)),
-            KeyCode::Char('g') | KeyCode::Home => self.select(0),
-            KeyCode::Char('G') | KeyCode::End => self.select(usize::MAX),
-            KeyCode::PageDown => self.select(self.selected + 10),
-            KeyCode::PageUp => self.select(self.selected.saturating_sub(10)),
+            KeyCode::Char('j' | 'k' | 'g' | 'G')
+            | KeyCode::Down
+            | KeyCode::Up
+            | KeyCode::Home
+            | KeyCode::End
+            | KeyCode::PageDown
+            | KeyCode::PageUp => self.scroll_or_select(code),
             KeyCode::Char('s') => {
                 self.sort = self.sort.next();
                 self.rebuild_rows();
@@ -306,10 +457,30 @@ impl App {
                 self.sort_desc = !self.sort_desc;
                 self.rebuild_rows();
             }
-            KeyCode::Char('t') | KeyCode::Enter => self.show_detail = !self.show_detail,
+            // Enter on a peek pins it: the same panel, the whole terminal.
+            KeyCode::Enter if matches!(self.overlay, Overlay::Panel(_)) => {
+                if let Overlay::Panel(p) = self.overlay {
+                    self.pin(p);
+                }
+            }
+            KeyCode::Char('t') | KeyCode::Enter if self.pinned.is_none() => self.show_detail = !self.show_detail,
+            // `o` asks the main loop to open the panel in front in a pane of
+            // the multiplexer; without one there is nothing to ask. The peek
+            // closes, since the pane now shows it; a pinned panel goes back
+            // to the table for the same reason.
+            KeyCode::Char('o') => {
+                if let (Some(_), Some(p)) = (self.multiplexer, self.panel_in_front()) {
+                    self.open_requested = Some(p);
+                    if self.overlay == Overlay::Panel(p) {
+                        self.overlay = Overlay::None;
+                    } else {
+                        self.unpin();
+                    }
+                }
+            }
             // Cycling the view opens the pane rather than switching a panel
             // nobody can see.
-            KeyCode::Tab | KeyCode::Char('v') => {
+            KeyCode::Tab | KeyCode::Char('v') if self.pinned.is_none() => {
                 if self.show_detail {
                     self.detail = self.detail.next();
                 } else {
@@ -322,10 +493,24 @@ impl App {
             }
             KeyCode::Char('p') | KeyCode::Char(' ') => self.paused = !self.paused,
             KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.toggle(Overlay::Help),
-            KeyCode::Char('l') => self.toggle(Overlay::SlowTools),
-            KeyCode::Char('f') => self.toggle(Overlay::FailedTools),
-            KeyCode::Char('a') => self.toggle(Overlay::Advice),
-            KeyCode::Esc | KeyCode::Char('q') => {
+            KeyCode::Char(c) if Panel::from_key(c).is_some() => {
+                if let Some(p) = Panel::from_key(c) {
+                    self.panel_key(p);
+                }
+            }
+            // Esc walks back one step: close the popup, then leave the pinned
+            // panel, then quit. `q` closes a popup and otherwise quits from
+            // wherever it is, so a dedicated pane closes on one key.
+            KeyCode::Esc => {
+                if self.overlay != Overlay::None {
+                    self.close_overlay();
+                } else if self.pinned.is_some() && !self.standalone {
+                    self.unpin();
+                } else if self.pinned.is_none() {
+                    return true;
+                }
+            }
+            KeyCode::Char('q') => {
                 if self.overlay != Overlay::None {
                     self.close_overlay();
                 } else {
@@ -502,6 +687,101 @@ mod tests {
 
         // q with nothing open quits, same as before.
         assert!(app.on_key(KeyCode::Char('q')));
+    }
+
+    /// The four ways to a panel share one key. A peek opens and closes on
+    /// it; Enter pins the peek; the same key, or Esc, returns to the table;
+    /// another panel's key over a pinned one is a peek, not a switch.
+    #[test]
+    fn a_panel_is_peeked_pinned_and_left_with_the_same_key() {
+        let mut app = App::new(snapshot(0));
+        app.on_key(KeyCode::Char('m'));
+        assert_eq!(app.overlay, Overlay::Panel(Panel::Mcp), "m peeks");
+        app.on_key(KeyCode::Char('m'));
+        assert_eq!(app.overlay, Overlay::None, "m again closes the peek");
+
+        app.on_key(KeyCode::Char('m'));
+        assert!(!app.on_key(KeyCode::Enter));
+        assert_eq!(app.pinned, Some(Panel::Mcp), "Enter pins the peek");
+        assert_eq!(app.overlay, Overlay::None, "the peek closed: it is the same panel, bigger");
+
+        app.on_key(KeyCode::Char('l'));
+        assert_eq!(app.overlay, Overlay::Panel(Panel::SlowTools), "another key peeks over the pinned panel");
+        assert_eq!(app.pinned, Some(Panel::Mcp));
+        assert!(!app.on_key(KeyCode::Esc), "Esc closes the peek first");
+        assert_eq!(app.overlay, Overlay::None);
+        assert_eq!(app.pinned, Some(Panel::Mcp));
+
+        assert!(!app.on_key(KeyCode::Esc), "Esc then leaves the pinned panel");
+        assert_eq!(app.pinned, None);
+        assert!(app.on_key(KeyCode::Esc), "Esc with nothing open quits");
+
+        // The pinned panel's own key goes back to the table too.
+        app.pin(Panel::Advice);
+        app.on_key(KeyCode::Char('a'));
+        assert_eq!(app.pinned, None);
+
+        // Movement keys scroll a pinned panel and move the selection otherwise.
+        app.pin(Panel::Mcp);
+        app.on_key(KeyCode::Char('j'));
+        app.on_key(KeyCode::PageDown);
+        assert_eq!(app.scroll, 11);
+        app.on_key(KeyCode::Char('g'));
+        assert_eq!(app.scroll, 0);
+        assert_eq!(app.selected, 0, "the table did not move");
+        // Enter and Tab are table keys; pinned, they do nothing.
+        let detail = app.show_detail;
+        app.on_key(KeyCode::Enter);
+        app.on_key(KeyCode::Tab);
+        assert_eq!(app.show_detail, detail);
+        assert!(app.on_key(KeyCode::Char('q')), "q quits from a pinned panel");
+    }
+
+    /// `agent-top mcp` has no table behind it: Esc stays, q quits, the
+    /// panel's key stays, and the upgrade question is left to the main view.
+    #[test]
+    fn a_standalone_panel_has_nowhere_to_go_back_to() {
+        let mut app = App::new(snapshot(0));
+        app.standalone = true;
+        app.pin(Panel::Mcp);
+        assert!(!app.on_key(KeyCode::Esc));
+        assert_eq!(app.pinned, Some(Panel::Mcp));
+        app.on_key(KeyCode::Char('m'));
+        assert_eq!(app.pinned, Some(Panel::Mcp));
+        app.on_key(KeyCode::Char('a'));
+        assert_eq!(app.overlay, Overlay::Panel(Panel::Advice), "other panels still peek");
+        app.on_key(KeyCode::Esc);
+        *app.update.lock().unwrap() = Some("9.9.9".into());
+        app.maybe_prompt_update();
+        assert_eq!(app.overlay, Overlay::None, "no upgrade question in a pane");
+        assert!(app.on_key(KeyCode::Char('q')));
+    }
+
+    /// `o` is an ask to the main loop, made only inside a multiplexer, for
+    /// the panel in front; the peek closes because the pane now shows it.
+    #[test]
+    fn o_asks_for_a_pane_only_inside_a_multiplexer() {
+        let mut app = App::new(snapshot(0));
+        app.on_key(KeyCode::Char('l'));
+        app.on_key(KeyCode::Char('o'));
+        assert_eq!(app.open_requested, None, "a plain terminal has no panes");
+        assert_eq!(app.overlay, Overlay::Panel(Panel::SlowTools), "and the peek stays");
+
+        app.multiplexer = Some(crate::pane::Multiplexer::Tmux);
+        app.on_key(KeyCode::Char('o'));
+        assert_eq!(app.open_requested.take(), Some(Panel::SlowTools));
+        assert_eq!(app.overlay, Overlay::None, "the peek moved into the pane");
+
+        app.on_key(KeyCode::Char('o'));
+        assert_eq!(app.open_requested, None, "nothing in front, nothing to open");
+
+        app.pin(Panel::Mcp);
+        app.on_key(KeyCode::Char('o'));
+        assert_eq!(app.open_requested.take(), Some(Panel::Mcp));
+        assert_eq!(app.pinned, None, "a pinned panel moves into the pane and the table returns");
+
+        app.notify("opened");
+        assert_eq!(app.current_notice(), Some("opened"));
     }
 
     #[test]
