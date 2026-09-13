@@ -63,15 +63,19 @@ above the section shows, so the two can be checked against each other.
 
 **Compaction.** A compaction replaces the context with a summary, after which
 the old results are no longer being re-read. Claude Code writes a
-`compact_boundary` line, which resets the ledger exactly. For a harness that
+`compact_boundary` line, and OpenCode writes the summary as a reply marked
+`summary`; either resets the ledger exactly. For a harness that
 writes no marker, a prompt that halves between two responses is taken as a
 compaction; nothing else shrinks it by that much. Thinking blocks a harness
 drops between turns shrink it by less, and that shrink is taken off the
 `prompts & replies` row, whose replies they were.
 
 **What it cannot see.** A model with no price shows tokens and a `-` for
-cost. OpenCode rows have no section yet: its session store carries totals, and
-per-message usage in order is a read the adapter does not do. And the split is
+cost. OpenCode records one cost per reply rather than one per kind of token, so
+for an OpenCode row the price table divides that figure between input, cache
+and output, and the rows add up to OpenCode's own prompt-side share; a model the
+table does not price, which includes the DeepSeek models OpenCode often runs,
+gets tokens only. And the split is
 per response, so two tools answered together are assumed the same size; if that
 matters, the `agent-top trace` export has each call's duration, which is often
 a fair proxy.

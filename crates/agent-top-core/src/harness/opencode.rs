@@ -48,17 +48,28 @@
 //!   through `OPENCODE_CONFIG` in the agent's own environment cannot be seen
 //!   from outside the process and is not counted. Every tool part, MCP or not,
 //!   is still counted as a tool call and a span.
-//! * Context by source is not produced either: the session row carries
-//!   totals, and sizing each tool's results needs per-message usage in
-//!   message order, which is a `message` table read this adapter does not
-//!   do yet. The detail pane shows no `context` section for an OpenCode row.
+//! * Context by source (verified on OpenCode 1.18.15, 2026-09-13): each
+//!   `assistant` message is one model response and carries its own `tokens`
+//!   `{input, output, reasoning, cache: {read, write}}`, `cost` (US dollars)
+//!   and `modelID`. The `tool` parts of a message are the calls that response
+//!   made, and the next assistant message's prompt carries their results. So
+//!   the ledger is fed per session in `time_created` order: each response's
+//!   usage, then that message's tool calls as pending results. A compaction is
+//!   written as a user message with a `compaction` part followed by an
+//!   assistant message with `summary: true` and `mode: "compaction"`; the
+//!   ledger resets after that reply, exactly rather than by the prompt-halved
+//!   fallback. The per-message `cost` is one total, so the prompt-side share
+//!   the ledger charges is taken from agent-top's price table for the model,
+//!   scaled so the classes add up to OpenCode's figure; a model the table does
+//!   not price gets tokens and no cost, which the UI shows as `-`. Subagent
+//!   ledgers are folded into the parent's.
 //!
 //! A session has no file of its own, so a tracker is addressed by a virtual
 //! path `<db>/<session id>`: unique, stable, and with the session id as its
 //! file stem, which is all the collector and the trace resolver need.
 
-use super::{AttributeContext, HarnessAdapter, RegistryHints, SessionSummary, SessionTracker, SpanRetention};
-use crate::model::{Activity, Attribution, Harness, ProcNode, SpanKind, TokenUsage};
+use super::{AttributeContext, ContextLedger, HarnessAdapter, RegistryHints, SessionSummary, SessionTracker, SpanRetention};
+use crate::model::{Activity, Attribution, ContextOrigin, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage};
 use crate::process::RawProc;
 use rusqlite::{Connection, OpenFlags};
 use std::collections::HashSet;
@@ -517,11 +528,24 @@ impl OpenCodeTranscript {
         let sub_ids: HashSet<&str> = ids.iter().filter(|(_, s)| *s).map(|(i, _)| i.as_str()).collect();
         let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
 
+        // Context by source, over the whole session: the ledger needs every
+        // response in order, not the bounded span window.
+        let servers = summary.cwd.as_deref().map(|d| mcp_server_names(d, &config)).unwrap_or_default();
+        for (sid, is_sub) in &ids {
+            let ledger = context_ledger(conn, sid, &servers)?;
+            if *is_sub {
+                summary.context.merge(&ledger);
+            } else {
+                let subs = std::mem::take(&mut summary.context);
+                summary.context = ledger;
+                summary.context.merge(&subs);
+            }
+        }
+
         // MCP calls per server, over every tool part rather than the bounded
         // span window, since a count is the whole session. Only when the
         // config names a server: without one, no name can be told apart from
         // a built-in tool, and nothing is guessed.
-        let servers = summary.cwd.as_deref().map(|d| mcp_server_names(d, &config)).unwrap_or_default();
         if !servers.is_empty() {
             let sql = format!(
                 "SELECT json_extract(data,'$.tool'), json_extract(data,'$.state.status'), \
@@ -693,6 +717,86 @@ impl OpenCodeTranscript {
         // If there were no messages at all, activity stays unknown.
         self.summary = summary;
         Ok(())
+    }
+}
+
+/// One session's context ledger, fed from its assistant messages in order.
+/// See the module notes for why each message is one response and its tool
+/// parts are the results the next response carries.
+fn context_ledger(conn: &Connection, session_id: &str, servers: &[String]) -> rusqlite::Result<ContextLedger> {
+    let mut calls: std::collections::HashMap<String, Vec<(String, String)>> = std::collections::HashMap::new();
+    {
+        let mut stmt = conn.prepare(
+            "SELECT message_id, json_extract(data,'$.callID'), json_extract(data,'$.tool') FROM part \
+             WHERE session_id = ?1 AND json_extract(data,'$.type') = 'tool' ORDER BY id",
+        )?;
+        let mut rows = stmt.query([session_id])?;
+        while let Some(r) = rows.next()? {
+            let (Some(msg), Some(call), Some(tool)) =
+                (r.get::<_, Option<String>>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, Option<String>>(2)?)
+            else {
+                continue;
+            };
+            calls.entry(msg).or_default().push((call, tool));
+        }
+    }
+    let mut ledger = ContextLedger::default();
+    let mut stmt = conn.prepare(
+        "SELECT id, json_extract(data,'$.tokens.input'), json_extract(data,'$.tokens.output'), \
+         json_extract(data,'$.tokens.reasoning'), json_extract(data,'$.tokens.cache.read'), \
+         json_extract(data,'$.tokens.cache.write'), json_extract(data,'$.cost'), json_extract(data,'$.modelID'), \
+         json_extract(data,'$.summary'), json_extract(data,'$.mode') FROM message \
+         WHERE session_id = ?1 AND json_extract(data,'$.role') = 'assistant' ORDER BY time_created, id",
+    )?;
+    let mut rows = stmt.query([session_id])?;
+    let n = |v: Option<i64>| v.unwrap_or(0).max(0) as u64;
+    while let Some(r) = rows.next()? {
+        let id: String = r.get(0)?;
+        let usage = TokenUsage {
+            input: n(r.get(1)?),
+            output: n(r.get(2)?) + n(r.get(3)?),
+            cache_read: n(r.get(4)?),
+            cache_write_5m: n(r.get(5)?),
+            cache_write_1h: 0,
+        };
+        let total: f64 = r.get::<_, Option<f64>>(6)?.unwrap_or(0.0);
+        let cost = r
+            .get::<_, Option<String>>(7)?
+            .and_then(|m| crate::pricing::table().lookup(&m))
+            .map(|p| scaled(p.breakdown(&usage), total))
+            .unwrap_or_default();
+        ledger.response(&usage, &cost);
+        let summary = r.get::<_, Option<i64>>(8)?.unwrap_or(0) != 0 || r.get::<_, Option<String>>(9)?.as_deref() == Some("compaction");
+        if summary {
+            ledger.compacted();
+        }
+        for (call, tool) in calls.remove(&id).unwrap_or_default() {
+            match mcp_server_of(&tool, servers) {
+                Some(server) => ledger.result(&call, ContextOrigin::Mcp, server),
+                None => ledger.result(&call, ContextOrigin::Tool, &tool),
+            }
+        }
+    }
+    Ok(ledger)
+}
+
+/// A breakdown at list rates, scaled so its classes add up to what OpenCode
+/// says the message cost. OpenCode's figure is the real one; the table only
+/// says how it divides between input, cache and output. With no OpenCode
+/// figure the list-rate breakdown stands.
+fn scaled(b: CostBreakdown, total: f64) -> CostBreakdown {
+    let list = b.total();
+    if total <= 0.0 || list <= 0.0 {
+        return b;
+    }
+    let k = total / list;
+    CostBreakdown {
+        input: b.input * k,
+        cache_write_5m: b.cache_write_5m * k,
+        cache_write_1h: b.cache_write_1h * k,
+        cache_read: b.cache_read * k,
+        output: b.output * k,
+        web_search: b.web_search * k,
     }
 }
 
@@ -945,6 +1049,129 @@ mod tests {
         assert_eq!(s.mcp["scratch"].calls, 1, "a subagent's call counts for the session");
         assert_eq!(s.mcp["my.api"].calls, 1, "matched through the sanitised name, filed under the configured one");
         assert!(!s.mcp.contains_key("outside"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Three responses, a compaction, and a subagent. The first response's
+    /// prompt is all `prompts & replies`; the second grows by the `read`
+    /// result plus the first reply; the MCP call's result lands in the third.
+    /// The summary reply resets the ledger, so the fourth response's prompt is
+    /// new material. A priced model's costs add up to the prompt-side share of
+    /// OpenCode's own message costs.
+    #[test]
+    fn context_by_source_from_messages_in_order() {
+        let dir = std::env::temp_dir().join(format!("agent-top-oc-ctx-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(".git")).unwrap();
+        std::fs::write(dir.join("opencode.json"), r#"{"mcp":{"scratch_fs":{}}}"#).unwrap();
+        let db = dir.join("opencode.db");
+        let conn = Connection::open(&db).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE session (id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT, directory TEXT, agent TEXT, \
+             model TEXT, cost REAL DEFAULT 0, tokens_input INTEGER DEFAULT 0, tokens_output INTEGER DEFAULT 0, \
+             tokens_reasoning INTEGER DEFAULT 0, tokens_cache_read INTEGER DEFAULT 0, tokens_cache_write INTEGER DEFAULT 0, \
+             time_created INTEGER, time_updated INTEGER, version TEXT);
+             CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT);
+             CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, time_created INTEGER, data TEXT);",
+        )
+        .unwrap();
+        let model = "claude-opus-5";
+        let price = crate::pricing::table().lookup(model).expect("the test model is priced");
+        conn.execute(
+            "INSERT INTO session VALUES ('s', 'p', NULL, ?1, 'build', ?2, 0, 0, 0, 0, 0, 0, 1, 9, '1.18.15')",
+            rusqlite::params![dir.to_string_lossy(), format!("{{\"id\":\"{model}\"}}")],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO session VALUES ('sub', 'p', 's', ?1, 'explore', NULL, 0, 0, 0, 0, 0, 0, 2, 8, '1.18.15')",
+            [dir.to_string_lossy()],
+        )
+        .unwrap();
+        struct Reply {
+            id: &'static str,
+            sid: &'static str,
+            created: i64,
+            input: u64,
+            output: u64,
+            reasoning: u64,
+            read: u64,
+            cost: f64,
+            summary: bool,
+        }
+        let reply = |id, sid, created, input, output, reasoning, read, cost, summary| Reply {
+            id,
+            sid,
+            created,
+            input,
+            output,
+            reasoning,
+            read,
+            cost,
+            summary,
+        };
+        let replies = [
+            reply("m1", "s", 10, 1000, 40, 10, 0, 0.02, false),
+            reply("m2", "s", 20, 400, 30, 0, 1050, 0.01, false),
+            reply("m3", "s", 30, 300, 20, 0, 1480, 0.01, false),
+            reply("m4", "s", 40, 0, 0, 0, 0, 0.0, true),
+            reply("m5", "s", 50, 200, 10, 0, 0, 0.005, false),
+            reply("k1", "sub", 25, 500, 5, 0, 0, 0.004, false),
+        ];
+        for r in &replies {
+            let mode = if r.summary { "compaction" } else { "build" };
+            let data = format!(
+                "{{\"role\":\"assistant\",\"mode\":\"{mode}\",\"summary\":{},\"modelID\":\"{model}\",\"cost\":{},\
+                 \"tokens\":{{\"input\":{},\"output\":{},\"reasoning\":{},\"cache\":{{\"read\":{},\"write\":0}}}},\
+                 \"time\":{{\"created\":{},\"completed\":{}}}}}",
+                r.summary,
+                r.cost,
+                r.input,
+                r.output,
+                r.reasoning,
+                r.read,
+                r.created,
+                r.created + 5
+            );
+            conn.execute("INSERT INTO message VALUES (?1, ?2, ?3, ?4)", rusqlite::params![r.id, r.sid, r.created, data]).unwrap();
+        }
+        let tool = |id: &str, msg: &str, sid: &str, name: &str, call: &str| {
+            let data = format!(
+                "{{\"type\":\"tool\",\"tool\":\"{name}\",\"callID\":\"{call}\",\"state\":{{\"status\":\"completed\",\"time\":{{\"start\":1,\"end\":2}}}}}}"
+            );
+            conn.execute("INSERT INTO part VALUES (?1, ?2, ?3, 1, ?4)", rusqlite::params![id, msg, sid, data]).unwrap();
+        };
+        tool("p1", "m1", "s", "read", "c1");
+        tool("p2", "m2", "s", "scratch_fs_list_directory", "c2");
+        tool("p3", "m3", "s", "bash", "c3");
+        drop(conn);
+
+        let roots = ConfigRoots { global: Some(dir.join("no-global")), home: Some(dir.join("no-home")) };
+        let mut t = OpenCodeTranscript::new(&session_path(&db, "s"), SpanRetention::Recent).with_config(roots);
+        t.refresh().unwrap();
+        let rows: std::collections::HashMap<String, crate::model::ContextSource> =
+            t.summary().context.sources().into_iter().map(|c| (c.name.clone(), c)).collect();
+
+        // m1: 1000 prompt, all Other. m2: 1450 prompt, +450 = 50 reply (40+10) + 400 read.
+        assert_eq!((rows["read"].calls, rows["read"].tokens), (1, 400), "{rows:?}");
+        // m3: 1780 prompt, +330 = 30 reply + 300 scratch_fs.
+        assert_eq!((rows["scratch_fs"].calls, rows["scratch_fs"].tokens, rows["scratch_fs"].origin), (1, 300, ContextOrigin::Mcp));
+        // m4 is the summary reply with no prompt of its own, so it sizes
+        // nothing and resets the ledger; m5's whole 200-token prompt is new and
+        // is filed under the one result still pending, bash.
+        assert_eq!((rows["bash"].calls, rows["bash"].tokens), (1, 200), "{rows:?}");
+        // Other: m1's 1000, m2's 50, m3's 30, and the subagent's first 500.
+        assert_eq!(rows[ContextLedger::OTHER].tokens, 1580, "{rows:?}");
+
+        // Costs reconcile to the prompt-side share of OpenCode's message costs.
+        let prompt_side = |input: u64, output: u64, read: u64, total: f64| {
+            let usage = TokenUsage { input, output, cache_read: read, ..Default::default() };
+            let b = scaled(price.breakdown(&usage), total);
+            b.input + b.cache_read + b.cache_write_5m + b.cache_write_1h
+        };
+        let expected: f64 =
+            replies.iter().filter(|r| r.input + r.read > 0).map(|r| prompt_side(r.input, r.output + r.reasoning, r.read, r.cost)).sum();
+        let got: f64 = rows.values().map(|c| c.cost_usd).sum();
+        assert!((expected - got).abs() < 1e-9, "rows {got} vs prompt-side {expected}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
