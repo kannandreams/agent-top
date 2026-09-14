@@ -7,294 +7,258 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [0.18.0] - 2026-09-13
 
 ### Added
-- **DeepSeek prices.** `deepseek-v4-pro`, `deepseek-flash` and its retired name `deepseek-v4-flash` are priced at DeepSeek's peak list rate (checked 2026-09-13; off-peak is half). OpenCode rows keep OpenCode's own cost, and the rates divide it between input, cache and output, so the context section of an OpenCode session on DeepSeek now shows what each source has cost instead of `-`.
-- **Context by source for OpenCode.** OpenCode rows now get the detail pane's `context` section, `CONTEXT BY SOURCE` in `--once` and `context` in `--json`, like Claude Code, Codex and Gemini. Each OpenCode assistant message is one model response with its own token counts, and its tool parts are the calls whose results the next response carries, so the ledger is fed message by message over the whole session, MCP calls filed under their server. A compaction is exact: OpenCode marks the summary reply, and the ledger resets after it. OpenCode stores one cost per reply, so the price table divides it between input, cache and output and the rows add up to OpenCode's own prompt-side figure; a model the table does not price shows tokens with `-` for cost. Subagent sessions fold into their parent.
-- **MCP call counts for OpenCode.** OpenCode rows now get per-server MCP rows with calls, errors and the last call, like Claude Code, Codex and Gemini. OpenCode writes an MCP call as an ordinary tool part named `<server>_<tool>`, with no prefix and nothing else marking it, so the server names are read from OpenCode's own config: the `mcp` key names in the global `config.json`, `opencode.json` and `opencode.jsonc`, and in the project's `opencode.json[c]` and `.opencode/` files from the session directory up to the repository root. Only the names are read, never a server's command, URL or environment. A tool counts as an MCP call when its name starts with a configured server's name (sanitised the way OpenCode sanitises it) and `_`, the longest name winning; with no configured server nothing is guessed. A server set only through `OPENCODE_CONFIG` in the agent's own shell is not visible from outside the process and is not counted. Verified against a live OpenCode 1.18.15 session with a filesystem MCP server.
+- OpenCode: MCP call counts per server, matched against the server names in OpenCode's config.
+- OpenCode: context by source in the detail pane, `--once` and `--json`.
+- Prices for `deepseek-v4-pro` and `deepseek-flash` (also `deepseek-v4-flash`), at DeepSeek's peak list rate.
 
 ## [0.17.0] - 2026-09-13
 
 ### Added
-- **Views and panes: every panel in four sizes.** The popups (`l` slowest tools, `f` failed tool calls, `a` advice) no longer have to share one terminal with the table. `Enter` on a popup fills the terminal with the panel: every row, scrolled with `j` `k` and the page keys, `Esc` or the panel's key back to the table, the other panels' keys still opening popups over it. `agent-top slow`, `agent-top fails`, `agent-top advice` and `agent-top mcp` start on that panel alone, with the same keys and the run's flags given before the command (`agent-top --replay snap.json mcp`); a dedicated view does not ask the upgrade question, leaving it to the main one. Inside tmux, zellij, WezTerm or kitty, a popup offers `o`: it splits a pane to the right and starts the dedicated command in it with this run's `--interval-ms`, `--stopped-window-min` and `--replay` (made absolute), keeps the focus where it was under tmux and kitty, closes the popup because the pane now shows it, and reports the result in the footer for a few seconds. The popup shows the exact command before it is pressed; the multiplexer is recognised from `$TMUX`, `$ZELLIJ`, `$WEZTERM_PANE` or `$KITTY_WINDOW_ID`, tmux first when nested. This is the second thing agent-top starts of its own accord after the upgrade: itself, in the user's multiplexer, on one keypress. The frame of every panel names its command in the bottom right corner.
-- **`m`: the MCP servers panel.** The detail pane lists one agent's servers; this panel lists the machine's: one row per server under every agent on screen (agent, server, pid with `?` for a match by elimination, calls, errors, last call, CPU, memory), then the orphaned MCP processes with where each came from.
+- `Enter` expands a popup to fill the terminal, with scrolling; `Esc` returns to the table.
+- `agent-top slow`, `fails`, `advice` and `mcp` start directly on one panel.
+- `o` opens the current panel in a split pane under tmux, zellij, WezTerm or kitty.
+- `m` opens the MCP servers panel: every server under every agent, plus orphaned MCP processes and where they came from.
 
 ### Changed
-- The help popup gains a `panels` section, and the footer shows `m mcp` beside the other panel keys. When a panel fills the terminal the footer shows scroll, `Esc table`, and `o open in pane` when there is a multiplexer.
+- The help popup lists the panels, and the footer shows `m mcp`.
 
 ## [0.16.0] - 2026-09-11
 
 ### Added
-- **A documentation site and a blog**, built with Material for MkDocs from the `docs/` directory (`mkdocs.yml` at the repository root) and hosted on Cloudflare Pages. It carries a guide to every panel, the cost report, the trace export, snapshots and replay, prices and harness support; the existing accounting, architecture, roadmap and releasing pages; a credits page; and a first post, *Five things agent-top shows that your agents will not*. Every screenshot of the live view is `docs/demo-snapshot.json` replayed through `--replay`, taken by `vhs docs/screenshots.tape`; the report screenshots are real, because a cost total gives nothing away. The site serves its own font and has no analytics; its one outside request is to the GitHub API for the header badge.
-- The synthetic demo snapshot now carries every section the current UI can show: seven agents across all four harnesses, MCP server rows, context by source, advice, orphan origins and a Codex rate limit. The README animation is regenerated from it.
+- A documentation site with a guide to every panel, the cost report, trace export, replay and prices, plus a blog.
 
 ### Fixed
-- The detail pane's `web searches` line ran its label into its value (`web searches2`); the label is now `web search` and the value has its column.
-- `q` on the update popup quit the question, not the app: it closed the popup exactly as it does every other overlay, which for this one meant recording "not now" for a version nobody had actually declined. `q` now quits agent-top outright, leaving that version un-declined for next launch; only `n` or `Esc` records a decline. Found live when the v0.15.1 popup was dismissed this way instead of answered.
+- `q` on the update popup quits agent-top; before, it declined the update.
+- The detail pane's `web search` label no longer runs into its value.
 
 ## [0.15.2] - 2026-09-07
 
 ### Changed
-- The update popup's last line is now just `AGENT_TOP_NO_UPDATE_CHECK=1 turns the check off`; the reassurance sentence before it is gone.
+- Shorter wording on the update popup.
 
 ## [0.15.1] - 2026-09-07
 
 ### Fixed
-- Timestamps with a numeric zone offset (`2026-09-03T08:15:34+01:00`, or `+0100`) now parse; only the `Z` form did before. A harness writing local time would have lost its last-activity time, and with it the idle clock and the modification-time fallbacks. Every harness agent-top reads today writes `Z`, so no current number changes.
+- Timestamps with a numeric zone offset (`+01:00`, `+0100`) now parse.
 
 ## [0.15.0] - 2026-09-07
 
 ### Added
-- **Asked before upgrading.** When the daily check finds a newer version, agent-top now asks, once per run, in a popup that names both versions and the exact command it would run. `u` upgrades in the terminal with the installer that put agent-top here (`brew update && brew upgrade agent-top`, `cargo binstall -y agent-top`, or `cargo install --locked agent-top`, judged from where the binary is), then starts agent-top again on the new version with the same arguments. `n` or `Esc` is "not now": that version is not asked about again (remembered in the same cache file as the check), while the footer badge stays amber. A binary installed by hand is not guessed at; the popup lists the routes and leaves the command to you. This is the one command agent-top runs that changes the machine; it changes only agent-top and only on that keypress. The check itself is unchanged: a version lookup, nothing about you sent, `AGENT_TOP_NO_UPDATE_CHECK=1` turns it off.
-- **Advice: the meter read for you.** Press `a` for a popup with one sentence per thing that looks like a bad deal on the machine right now, the numbers behind it, and what you could do. Three rules, applied to figures already on screen and only to live agents: an **expensive source** (a tool or MCP server whose results run to 8k tokens or more per call and have added at least 40k tokens to the prompt, so every response since has paid to re-read them: *`docs-search` MCP server: 1 call added 40k tokens to the prompt, re-read at a cost of $12.03 since*), an **idle MCP server** (attached to a live agent, no calls in ten minutes or more; quiet whenever the process-to-server join is incomplete), and a **growing MCP server** (memory up at least 64 MB and half again over ten minutes or more, still climbing, never dipping, with no calls in the window: the shape of a leak before it becomes an orphan). Nothing is done for you: agent-top still never signals a process or edits a config, it points. `--once` prints the sentences under `ADVICE`; `--json` carries them as `advice` with rule, subject, pid and the numbers. The collector now samples each attached MCP server's memory every 30 seconds for the last hour to feed the leak rule; that memory is per run and never written anywhere.
+- When a newer version exists, a popup offers `u` to upgrade with the installer that installed agent-top, then restarts it. `n` or `Esc` skips that version.
+- `a` opens the advice panel: expensive context sources, idle MCP servers and MCP servers whose memory keeps growing. Also in `--once` and in `--json` as `advice`.
 
 ## [0.14.0] - 2026-09-07
 
 ### Added
-- **Context by source: which tool is filling the prompt, and what that has cost.** Every response re-reads the whole conversation, so a tool result is paid for not once but on every response after it until compaction, and a single large `Read` or a chatty MCP server can quietly become the biggest line in the bill. No harness shows this. The detail pane gains a `context` section listing each source largest first (built-in tools by name, MCP servers as `mcp <server>`, and one `prompts & replies` row for the system prompt, your messages and the model's replies) with the calls attributed to it, the tokens it added to the prompt, and what re-reading those has cost. The tokens are the growth of the prompt between one response and the next, filed under the tool results submitted in between (split evenly when several were answered together, the one heuristic); the cost charges each source's live tokens at every later response's own prompt rate, so the rows sum exactly to the session's prompt-side cost and can be checked against the cost breakdown above them. Claude Code's `compact_boundary` resets the ledger exactly; Codex and Gemini fall back to "the prompt halved". Nothing is read from a tool result, only how much bigger the next prompt was. `--once` prints the top five per agent under `CONTEXT BY SOURCE`; `--json` carries them all as `context`. OpenCode rows have no section yet. Locked with the real Claude, Codex and Gemini fixtures, whose attributed costs reconcile to the micro-dollar.
+- Context by source: the detail pane shows which tools and MCP servers add the most tokens to the prompt, and what re-reading them has cost. Claude Code, Codex and Gemini CLI.
+- `CONTEXT BY SOURCE` in `--once`, and `context` in `--json`.
 
 ## [0.13.0] - 2026-09-05
 
 ### Added
-- **Burn rate: live spend velocity across every agent.** The header shows dollars-per-hour beside the total cost, the rate at which cost is climbing over the last minute across all agents at once, coloured dim, green, amber and red as it rises. It answers "how fast am I spending right now," which the running total cannot, and it catches a runaway loop early. Cost only ever climbs, so an idle machine reads `$0.00/h`; it is smoothed over a minute so a single expensive turn does not make it jump. No cross-task comparison is implied: it is one machine-wide velocity, not a per-model figure.
-- **A once-a-day update check, the one call agent-top makes on its own.** It asks crates.io for the latest published version and nothing else: no data about you, your agents or your machine is ever sent, only a generic User-Agent. When a newer version exists the footer version badge turns amber and shows the arrow to it (`v0.12.2 → v0.13.0`); the upgrade command is in the `?` help popup. The result is cached, so it hits the network at most once a day and most launches make no call at all; it runs on a background thread so the UI never waits; it is silent when offline; and `AGENT_TOP_NO_UPDATE_CHECK=1` turns it off. The promise is reworded from "no network" to the thing that actually matters: your data never leaves the machine.
+- Burn rate: the header shows spend per hour across all agents, averaged over the last minute.
+- A daily update check against crates.io. The footer version badge turns amber when a newer version exists. `AGENT_TOP_NO_UPDATE_CHECK=1` turns the check off.
 
 ### Changed
-- The version badge moved from the top-left of the header to the footer, just before `quit`; the header now just names the tool and host.
-- The help popup (`?`) is sized to its content and widened, so the lower half is no longer clipped.
+- The version badge moved from the header to the footer.
+- The help popup is sized to its content.
+
 ## [0.12.1] - 2026-09-05
 
 ### Changed
-- The footer is grouped, navigation, then the analytics panels (`l` slow tools in amber, `f` fails in red), then help, with `q quit` pushed to the right end. The `x` key appears only when there are stopped sessions to hide, so it is never on the bar doing nothing. The header shows the running version as a small filled badge.
+- Footer keys are grouped, with `q quit` at the right. `x` appears only when there are stopped sessions to hide.
+
 ## [0.12.0] - 2026-09-05
 
 ### Added
-- **An upgrade nudge and `agent-top --whats-new`, both without a network call.** The header and the `?` help popup now show the running version and how to upgrade (`brew upgrade agent-top` / `cargo install agent-top`), and `--help` carries the same hint. `agent-top --whats-new` prints the recent changelog entries baked into the binary and a link to the online changelog for anything newer. Nothing is fetched: a binary cannot know the latest version without a network call it will not make, so it shows what it shipped with and points at the current changelog. The changelog is embedded through a build script that reads the repository file for release builds and falls back to just the link when built from the published crate.
+- `agent-top --whats-new` prints the changelog shipped with the binary.
+- The header, help popup and `--help` show the running version and the upgrade command.
+
 ## [0.11.0] - 2026-09-05
 
 ### Added
-- **Tool leaderboards, behind two shortcut keys.** `l` opens a "slowest tools" panel and `f` a "failed tool calls" panel, each a centred popup over the table, closed with the same key or `Esc`. They aggregate the tool spans already on screen across every agent, ranking tools by the time they took (calls, total, average, max) or by how often they failed (fails, calls, fail rate). Keeping them behind keys, rather than in the main view, means the table stays uncluttered; the panels are accented amber and red so which one is open reads at a glance. The single help flag became an `Overlay` so only one popup shows at a time.
+- `l` opens the slowest tools panel and `f` opens the failed tool calls panel, both across all agents.
+
 ## [0.10.2] - 2026-09-05
 
 ### Changed
-- The detail pane's facts column now leads with the headline numbers, cost, cache efficiency, tokens, turns and tool calls, and puts the per-token cost breakdown below them, so the useful stats no longer scroll off the bottom of a short pane.
-- With the detail pane open, the agents table now takes only the height its rows need (capped so a long list still scrolls) and the detail pane gets the rest of the screen. A few agents no longer leave the table half empty while the detail pane is cramped.
+- The detail pane lists cost, cache, tokens, turns and tool calls before the cost breakdown.
+- With the detail pane open, the agents table takes only the height its rows need.
+
 ## [0.10.1] - 2026-09-05
 
 ### Changed
-- The README gains a "Key features" section, and the "What the table shows" column labels each stay on one line beside their icon. Documentation only; no behaviour change.
+- No change to the binary; the README gains a key features section.
+
 ## [0.10.0] - 2026-09-05
 
 ### Added
-- **Cache efficiency.** Every turn re-sends the conversation, and most of it can be billed at the cheap cache-read rate instead of full input price; how much is a real cost lever that no harness surfaces. agent-top already knows the split, so the detail pane now shows a `cache` line, the share of the prompt served from cache, coloured green when it is high and red when it is low, with a "full price most turns" note on a wasteful session. `agent-top report` gains a `CACHE` column, so you can see which harness or model is caching well. It is computed from the token counts already read, so it needed no new parsing; a session with too small a prompt to judge shows `-` rather than a misleading `0%`.
+- Cache efficiency: the detail pane shows the share of the prompt served from cache, and `agent-top report` has a `CACHE` column.
+
 ## [0.9.2] - 2026-09-05
 
 ### Changed
-- The README opens with a proper introduction of what agent-top is, rather than a scenario, and now names all four supported harnesses. The "What the table shows" columns each carry an icon. Documentation only; no behaviour change.
+- No change to the binary; the README introduction is rewritten.
+
 ## [0.9.1] - 2026-09-05
 
 ### Added
-- **OpenAI prices in the built-in table**, so Codex sessions stop reading as free. The GPT-5 family (`gpt-5.6-sol` / `-terra` / `-luna`, `gpt-5.5` and `-pro`, `gpt-5.4` / `-mini` / `-nano` / `-pro`, `gpt-5.2` and `-pro`, `gpt-5.1`, `gpt-5` and `-mini` / `-nano` / `-pro`), at OpenAI's standard-tier list prices checked 2026-09-05, with the cached-input rate used for cache reads. A Codex model with no entry of its own (`gpt-5-codex`) resolves to its base model by the longest-prefix rule. In `agent-top report` over the build machine's history this turns 96 Codex sessions from `$0.00` into `$663.59`, and the cross-harness total from `$1770` into `$2441`.
+- OpenAI prices for the GPT-5 family, so Codex sessions show a cost.
 
 ### Changed
-- The README is reorganised around a featured `agent-top report` section, with the longer "Why this exists" and "Where the numbers come from" material moved into [docs/why-this-exists.md](docs/why-this-exists.md) and [docs/accounting.md](docs/accounting.md).
+- The README is reorganised, with background moved to [docs/why-this-exists.md](docs/why-this-exists.md) and [docs/accounting.md](docs/accounting.md).
+
 ## [0.9.0] - 2026-09-05
 
 ### Added
-- **`agent-top report`: what the agents have cost, across every harness.** The live table is one moment; this reads the transcripts already on disk and totals cost and tokens over a window, grouped by harness, model, project, or day. It is the one place that adds up Claude, Codex, Gemini and OpenCode together, priced the same way, so "what did all of this cost me" has an answer. `--since` takes `all`, a duration (`7d`, `12h`, `2w`), or a date; `--by harness|model|project|day` chooses the grouping; `--json` prints it structured. Tokens on a model with no price (Codex's, today) are shown as an `UNPRICED` column and the cost carries a `+` so an incomplete total is never mistaken for a cheap one. Nothing is written and nothing leaves the machine; it reads the same files the live view does, so an old file outside the window is skipped by its modification time without being parsed.
+- `agent-top report` totals cost and tokens from transcripts on disk, grouped with `--by harness|model|project|day` over a `--since` window. Supports `--json`.
+
 ## [0.8.0] - 2026-09-05
 
 ### Added
-- **Rate-limit view.** Codex writes a `rate_limits` block on every usage record, a short rolling window (5 hours) and a long one (weekly), each with a used-percent and a reset time, plus the plan and whether the limit is currently hit. agent-top reads the latest one and shows it. The detail pane has a `rate limit` section with each window's usage, coloured green through amber to red as it fills, and the reset countdown; a hit limit is flagged `LIMIT REACHED`. `--once` and the plain output add a `RATE LIMITS (near or at limit)` section listing live and idle agents at or above 75 percent, so a session about to be throttled is visible without opening the detail pane. `--json` carries it as `rate_limit` on each agent. Only harnesses that write the figure populate it; Codex does today. A stopped session's snapshot is from when it last ran, so the plain-output warning is limited to agents whose limit still applies. Verified against the real rollouts on the build machine, including a session at 100 percent of its weekly window.
+- Codex rate limits (5-hour and weekly windows) in the detail pane and in `--json` as `rate_limit`.
+- `--once` lists agents at 75% or more of a rate limit under `RATE LIMITS`.
+
 ## [0.7.1] - 2026-09-05
 
 ### Added
-- **Turn and inference spans for OpenCode.** The OpenCode tool trace now has the same three span kinds as the other harnesses. Each assistant message is one inference span, from its `time.created` to its `time.completed`; a user message opens a turn that runs to the last reply before the next prompt; a reply still in flight leaves its inference and turn open. Built per session, so a subagent's turns sit on their own track. Verified against the real database: a 974-tool session exported 903 inference spans and 137 turn spans beside its tool spans, with the durations the message times give.
+- OpenCode: turn and inference spans in the tool trace.
+
 ## [0.7.0] - 2026-09-05
 
 ### Added
-- **OpenCode adapter.** OpenCode sessions now get a row like the other harnesses: tokens, cost, model, tool calls, subagents folded in, and a tool trace. OpenCode is the first harness that keeps its history in a SQLite database (`~/.local/share/opencode/opencode.db`) rather than a JSONL log, so the adapter reads that database read-only, never writing to or locking the file OpenCode is using. The `session` table already carries the accounting, so tokens and the harness's own computed cost are read straight from it; because OpenCode has already priced the session, that cost is used as is rather than re-priced from agent-top's table, and an OpenCode row is never a floor. Subagent sessions (rows with a `parent_id`) fold into their parent, tool parts become tool-call spans with real durations, and assistant messages are the turn count. Verified against the real database on the build machine (39 sessions, DeepSeek models, costs matching the table). Adds `rusqlite` (bundled, so the single static binary still has no system dependency).
+- OpenCode support: tokens, cost, model, tool calls, subagents and tool trace, read from OpenCode's database without writing to it.
 
-### Known gaps
-- Turn and inference spans are not reconstructed for OpenCode yet, only tool-call spans; the turn count is still shown. Per-server MCP counts are not produced (no MCP server was configured to read the naming from). Both are follow-ups.
 ## [0.6.0] - 2026-09-05
 
 ### Added
-- **MCP call counts for Codex and Gemini CLI.** The per-server rows added for Claude Code in v0.5.0 now populate for the other two harnesses. Codex records each MCP call as an `mcp_tool_call_end` event carrying `invocation.server` and `invocation.tool` and a `result` of `Ok` or `Err`, so the server name is exact and needs no config; the call is also a `response_item` function call, which is where the tool-call count and span already come from, so the MCP line only feeds the per-server map and never double counts. Gemini names an MCP tool `mcp_<server>_<tool>` and splits the server off the first segment the way the CLI itself does, with a failed call taken from the tool call's `error` status. Verified against real Codex rollouts on this machine (servers `codex_apps` and `node_repl`); the Gemini side is read from the CLI's tool registry source, as the adapter itself was.
-- A redacted real-data golden fixture, `codex-mcp-0.152.jsonl`, locking the Codex MCP line shape.
+- Codex and Gemini CLI: MCP call counts per server.
 
-### Notes
-- The process-to-server join is unchanged: a server's transcript name is matched to a process by name, then by elimination, so most single-server rows read as a labelled guess. Matching a server alias to its command exactly still wants the harness's MCP config, which is the remaining step.
 ## [0.5.0] - 2026-09-05
 
 ### Added
-- **One row per MCP server in the detail pane** (RFC-104 D2, Claude Code side). Under the process tree, each server the agent uses gets a line with its pid, how many times the transcript shows the agent calling it, how many of those calls the harness reported as errors, when it was last called, and its CPU and memory. The calls come from Claude Code's `mcp__<server>__<tool>` tool names; the process comes from the tree. The two are joined by name when the configured name appears in the command line, and by elimination when exactly one process and one server are left, which the row marks with a `?` after the pid. A server called but not running (an HTTP server, or one that has exited) shows with no pid. `--json` carries the rows as `mcp_servers` on each agent, with `matched_by` saying how each was formed. `--once` prints an `MCP SERVERS` section.
-- **Orphans say where they came from** (RFC-104 D3). agent-top remembers which agent each MCP process was under; a process that turns up in the orphan list after that is reported as "orphaned from `<agent>` (pid N) 3m ago". One that was already an orphan when agent-top started says so instead of guessing. `--json` carries this as `orphan_origins`. Memory lasts for the run and is keyed by pid and process start time, so a reused pid starts over.
-- An `npx` or `uvx` wrapper and the server process under it count as one MCP server, not two, in the MCP column and the header.
+- Claude Code: the detail pane has one row per MCP server with pid, calls, errors, last call, CPU and memory. Also `MCP SERVERS` in `--once` and `mcp_servers` in `--json`.
+- Orphaned MCP processes name the agent they were orphaned from, and how long ago. In `--json` as `orphan_origins`.
+- An `npx` or `uvx` wrapper and the server it starts count as one MCP server.
 
 ### Fixed
-- **Command lines and working directories were never read from the process table.** `sysinfo`'s `refresh_processes` reads memory, CPU and the executable only, so every heuristic that looks at arguments or the working directory was running blind: MCP servers under an agent were labelled `tool`, `--resume <id>` on a command line was invisible, and the `cwd` fallback attribution never matched. The scanner now asks for the command line and working directory once per process. Found by the first live MCP check: an `npx` server under a headless Claude Code showed as `tool node node`.
-- A `--json` snapshot written before 0.2.0 replays again; `shares_process` defaults when absent.
+- MCP servers were labelled `tool`, and `--resume` and working-directory attribution never matched, because process command lines were never read.
+- `--json` snapshots from before 0.2.0 replay again.
 
 ## [0.4.0] - 2026-09-05
 
 ### Added
-- **Gemini CLI adapter.** Gemini CLI sessions now get the same row as Claude Code and Codex: tokens, cost, turns, tool calls, web searches, the tool trace and the trace export. It reads `~/.gemini/tmp/<project>/chats/session-*.jsonl` (the layout of Gemini CLI 0.58), folds a subagent's transcript under `chats/<session id>/` into its parent, counts thinking tokens as output and tool-use prompt tokens as input the way Google bills them, and dedupes messages by id so a rewind or a checkpoint cannot count a response twice. A process is matched to its conversation by working directory and start time, and the row is labelled as that heuristic; Gemini CLI keeps no registry and does not hold the file open. Legacy single-document `session-*.json` files are not read.
-- **Gemini prices** in the built-in table: `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-3-flash`, `gemini-3.1-pro`, `gemini-3.1-flash-lite`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.6-flash`, `gemini-3.7-flash` and `gemini-3.8-flash`, at Google's paid-tier rate for prompts under 200k tokens, checked 2026-09-05. Cache writes are the input price, since Gemini CLI's implicit caching has no write charge. A prompt over 200k tokens is priced at the lower tier rather than guessed at.
-- A golden fixture for Gemini CLI 0.58, written by the CLI's own recorder driven with a scripted conversation, with the exact numbers it must produce, plus Chrome and OTLP trace goldens and a drift test.
+- Gemini CLI support: tokens, cost, turns, tool calls, web searches, tool trace and trace export.
+- Prices for Gemini 2.5, 3, 3.1, 3.5, 3.6, 3.7 and 3.8 models.
 
 ### Changed
-- **The harness adapter contract (RFC-101).** Each harness is now a `HarnessAdapter` in `agent-top-core`: it lists its transcripts, says which belong to which process, opens a tracker and recognises its own files. The collector holds a list of adapters and names no harness. `harness::adapters()` lists them; `harness::detect` and `agent-top trace --session <id>` resolve through them. `harness::open_transcript` returns `None` for a harness with no adapter instead of falling back to the Claude parser. The `--json` shape is unchanged.
-- The Codex attribution logic and its tests moved from the collector into the Codex adapter; `harness::codex::rollout_id` is public.
-- The price table's `updated` field is `2026-09-05`.
+- `agent-top-core`: each harness is a `HarnessAdapter`, and `harness::open_transcript` returns `None` for a harness without one.
 
 ## [0.3.5] - 2026-09-04
 
 ### Added
-- **The cost is broken down per kind of token in the detail pane**, with the price each was charged at and what it came to, and the total names the table it was priced from ("list price, built-in table" or "your price file"). A figure that differs from the harness's own display can now be traced to the one line that differs, instead of looking like a bug. `--json` carries the same lines as `cost_breakdown` and the table as `price_source`; both are additive.
-- A README section, "If the cost does not match your harness", with a real worked example (Claude Code pricing Fable 5.1 cache reads at $0.50 per million where the published page says $0.25) and the one-model override that makes the figures agree.
-
-### Changed
-- The README's Prices section says plainly that a user file overrides the built-in table one model at a time.
+- The detail pane breaks cost down by token type with the rate applied, and names the price table used. In `--json` as `cost_breakdown` and `price_source`.
 
 ## [0.3.4] - 2026-09-04
 
 ### Fixed
-- **Codex rollouts were invisible after the first day of a month.** The scan of `~/.codex/sessions/YYYY/MM/DD/` pruned directories by their mtime, and a directory's mtime moves only when an entry is created directly inside it, so the year directory was last touched when the month directory was created. Every rollout written after that was skipped, which left every Codex process with `attribution: none`. The tree is now walked in full; it is a few hundred directories at most.
-- **Two Codex app-servers no longer trade threads.** With the VS Code extension's app-server and a second one running, whichever was asked first took every live thread. A Codex process is now matched to the rollouts it holds open, which is exact: Codex opens a thread's rollout when the thread starts and closes it when the thread ends. The detail pane labels these rows "open transcript file (exact)" and `--json` says `"attribution": "open-file"`. A process that holds no rollout gets no thread, and a rollout nobody holds is a finished conversation in the stopped list. On a platform where open files cannot be read, the old heuristics still apply. Adds `libproc` on macOS; Linux reads `/proc/<pid>/fd`.
-- **The header sparkline measures output tokens per second.** It was labelled tokens/s but plotted the change in total tokens per refresh, cache reads included, so one turn on a large context showed as a spike. It now plots output tokens per second over a ten second window and is labelled `out tok/s`.
-
-### Changed
-- CI and release workflows use `actions/checkout@v5`.
+- Codex sessions started after the first day of a month were not found.
+- Two Codex app-servers running at once no longer swap conversations.
+- The header sparkline plots output tokens per second, labelled `out tok/s`.
 
 ## [0.3.3] - 2026-09-04
 
 ### Added
-- **`trace --endpoint URL`** posts the OTLP document to a collector and prints the response status. It is the one network call agent-top can make; it happens only with an address typed on the command line, and there is no default, config key or environment variable. Without the flag nothing leaves the machine. Requires `--format otlp`.
-- **`examples/jaeger/compose.yaml`**, a local Jaeger with the OTLP port open, and an "OTLP to Jaeger" section in the README.
-- The detail pane shows the exact `agent-top trace` command for the selected session.
-
-### Changed
-- The README explains how to open a Chrome trace file in Perfetto rather than saying it "opens directly", and the roadmap no longer carries target dates.
+- `agent-top trace --endpoint URL` posts an OTLP trace to a collector.
+- A local Jaeger setup in `examples/jaeger/`.
+- The detail pane shows the `agent-top trace` command for the selected session.
 
 ## [0.3.2] - 2026-09-04
 
 ### Added
-- **`--format otlp` for the trace export.** Writes the OpenTelemetry trace request as JSON, which Jaeger, Tempo and any OTLP collector accept with one `curl`. Each tool call and inference is parented to the turn it happened in, so backends that draw trees draw the right one. The trace id is derived from the session id and each span id from the session and call ids, so exporting the same session twice produces the same trace rather than a duplicate. A span still open when the transcript ended gets an end equal to its start and an `agent_top.open` attribute rather than an invented duration. agent-top still never contacts a collector; posting the file is the user's command.
-- A "How a session becomes a trace" diagram in the README.
+- `agent-top trace --format otlp` writes OpenTelemetry JSON for Jaeger, Tempo or any OTLP collector.
 
 ## [0.3.1] - 2026-09-04
 
 ### Added
-- **Web searches are priced.** Anthropic bills server-side web search per search ($10 per 1,000, on top of the tokens it produces); web fetch is free. The count is read from each message's usage record, deduplicated like the rest of usage, and added to the row's cost. The rate lives in `prices.toml` under `[server_tools]` and a user table can override it. Codex `web_search_call` items are counted and shown, not priced, because OpenAI's rate is not in the table. The count is in `--json` as `web_searches` and in the detail pane.
-- **Turn and inference spans.** The waterfall used to show tool calls with blank gaps between them. Each gap is now labelled: a `model` row runs from a prompt or tool result being submitted to the last block of the reply, and each human turn is a span from the prompt to the model ending its reply. The summary line reads `in tools 58%  model 31%  turn 3m20s…`. Every span carries a `kind` (`tool`, `inference`, `turn`) in `--json`; snapshots from earlier versions read back with `tool`. The live span log grows from 128 to 256 to hold the extra rows.
-- **The trace export nests.** Chrome trace files now carry six tracks: turns, tools and model time for the main agent and again for its subagents. Perfetto shows a turn as a bar with its tool calls and inferences beneath. Open spans stay begin-only.
+- Claude Code web searches are counted and priced; Codex web searches are counted.
+- Turn and inference spans in the waterfall, and `kind` on each span in `--json`.
+- Chrome trace export nests tool calls and inferences under turns, with separate tracks for subagents.
 
 ### Fixed
-- An inference that never got a reply (a message queued mid-turn, an interrupted request) is dropped rather than left running forever, and a turn the user interrupted ends at the last line written rather than at the next prompt, which could be days later. A `<synthetic>` message written by the harness on resume ends nothing.
+- An interrupted turn ends at its last line, not at the next prompt.
 
 ## [0.3.0] - 2026-09-04
 
 ### Added
-- **`agent-top trace`.** Exports one session's tool calls as a Chrome trace event file (`--format chrome`, the only format so far) that Perfetto and `chrome://tracing` open with no setup. The live tracker keeps the newest 128 calls, which is right for a waterfall pane and wrong for an export, so the subcommand reads the transcript again from the start with no cap. `--session` accepts a session id, a unique prefix of one, or a path to a transcript; an ambiguous prefix lists the candidates. The process id in the file is derived from the session id, so exporting the same session twice gives the same trace. A call that never returned is written as a begin event with no end. Output goes to standard output or to `-o FILE`; nothing is sent anywhere.
-- `agent-top-core`: `SpanLog::unbounded`, `SpanRetention`, `SessionTracker::refresh_all`, `harness::detect` and `harness::open_transcript`, which is what the export is built from. Existing types and defaults are unchanged.
+- `agent-top trace` exports a session's tool calls as a Chrome trace for Perfetto or `chrome://tracing`.
+- `agent-top-core`: `SpanLog::unbounded`, `SpanRetention`, `SessionTracker::refresh_all`, `harness::detect` and `harness::open_transcript`.
 
 ### Fixed
-- **Subagent usage was not counted for Claude Code.** Since 2.1.233 each Agent-tool call writes its own transcript under `<session>/subagents/agent-<id>.jsonl`, and the parent transcript carries no sidechain lines at all. agent-top read only the parent, so a session that used subagents showed fewer tokens and a lower cost than Claude Code's own display, and the waterfall never showed a subagent call. The tracker now discovers those files, tails each one incrementally, and folds their tokens, cost, turns, tool calls and spans into the parent row. Subagents on a different model from the parent are priced by the model each line names. The row's model, state and start time remain the parent's.
+- Claude Code subagent usage (2.1.233 and later) is counted in the parent row.
 
 ## [0.2.1] - 2026-09-04
 
-No change to the binary's behaviour. This release exists so that a published
-version corresponds to a green build.
-
 ### Fixed
-- A test asserted that three rollout files written microseconds apart would carry distinct modification times. Linux gave all three the same mtime, the stable sort preserved insertion order, and the test failed there while passing on macOS. The files now carry explicit modification times, so the expected ordering does not depend on filesystem timestamp resolution.
-- The release workflow ran no tests. It built the binaries and smoke-ran one, which is how 0.2.0 reached crates.io, the Homebrew tap and the releases page while a test was failing on `main`. The build matrix now depends on a job that runs the full checks on macOS and Linux, so a tag cannot publish what CI would have rejected.
+- No change to the binary; the release workflow runs the full test suite before publishing.
 
 ## [0.2.0] - 2026-09-03
 
 ### Added
-- **Drift detection.** Every transcript field falls back to zero when it is missing, so a harness renaming one showed 0 tokens and `$0.00` with no error: numbers wrong in the direction that looks like good news, and therefore never reported. A session that produced model responses while accounting for no tokens is now reported as a parser that has fallen behind the format, named by harness and version, and the row prints `?` instead of a believable zero. Both shapes are caught: the usage record renamed or moved, and the fields inside an intact record renamed. A partial rename, where some fields still read and the total is merely too low, is not detected, and there is a test asserting that gap rather than leaving it to be assumed.
-- **Shell completions** for bash, zsh, fish, elvish and powershell via `--completions <shell>`, generated from the CLI definition so they cannot drift from the flags they describe. Homebrew builds them at install time.
+- Drift detection: a session that shows model responses but no tokens reads `?` and names the harness version, instead of `$0.00`.
+- Shell completions with `--completions <shell>`.
 
 ### Changed
-- **One row per Codex conversation, not per process.** A VS Code app-server hosts many conversations over its life, and attributing a single rollout to it collapsed them into one row carrying whichever was newest. Each live conversation now gets its own row with its own working directory, model and tokens. CPU, memory and the process tree stay on the row that owns the process, so a machine's totals are not multiplied by the number of conversations; the other rows show `·` rather than `0.0%`, which would read as an idle agent. A conversation already attributed to another process is skipped, and one that has not been written to within the activity window is treated as finished rather than as a live thread.
+- One row per Codex conversation instead of one per process.
 
 ## [0.1.6] - 2026-09-03
 
-Documentation only; no change to the binary's behaviour.
-
-### Fixed
-- Two README claims had gone stale with 0.1.5 and were telling users something untrue: that prices came from a static table, and that Codex output was unpriced until a user price table existed. It exists.
-
 ### Changed
-- The Codex bug reports cited as evidence for orphaned-MCP detection are a table with links and state rather than four bare issue numbers. Checked against the GitHub API: three are still open, and the pull request that closed one path merged in April 2026.
-- "How it works" is now "Where the numbers come from", and answers what a reader of the README actually needs to decide: which numbers are counted rather than estimated, which attribution is exact and which is a heuristic, that only metadata is read, and that nothing is written or sent anywhere. The mechanism it described duplicated `docs/architecture.md`, which it now links to.
+- No change to the binary; README corrections on pricing and Codex.
 
 ## [0.1.5] - 2026-09-03
 
 ### Added
-- Prices are data rather than code. The built-in table is `prices.toml`, compiled into the binary, and `~/.config/agent-top/prices.toml` (or `$XDG_CONFIG_HOME/agent-top/prices.toml`, or `$AGENT_TOP_PRICES`) is merged over it at startup. An entry whose prefix matches a built-in one replaces it, so a stale price can be corrected without waiting for a release; a new prefix is added, which is how a model this project ships no price for gets costed at all. Cache writes default to Anthropic's multipliers of the input price and can be set explicitly per model.
-- `--prices` prints the effective table and whether each row came from the built-in file or yours, which is the quickest way to find out why a model shows `n/a`.
+- Prices live in `prices.toml`. Override or add models in `~/.config/agent-top/prices.toml` or `$AGENT_TOP_PRICES`.
+- `--prices` prints the effective price table.
 
 ### Fixed
-- A price file that cannot be parsed is reported on stderr and ignored, rather than silently leaving the built-in prices in place. A wrong cost is worse than a missing one.
-- The golden tests priced with whatever `prices.toml` the developer happened to have in their home directory, so a contributor with one of their own would have seen the cost assertions fail for no visible reason. Both trackers now take a price table explicitly and the golden tests pass the built-in one.
+- A price file that fails to parse is reported on stderr.
 
 ## [0.1.4] - 2026-09-03
 
-### Added
-- Golden fixtures: two real transcripts, one per harness, reduced to the fields the parser reads and checked in with the exact numbers they should produce. The inline unit tests only prove the parser agrees with its author's description of the format; these pin the parse of a whole real session, cost included. A one-digit price typo that all twelve unit tests wave through fails here.
-
 ### Changed
-- `agent-top-core` has a plainer README, and `docs/roadmap.md` no longer claims golden fixtures catch an upstream format change. They cannot: a fixture recorded at one harness version keeps passing after the harness moves on. Detecting a renamed field is a separate job, now listed separately, and it matters because every field falls back to zero when missing, so a rename shows a user 0 tokens rather than an error.
-- `SpanLog::iter` is double-ended, so callers can take the newest spans without collecting the log.
+- `agent-top-core`: `SpanLog::iter` is double-ended.
 
 ## [0.1.3] - 2026-09-03
 
-Documentation only; no change to the binary's behaviour.
-
 ### Changed
-- `agent-top-core` has its own README on crates.io. Both crates inherited the workspace one, so the library's page rendered the tool's page and the two listings read as duplicates of each other. It now says what the library is, that anyone wanting the tool should install `agent-top` instead, and what its pre-1.0 stability amounts to.
-- The README's install section lists every route — Homebrew, `cargo binstall`, `cargo install`, a clone, and the release tarballs — recommends `--locked`, and says how to upgrade.
+- No change to the binary; `agent-top-core` has its own crates.io README, and the install section lists every route.
 
 ## [0.1.2] - 2026-09-03
 
-First release published to crates.io. No functional change from 0.1.1: the
-version exists because a registry release needs one and 0.1.1 was already
-tagged.
-
 ### Added
-- Published on crates.io, so `cargo install agent-top` and `cargo binstall agent-top` work without a clone.
+- Published on crates.io: `cargo install agent-top` and `cargo binstall agent-top`.
 
 ### Fixed
-- Both crates were packaged without a README. The file lives at the workspace root, outside either package directory, so crates.io would have shown an empty page; it is now inherited through `[workspace.package]` and verified present in each package.
-- The crates.io publish step skips a version already on the registry instead of failing on it, so a release job retried after a partial publish completes rather than dying on the half that succeeded.
+- Both crates ship with a README.
 
 ## [0.1.1] - 2026-09-03
 
 ### Added
-- `--replay <file>` renders a snapshot saved by `--json` in the full interactive UI, every key working, without reading anything on the local machine. The `--json` output was already the thing to attach to a bug report; this is what opens one. It also records the README demo, from a synthetic `docs/demo-snapshot.json` rather than from real sessions, which would otherwise publish real project names, working directories and session ids.
-- A demo GIF in the README, regenerated by `vhs docs/demo.tape`.
+- `--replay <file>` opens a `--json` snapshot in the interactive UI.
 
 ### Changed
-- Panel borders are a light slate and rounded, instead of a dark grey that read as noise beside the meters rather than as structure.
-- The header totals are laid out as a table — fixed label column, numbers right-aligned in a column of their own — instead of four ragged lines whose values landed wherever the text ended. The sum over all agents is now labelled `total cost`; the per-agent detail pane still says `cost`.
-- The sort direction moved from the header to the footer, next to the `s` key that changes it, freeing a header row for what the agents are costing the machine (`agent use  109.3%  cpu · 1.9G resident`).
-- A manual run of the release workflow is now a credentials preflight: it verifies `HOMEBREW_TAP_TOKEN` can write to the tap and publishes nothing, so a bad token is found before a tag has put binaries in front of users. The tap bump is idempotent, so re-running a publish for an already-bumped tag succeeds instead of failing on an empty commit.
+- Rounded, lighter panel borders.
+- Header totals are aligned in columns, and the sort direction moved to the footer.
 
 ## [0.1.0] - 2026-09-03
 
 ### Added
-- Interactive TUI with host CPU/memory gauges, a tokens-per-second sparkline, a sortable agent table and a detail pane with the process tree and token breakdown.
-- Discovery of Claude Code, Codex, Gemini CLI, OpenCode, Aider, Copilot CLI and cursor-agent processes; nested harness processes are shown as subagents.
-- Exact Claude Code attribution via `~/.claude/sessions/<pid>.json`; heuristic Codex attribution by working directory.
-- Incremental transcript tailing for Claude Code and Codex with token, cost, turn and tool-call accounting; Claude usage deduplicated per API message id.
-- Static Anthropic price table with per-TTL cache-write pricing; unknown models are reported as unpriced tokens, never guessed.
-- Orphaned MCP process detection (MCP-looking processes with no live agent ancestor).
-- `--once` and `--json` non-interactive modes.
-- **Tool trace.** Tool calls are reconstructed as spans by pairing each harness's call and result records (Claude `tool_use` / `tool_result` by `tool_use_id`, Codex `function_call` / `function_call_output` by `call_id`) and reading the timestamps that bracket them. `Tab` switches the detail pane between the process tree and a waterfall of the agent's recent calls, with the share of the window actually spent in tools, the slowest call, in-flight calls and failures. The spans are in `--json` too.
-- **Prebuilt binaries and a Homebrew tap.** A tag-driven release workflow builds macOS and Linux binaries for x86_64 and arm64, publishes them with checksums, renders the Homebrew formula and (when the tokens are configured) pushes the tap bump and the crates.io release. `cargo-binstall` metadata points at the same assets.
-- `schema_version` in the `--json` document, so scripts can tell when the shape changes.
-- **btop-style meters.** Bars are drawn in the seven-eighths block, which most terminal fonts render with a one-pixel gap, and sit in a visible near-black track. Colour is a three-stop ramp: host CPU and memory ramp along the meter's own length, while a trace bar's colour is its call's duration on a log scale from 50 ms to a minute — width is the call's share of the window, so at a typical zoom, where nearly every bar is one cell wide, colour carries the magnitude that width cannot. Subagent, in-flight and failed calls each get their own hue family plus a marker (`↳`, `…`, `!`). True colour where the terminal advertises it, nearest xterm-256 entry otherwise.
-
-### Fixed
-- `guess_transcript` returned no transcript at all when any single file in a project directory could not be stat'd, silently dropping fallback attribution for every agent in that directory.
+- Interactive TUI with host CPU and memory, a tokens-per-second sparkline, a sortable agent table and a detail pane.
+- Discovers Claude Code, Codex, Gemini CLI, OpenCode, Aider, Copilot CLI and cursor-agent processes, with nested agents shown as subagents.
+- Claude Code and Codex: tokens, cost, turns and tool calls from transcripts.
+- Tool trace: a waterfall of recent tool calls, toggled with `Tab`.
+- Orphaned MCP process detection.
+- `--once` and `--json` output.
+- Prebuilt binaries for macOS and Linux, and a Homebrew tap.
