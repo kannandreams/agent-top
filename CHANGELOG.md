@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Security
+- Bump rustls to 0.23.45 for [RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285). ([#42](https://github.com/kannandreams/agent-top/pull/42))
+
 ## [0.18.0] - 2026-09-13
 
 ### Added
