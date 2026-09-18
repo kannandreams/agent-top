@@ -21,7 +21,7 @@ Enter
 # split, since the key is never pressed here.
 Type "export TMUX=screenshot"
 Enter
-Type "alias agent-top='./target/release/agent-top --replay docs/demo-snapshot.json'"
+Type "alias agent-top='./target/release/agent-top --theme dark --replay docs/demo-snapshot.json'"
 Enter
 Type "clear"
 Enter
@@ -45,10 +45,14 @@ Sleep 500ms
 
 # The Codex row: a guessed process match, a rate limit, a growing server.
 Down
-Down
-Down
 Sleep 1s
 Screenshot docs/screenshots/codex-detail.png
+Sleep 1500ms
+
+# A Codex subagent: a session inside its parent's process, with its own usage.
+Down
+Sleep 1s
+Screenshot docs/screenshots/codex-subagent.png
 Sleep 1500ms
 
 # The stopped row: a transcript with no process, and the orphan list.

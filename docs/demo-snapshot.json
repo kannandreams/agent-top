@@ -764,14 +764,14 @@
    "id": "pid:7422",
    "name": "codex:payments",
    "harness": "codex",
-   "state": "idle",
-   "activity": "waiting",
+   "state": "running",
+   "activity": "working",
    "pid": 7422,
    "session_id": "019e286b-530f-7922-9c59-5c34a604aa24",
    "session_path": "/Users/dev/.codex/sessions/2026/09/03/rollout-2026-09-03T09-15-32-019e286b-530f-7922-9c59-5c34a604aa24.jsonl",
    "cwd": "/Users/dev/code/payments",
    "model": "gpt-5.5",
-   "harness_version": "0.149.1",
+   "harness_version": "0.154.0",
    "usage": {
     "input": 41200,
     "cache_write_5m": 0,
@@ -792,7 +792,7 @@
    "unpriced_tokens": 0,
    "turns": 22,
    "subagent_turns": 0,
-   "tool_calls": 64,
+   "tool_calls": 91,
    "web_searches": 0,
    "spans": [
     {
@@ -808,7 +808,19 @@
      "kind": "turn"
     },
     {
-     "id": "exec:1",
+     "id": "call:1",
+     "name": "exec",
+     "started_at": {
+      "secs_since_epoch": 1788399700,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 2600,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "exec-1",
      "name": "exec_command",
      "started_at": {
       "secs_since_epoch": 1788399700,
@@ -852,7 +864,7 @@
      },
      "duration_ms": 12900,
      "sidechain": false,
-     "error": true,
+     "error": false,
      "kind": "tool"
     },
     {
@@ -868,7 +880,19 @@
      "kind": "inference"
     },
     {
-     "id": "patch:4",
+     "id": "call:4",
+     "name": "exec",
+     "started_at": {
+      "secs_since_epoch": 1788399731,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 42300,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "exec-4",
      "name": "apply_patch",
      "started_at": {
       "secs_since_epoch": 1788399731,
@@ -880,7 +904,7 @@
      "kind": "tool"
     },
     {
-     "id": "exec:5",
+     "id": "exec-5",
      "name": "exec_command",
      "started_at": {
       "secs_since_epoch": 1788399732,
@@ -905,8 +929,8 @@
     }
    ],
    "age_secs": 1870,
-   "idle_secs": 214,
-   "cpu_percent": 0.9,
+   "idle_secs": 4,
+   "cpu_percent": 6.4,
    "rss_bytes": 272629760,
    "process_count": 2,
    "mcp_count": 1,
@@ -955,6 +979,13 @@
      "calls": 12,
      "tokens": 5800,
      "cost_usd": 0.0672
+    },
+    {
+     "name": "exec",
+     "origin": "tool",
+     "calls": 2,
+     "tokens": 2400,
+     "cost_usd": 0.0271
     }
    ],
    "tree": {
@@ -1006,6 +1037,290 @@
     },
     "plan": "plus",
     "reached": false
+   }
+  },
+  {
+   "id": "pid:7422:019e2871-0a4c-7b13-8e2f-41d09c6a5e77",
+   "name": "codex:payments",
+   "harness": "codex",
+   "state": "running",
+   "activity": "working",
+   "pid": 7422,
+   "session_id": "019e2871-0a4c-7b13-8e2f-41d09c6a5e77",
+   "session_path": "/Users/dev/.codex/sessions/2026/09/03/rollout-2026-09-03T09-28-00-019e2871-0a4c-7b13-8e2f-41d09c6a5e77.jsonl",
+   "cwd": "/Users/dev/code/payments",
+   "model": "gpt-5.5",
+   "harness_version": "0.154.0",
+   "usage": {
+    "input": 9800,
+    "cache_write_5m": 0,
+    "cache_write_1h": 0,
+    "cache_read": 402600,
+    "output": 3100
+   },
+   "cost_usd": 0.3433,
+   "cost_breakdown": {
+    "input": 0.049,
+    "cache_write_5m": 0.0,
+    "cache_write_1h": 0.0,
+    "cache_read": 0.2013,
+    "output": 0.093,
+    "web_search": 0.0
+   },
+   "price_source": "builtin",
+   "unpriced_tokens": 0,
+   "turns": 7,
+   "subagent_turns": 0,
+   "tool_calls": 23,
+   "web_searches": 0,
+   "spans": [
+    {
+     "id": "turn:7",
+     "name": "turn",
+     "started_at": {
+      "secs_since_epoch": 1788399820,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 64000,
+     "sidechain": false,
+     "error": false,
+     "kind": "turn"
+    },
+    {
+     "id": "call:1",
+     "name": "exec",
+     "started_at": {
+      "secs_since_epoch": 1788399821,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 1900,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "exec-1",
+     "name": "exec_command",
+     "started_at": {
+      "secs_since_epoch": 1788399821,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 1700,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:1",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399823,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 4200,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    },
+    {
+     "id": "call:2",
+     "name": "exec",
+     "started_at": {
+      "secs_since_epoch": 1788399828,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 9400,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "exec-2",
+     "name": "exec_command",
+     "started_at": {
+      "secs_since_epoch": 1788399828,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 3100,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "exec-3",
+     "name": "exec_command",
+     "started_at": {
+      "secs_since_epoch": 1788399832,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 5900,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:2",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399838,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 6100,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    }
+   ],
+   "age_secs": 1490,
+   "idle_secs": 2,
+   "cpu_percent": 0.0,
+   "rss_bytes": 0,
+   "process_count": 0,
+   "mcp_count": 0,
+   "mcp_servers": [],
+   "context": [
+    {
+     "name": "exec_command",
+     "origin": "tool",
+     "calls": 11,
+     "tokens": 18900,
+     "cost_usd": 0.0614
+    },
+    {
+     "name": "other",
+     "origin": "other",
+     "calls": 0,
+     "tokens": 9200,
+     "cost_usd": 0.0402
+    }
+   ],
+   "tree": null,
+   "attribution": "open-file",
+   "shares_process": true,
+   "parse_warning": null,
+   "rate_limit": null,
+   "subagent": {
+    "parent_session_id": "019e286b-530f-7922-9c59-5c34a604aa24",
+    "nickname": "Scout",
+    "role": "explorer"
+   }
+  },
+  {
+   "id": "pid:7422:019e2874-6f1e-7c48-a3b9-7d52e0f8c1a4",
+   "name": "codex:payments",
+   "harness": "codex",
+   "state": "idle",
+   "activity": "waiting",
+   "pid": 7422,
+   "session_id": "019e2874-6f1e-7c48-a3b9-7d52e0f8c1a4",
+   "session_path": "/Users/dev/.codex/sessions/2026/09/03/rollout-2026-09-03T09-28-00-019e2874-6f1e-7c48-a3b9-7d52e0f8c1a4.jsonl",
+   "cwd": "/Users/dev/code/payments",
+   "model": "gpt-5.5",
+   "harness_version": "0.154.0",
+   "usage": {
+    "input": 2100,
+    "cache_write_5m": 0,
+    "cache_write_1h": 0,
+    "cache_read": 31400,
+    "output": 900
+   },
+   "cost_usd": 0.0532,
+   "cost_breakdown": {
+    "input": 0.0105,
+    "cache_write_5m": 0.0,
+    "cache_write_1h": 0.0,
+    "cache_read": 0.0157,
+    "output": 0.027,
+    "web_search": 0.0
+   },
+   "price_source": "builtin",
+   "unpriced_tokens": 0,
+   "turns": 2,
+   "subagent_turns": 0,
+   "tool_calls": 5,
+   "web_searches": 0,
+   "spans": [
+    {
+     "id": "turn:2",
+     "name": "turn",
+     "started_at": {
+      "secs_since_epoch": 1788399850,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 21000,
+     "sidechain": false,
+     "error": false,
+     "kind": "turn"
+    },
+    {
+     "id": "call:1",
+     "name": "exec",
+     "started_at": {
+      "secs_since_epoch": 1788399851,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 2300,
+     "sidechain": false,
+     "error": false,
+     "kind": "tool"
+    },
+    {
+     "id": "exec-1",
+     "name": "exec_command",
+     "started_at": {
+      "secs_since_epoch": 1788399851,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 2100,
+     "sidechain": false,
+     "error": true,
+     "kind": "tool"
+    },
+    {
+     "id": "inf:1",
+     "name": "inference",
+     "started_at": {
+      "secs_since_epoch": 1788399854,
+      "nanos_since_epoch": 0
+     },
+     "duration_ms": 3800,
+     "sidechain": false,
+     "error": false,
+     "kind": "inference"
+    }
+   ],
+   "age_secs": 610,
+   "idle_secs": 96,
+   "cpu_percent": 0.0,
+   "rss_bytes": 0,
+   "process_count": 0,
+   "mcp_count": 0,
+   "mcp_servers": [],
+   "context": [
+    {
+     "name": "other",
+     "origin": "other",
+     "calls": 0,
+     "tokens": 6100,
+     "cost_usd": 0.0121
+    },
+    {
+     "name": "exec_command",
+     "origin": "tool",
+     "calls": 2,
+     "tokens": 2700,
+     "cost_usd": 0.0034
+    }
+   ],
+   "tree": null,
+   "attribution": "open-file",
+   "shares_process": true,
+   "parse_warning": null,
+   "rate_limit": null,
+   "subagent": {
+    "parent_session_id": "019e2871-0a4c-7b13-8e2f-41d09c6a5e77",
+    "nickname": "Review",
+    "role": "reviewer"
    }
   },
   {
@@ -1751,17 +2066,17 @@
   }
  ],
  "totals": {
-  "agents": 7,
-  "running": 3,
+  "agents": 9,
+  "running": 5,
   "idle": 3,
   "stopped": 1,
-  "tokens": 13731670,
-  "cost_usd": 11.042292,
+  "tokens": 14181570,
+  "cost_usd": 11.438792,
   "unpriced_tokens": 0,
   "processes": 15,
   "mcp_processes": 4,
   "orphaned_mcp": 2,
-  "cpu_percent": 151.2,
+  "cpu_percent": 156.7,
   "rss_bytes": 3226992640
  }
 }

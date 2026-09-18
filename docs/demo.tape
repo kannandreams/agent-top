@@ -18,11 +18,13 @@ Set Theme "Catppuccin Mocha"
 Set TypingSpeed 55ms
 
 # Setup, off camera: true colour so the meter ramps render, and an alias so the
-# visible command is the one a user would actually type.
+# visible command is the one a user would actually type. `--theme dark` pins
+# Catppuccin Mocha, so the recording does not depend on what the recorder's
+# terminal answers.
 Hide
 Type "export COLORTERM=truecolor PS1='$ '"
 Enter
-Type "alias agent-top='./target/release/agent-top --replay docs/demo-snapshot.json'"
+Type "alias agent-top='./target/release/agent-top --theme dark --replay docs/demo-snapshot.json'"
 Enter
 Type "clear"
 Enter
@@ -36,7 +38,8 @@ Enter
 # servers whose agent is gone.
 Sleep 3s
 
-# Move down the table; the detail pane follows the selection.
+# Move down the table; the detail pane follows the selection. The second
+# and third rows are a Codex session and a subagent nested under it.
 Down
 Sleep 1400ms
 Down

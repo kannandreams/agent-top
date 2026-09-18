@@ -23,6 +23,7 @@ set -g pane-active-border-style fg=#6a90f6
 set -g default-shell /bin/bash
 set -g default-command "bash --noprofile --norc"
 CONF
-export PATH="$dir:$PATH" COLORTERM=truecolor
+# AGENT_TOP_THEME pins Catppuccin Mocha for the table and for the pane `o` opens.
+export PATH="$dir:$PATH" COLORTERM=truecolor AGENT_TOP_THEME=dark
 tmux -L vhs kill-server 2>/dev/null || true
 exec tmux -L vhs -f "$dir/tmux.conf" new-session -s agents
