@@ -2,7 +2,8 @@
 //!
 //! Palette values: https://catppuccin.com/palette/ (checked 2026-09-17).
 //! Query the terminal's actual foreground/background with OSC 10/11; fall
-//! back to COLORFGBG, then Mocha. Detection never runs in non-interactive modes.
+//! back to COLORFGBG, then Mocha. Detection never runs in non-interactive modes,
+//! and `--theme dark|light` or `AGENT_TOP_THEME` skips it.
 
 use ratatui::style::{Color, Style};
 use std::io::{self, IsTerminal};
@@ -34,8 +35,50 @@ pub struct Theme {
     truecolor: bool,
 }
 
+/// `--theme`. `Auto` asks the terminal; the other two skip the question.
+#[derive(clap::ValueEnum, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ThemeChoice {
+    /// Catppuccin Mocha on a dark terminal, Latte on a light one.
+    #[default]
+    Auto,
+    /// Catppuccin Mocha.
+    Dark,
+    /// Catppuccin Latte.
+    Light,
+}
+
+impl ThemeChoice {
+    pub fn flag(self) -> Option<&'static str> {
+        match self {
+            ThemeChoice::Auto => None,
+            ThemeChoice::Dark => Some("dark"),
+            ThemeChoice::Light => Some("light"),
+        }
+    }
+}
+
+/// The flag wins, then `AGENT_TOP_THEME`; `None` means detect. An unknown
+/// value in the variable is ignored rather than refused, so a typo in a shell
+/// profile cannot stop agent-top from starting.
+fn forced_mode(choice: ThemeChoice, env: Option<&str>) -> Option<ThemeMode> {
+    let named = |s: &str| match s.trim().to_ascii_lowercase().as_str() {
+        "dark" | "mocha" => Some(ThemeMode::Dark),
+        "light" | "latte" => Some(ThemeMode::Light),
+        _ => None,
+    };
+    match choice {
+        ThemeChoice::Dark => Some(ThemeMode::Dark),
+        ThemeChoice::Light => Some(ThemeMode::Light),
+        ThemeChoice::Auto => env.and_then(named),
+    }
+}
+
 impl Theme {
-    pub fn detect() -> Self {
+    pub fn detect(choice: ThemeChoice) -> Self {
+        let truecolor = std::env::var("COLORTERM").is_ok_and(|v| v.contains("truecolor") || v.contains("24bit"));
+        if let Some(mode) = forced_mode(choice, std::env::var("AGENT_TOP_THEME").ok().as_deref()) {
+            return Self::new(mode, truecolor);
+        }
         let mode = if io::stdin().is_terminal() && io::stdout().is_terminal() {
             // The library bounds the wait to one second and restores raw mode
             // before returning. No other input reader has started yet.
@@ -44,7 +87,6 @@ impl Theme {
             None
         };
         let mode = select_mode(mode, std::env::var("COLORFGBG").ok().as_deref());
-        let truecolor = std::env::var("COLORTERM").is_ok_and(|v| v.contains("truecolor") || v.contains("24bit"));
         Self::new(mode, truecolor)
     }
 
@@ -208,6 +250,17 @@ fn xterm256(color: Rgb) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_flag_wins_then_the_variable_and_a_typo_falls_back_to_detection() {
+        assert_eq!(forced_mode(ThemeChoice::Light, Some("dark")), Some(ThemeMode::Light));
+        assert_eq!(forced_mode(ThemeChoice::Dark, None), Some(ThemeMode::Dark));
+        assert_eq!(forced_mode(ThemeChoice::Auto, Some("light")), Some(ThemeMode::Light));
+        assert_eq!(forced_mode(ThemeChoice::Auto, Some(" Mocha ")), Some(ThemeMode::Dark));
+        assert_eq!(forced_mode(ThemeChoice::Auto, Some("latte")), Some(ThemeMode::Light));
+        assert_eq!(forced_mode(ThemeChoice::Auto, Some("solarized")), None);
+        assert_eq!(forced_mode(ThemeChoice::Auto, None), None);
+    }
 
     #[test]
     fn terminal_response_wins_over_environment_and_unknown_defaults_dark() {

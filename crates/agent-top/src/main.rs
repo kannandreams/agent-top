@@ -82,6 +82,11 @@ struct Cli {
     /// network call.
     #[arg(long)]
     whats_new: bool,
+    /// Colours: `auto` asks the terminal whether it is dark or light, `dark`
+    /// is Catppuccin Mocha, `light` is Catppuccin Latte. `AGENT_TOP_THEME`
+    /// sets the same thing for every run; the flag wins.
+    #[arg(long, value_enum, default_value_t = theme::ThemeChoice::Auto, value_name = "THEME")]
+    theme: theme::ThemeChoice,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -162,6 +167,9 @@ fn forwarded_args(cli: &Cli) -> Vec<String> {
     if let Some(path) = &cli.replay {
         let abs = std::path::absolute(path).unwrap_or_else(|_| path.clone());
         v.extend(["--replay".to_string(), abs.to_string_lossy().into_owned()]);
+    }
+    if let Some(theme) = cli.theme.flag() {
+        v.extend(["--theme".to_string(), theme.to_string()]);
     }
     v
 }
@@ -259,7 +267,7 @@ fn main() -> Result<()> {
     };
     // Query before ratatui takes ownership of terminal input/raw mode. Plain
     // text, JSON, reports and shell completions never query the terminal.
-    let theme = theme::Theme::detect();
+    let theme = theme::Theme::detect(cli.theme);
     let mut terminal = ratatui::init();
     let result = run(&mut terminal, &mut source, &start, &theme);
     ratatui::restore();
