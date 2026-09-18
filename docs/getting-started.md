@@ -55,9 +55,14 @@ agent-top report --since 7d       # what every harness cost this week
 agent-top trace --session 9f2c -o trace.json   # one session as a Perfetto trace
 agent-top --interval-ms 500       # faster refresh
 agent-top --stopped-window-min 120   # keep stopped sessions visible for two hours
+agent-top --theme light           # Catppuccin Latte; dark is Mocha, auto asks the terminal
 agent-top --prices                # the price table in use, with your overrides marked
 agent-top --whats-new             # this build's changelog, no network call
 ```
+
+## Colours
+
+agent-top uses Catppuccin Mocha on a dark terminal and Catppuccin Latte on a light one. At startup it asks the terminal for its background colour; if the terminal does not answer it reads `COLORFGBG`, and failing that it uses Mocha. `--theme dark` or `--theme light` picks one without asking, and `AGENT_TOP_THEME=dark` or `light` in your shell profile does the same for every run. The flag wins over the variable. The theme is chosen once at startup, so restart agent-top after changing your terminal's colours.
 
 ## Upgrading
 

@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- `--theme auto|dark|light` picks Catppuccin Mocha or Latte without asking the terminal; `AGENT_TOP_THEME` sets it for every run. ([#45](https://github.com/kannandreams/agent-top/pull/45))
+
 ## [0.19.0] - 2026-09-18
 
 ### Highlights

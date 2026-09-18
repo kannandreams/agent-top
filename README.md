@@ -448,6 +448,7 @@ keypress.
 agent-top                        # interactive, refreshes every second
 agent-top --interval-ms 500      # faster refresh
 agent-top --stopped-window-min 120   # keep stopped sessions visible for two hours
+agent-top --theme dark|light|auto   # Catppuccin Mocha or Latte; auto asks the terminal. AGENT_TOP_THEME does the same
 agent-top --replay snap.json     # render a saved --json snapshot, keys and all, reading nothing local
 agent-top slow | fails | advice | mcp   # start on that panel alone, for a second pane or window
 agent-top trace --session <id|prefix|path> [--format chrome|otlp] [-o FILE] [--endpoint URL]

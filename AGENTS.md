@@ -32,7 +32,9 @@ tool output before committing. See the README in that directory.
 
 ## The README demo
 
-`docs/demo.gif` is recorded by `vhs docs/demo.tape` from `docs/demo-snapshot.json`,
+`docs/demo.gif` is recorded by `vhs docs/demo.tape` from `docs/demo-snapshot.json`
+(the docs images by `docs/screenshots.tape`, `docs/once.tape` and
+`docs/views-and-panes.tape`, with `--theme dark` so the terminal is never asked),
 a hand-authored snapshot replayed through `--replay`. Never re-record it against
 a live machine: the frame would carry real project names, working directories
 and session ids into a public README. Edit the JSON to change what the demo

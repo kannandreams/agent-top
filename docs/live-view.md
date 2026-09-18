@@ -49,6 +49,8 @@ The right column has two views. `Tab` switches between them.
 
 ### The process tree
 
+![A Codex subagent selected: nested under its parent in the table, with its parent, nickname and role in the facts and the shared process tree](screenshots/codex-subagent.png)
+
 A Codex subagent is a session inside its parent's process, so the table above shows that hierarchy and this pane shows the process. Selecting a subagent row shows its own facts and trace, with its parent, nickname and role in the facts on the left, and the process tree of the row that owns the shared process.
 
 The **process tree** shows the agent's process and everything under it: MCP servers, shells, the test run it started, and any nested agent processes. Each line has its pid, CPU, memory and age. Nested harness processes are labelled `[agent]`, not assumed to be subagents. Linux worker threads are excluded. Sessions sharing a process show the same process tree under a `CPU/RSS shared by sessions` note, with its resources counted once, not once per session.
