@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- `trace -o` no longer prints the session id in its stderr summary. ([#46](https://github.com/kannandreams/agent-top/pull/46))
+
 ## [0.19.1] - 2026-09-19
 
 ### Added
