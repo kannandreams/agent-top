@@ -203,10 +203,7 @@ fn writes_to_a_file_and_reports_on_stderr() {
     let out = scratch("codex.json");
     let (doc, stderr) = export("codex-0.130", &["-o", out.to_str().unwrap()]);
     assert_eq!(doc["otherData"]["harness"], "codex");
-    assert!(
-        stderr.contains("wrote 16 tool calls, 11 inferences, 3 turns from codex 01000000-0000-7000-0000-000000000000"),
-        "stderr: {stderr}"
-    );
+    assert!(stderr.contains("wrote 16 tool calls, 11 inferences, 3 turns from the codex session to "), "stderr: {stderr}");
     let _ = std::fs::remove_dir_all(out.parent().unwrap());
 }
 
