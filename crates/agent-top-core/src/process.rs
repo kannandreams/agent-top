@@ -170,6 +170,12 @@ pub fn classify_agent(p: &RawProc) -> Option<Harness> {
     if prog == "opencode" {
         return Some(Harness::OpenCode);
     }
+    if prog == "kodelet" {
+        let args = kodelet_command(p.cmd.get(1..).unwrap_or_default());
+        return (args.first().map(String::as_str) == Some("serve")
+            || (args.first().map(String::as_str) == Some("runner") && args.get(1).map(String::as_str) == Some("start")))
+        .then_some(Harness::Kodelet);
+    }
     if prog == "aider" || joined.contains("aider/main.py") {
         return Some(Harness::Aider);
     }
@@ -188,6 +194,11 @@ pub fn classify_child(p: &RawProc) -> ProcKind {
     let joined = p.cmdline().to_ascii_lowercase();
     // In particular, `codex mcp list` manages servers; it is not itself one.
     if p.codex_args().is_some_and(codex_helper) {
+        return ProcKind::Tool;
+    }
+    // Kodelet clients and extension workers are not MCP servers, even if a
+    // prompt, extension name or profile happens to contain "mcp".
+    if prog == "kodelet" || prog.starts_with("kodelet-extension-") || prog == "kodelet-subagent" {
         return ProcKind::Tool;
     }
     if matches!(prog.as_str(), "zsh" | "bash" | "sh" | "fish" | "dash" | "pwsh" | "cmd") {
@@ -219,6 +230,41 @@ fn codex_helper(args: &[String]) -> bool {
                 | "responses-api-proxy"
         )
     ) || (args.first().map(String::as_str) == Some("app-server") && args.get(1).map(String::as_str) == Some("daemon"))
+}
+
+/// Kodelet v0.6.17-beta executes conversations in `serve` or `runner start`.
+/// `run`, `chat` and `acp` are thin clients, not additional agent hosts.
+/// Skip only known persistent flags; never search prompt text for a command.
+pub(crate) fn kodelet_command(mut args: &[String]) -> &[String] {
+    while let Some(arg) = args.first() {
+        let flag = arg.split('=').next().unwrap_or(arg);
+        let takes_value = match flag {
+            "--provider"
+            | "--model"
+            | "--max-tokens"
+            | "--thinking-budget-tokens"
+            | "--weak-model"
+            | "--weak-model-max-tokens"
+            | "--reasoning-effort"
+            | "--log-level"
+            | "--log-format"
+            | "--allowed-commands"
+            | "--allowed-domains-file"
+            | "--sysprompt"
+            | "--sysprompt-arg"
+            | "--allowed-tools"
+            | "--tool-mode"
+            | "--anthropic-api-access"
+            | "--profile"
+            | "--context-patterns"
+            | "--compact-ratio" => true,
+            "--enable-openai-search" | "--no-skills" | "--enable-fs-search-tools" => false,
+            _ => break,
+        };
+        let count = if takes_value && !arg.contains('=') { 2 } else { 1 };
+        args = args.get(count..).unwrap_or_default();
+    }
+    args
 }
 
 /// MCP servers have no wire-level marker visible from the process table, so
@@ -401,6 +447,38 @@ mod tests {
             rss_bytes: 0,
             start_time: 0,
             run_time: 1,
+        }
+    }
+
+    #[test]
+    fn kodelet_execution_hosts_are_agents_but_clients_and_helpers_are_not() {
+        for cmd in [
+            vec!["kodelet", "serve", "--managed"],
+            vec!["/usr/local/bin/kodelet", "serve", "--embedded-runner=false"],
+            vec!["kodelet", "runner", "start"],
+            vec!["kodelet", "--log-level", "debug", "--profile=coding", "serve"],
+            vec!["kodelet", "--no-skills", "runner", "start"],
+        ] {
+            assert_eq!(classify_agent(&proc(1, None, &cmd)), Some(Harness::Kodelet), "{cmd:?}");
+        }
+        for cmd in [
+            vec!["kodelet"],
+            vec!["kodelet", "run", "serve mcp"],
+            vec!["kodelet", "chat", "--resume", "20260919T090000-abcdef"],
+            vec!["kodelet", "acp"],
+            vec!["kodelet", "runner", "list"],
+            vec!["kodelet", "server", "logs"],
+            vec!["kodelet", "conversation", "show", "abc"],
+            vec!["kodelet", "--model", "serve"],
+            vec!["kodelet", "--", "serve"],
+            vec!["kodelet-extension-code-search"],
+            vec!["kodelet-extension-mcp"],
+            vec!["kodelet-subagent"],
+            vec!["cat", "/usr/local/bin/kodelet"],
+        ] {
+            let p = proc(1, None, &cmd);
+            assert_eq!(classify_agent(&p), None, "{cmd:?}");
+            assert_eq!(classify_child(&p), ProcKind::Tool, "{cmd:?}");
         }
     }
 

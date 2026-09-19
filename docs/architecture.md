@@ -38,11 +38,13 @@ Once a second, the collector runs five steps and hands the front end a new snaps
 
 ### 1. Scan the processes
 
-`sysinfo` refreshes the process table, CPU and memory, excluding Linux worker threads: they share their process's memory and must not be counted as extra processes. Each process is classified: a harness root (`claude`, `codex`, `gemini`, `opencode`), or a child of one. Children are labelled `agent`, `mcp`, `shell` or `tool` from their command line. A nested harness is still an `agent`; process ancestry does not establish a logical subagent relationship. An MCP-looking process with no agent ancestor becomes an **orphan**. Legacy snapshot process kinds named `subagent` are read as `agent`.
+`sysinfo` refreshes the process table, CPU and memory, excluding Linux worker threads: they share their process's memory and must not be counted as extra processes. Each process is classified: a harness root (`claude`, `codex`, `gemini`, `opencode`, `kodelet`), or a child of one. Children are labelled `agent`, `mcp`, `shell` or `tool` from their command line. A nested harness is still an `agent`; process ancestry does not establish a logical subagent relationship. An MCP-looking process with no agent ancestor becomes an **orphan**. Legacy snapshot process kinds named `subagent` are read as `agent`.
 
 For Codex's npm install, the Node launcher and its native child are the same invocation, both labelled `agent`; both real PIDs contribute resources, but rollout ownership is read from the native child by matching the forwarded arguments. Explicit sandbox, execution, patch and management helpers are tools, not agents. Codex's native `spawn_agent` creates an in-process session: its actual parent is recorded in `session_meta.payload.source.subagent.thread_spawn.parent_thread_id`, or the explicit `thread_source: "subagent"` and `parent_thread_id` fields, not the OS process tree. `forked_from_id` is history ancestry and is not used as a subagent parent. These distinctions were checked against `openai/codex` tag `rust-v0.154.0` on 2026-09-17.
 
 The collector carries that relationship, plus the optional nickname and role, in each row's `subagent` metadata. The TUI groups these rows into a session hierarchy, separate from the process tree. Token and cost figures remain per rollout; nesting does not add a child's usage to its parent again. Shared process CPU and RSS are carried by one row, preferring a main session when available. No per-subagent memory estimate is made. A child whose parent is outside the snapshot or hidden remains visible without inventing a parent row.
+
+Kodelet v0.6.17-beta executes sessions in `serve` and `runner start`; its `run`, `chat` and `acp` processes are clients and do not become extra agent rows. Kodelet's explicit `metadata.parent_conversation_id` supplies child lineage, including code-search sessions. `conversation_fork` alone is only history ancestry. Child rows keep separate cumulative accounting and share host resources in the same way as Codex.
 
 ### 2. Attribute each root to its transcript
 
@@ -52,12 +54,15 @@ The collector asks the harness's adapter, and the adapter says how sure it is:
 - **Codex**: the rollout file the process holds open (exact), else the newest rollout whose recorded `cwd` matches the process, else a live rollout started after the process.
 - **Gemini CLI**: the newest session in the project directory whose `.project_root` is the process cwd, started after the process.
 - **OpenCode**: the newest session in its SQLite store whose directory matches the process cwd.
+- **Kodelet**: active runner records matched by local host identity, live PID, connection time and heartbeat; remaining active turn receipts matched to the daemon's local connection metadata. Registry matches are reserved before fallback attribution. No socket calls or locks are acquired.
 
 The attribution is carried into the row and shown in the detail pane, so a heuristic is never mistaken for a fact.
 
 ### 3. Tail the transcripts
 
 One tracker per transcript reads only the bytes appended since the last tick, at most 8 MB per tick, and folds them into a running summary: usage, cost, turns, tool calls, model, last activity, and whether the agent is mid-turn.
+
+SQLite harnesses rebuild from snapshots rather than tailing bytes. Kodelet reads cumulative usage once per conversation, not the duplicate summary table or copied provider usage. A fork resets that usage; copied tool results older than the new conversation are excluded. Tool metadata supplies completion times and, for bash/extension tools, durations. Missing inference timing and per-response usage are left unknown rather than estimated.
 
 Three things happen in that same pass, because the bytes are already in hand:
 
@@ -85,6 +90,7 @@ Verified 2026-09-03. Each adapter is locked with a golden fixture, a small real 
 | Codex 0.149 | `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl` | `token_count` events, cumulative; input includes cached input | `task_started` means working, `task_complete` or `turn_aborted` means waiting |
 | Gemini CLI 0.58 | `~/.gemini/tmp/<project>/chats/session-<ts>-<id>.jsonl`, with `.project_root` beside `chats/` | `tokens` on `gemini` messages, deduplicated by message id; thoughts count as output | `user` message means working, `gemini` message means waiting |
 | OpenCode | `~/.local/share/opencode/opencode.db`, read-only | token and cost columns on each message | message timestamps |
+| Kodelet 0.6.17-beta | `$KODELET_BASE_PATH/storage.db`, default `~/.kodelet/storage.db`, read-only | cumulative `usage`; Responses cached input normalized; recorded USD costs | durable `runner_runs` / `chat_turns` receipts |
 
 ## Pricing
 

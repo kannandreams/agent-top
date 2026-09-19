@@ -3,7 +3,7 @@
 //!
 //! The live table is one moment; this is the history. Each harness keeps its
 //! finished sessions (Claude's project transcripts, Codex's rollouts, Gemini's
-//! chat files, OpenCode's database), so the same adapters that build a live row
+//! chat files, OpenCode's and Kodelet's databases), so the adapters that build a live row
 //! also read a month-old one. This walks all of them inside a window, folds
 //! them into a `SessionSummary` each, and totals the cost and tokens grouped by
 //! harness, model, project or day. Nothing is written and nothing leaves the
@@ -90,6 +90,7 @@ struct Bucket {
     unpriced: u64,
     turns: u64,
     tool_calls: u64,
+    tool_calls_lower_bound: bool,
     prompt: u64,
     cache_read: u64,
 }
@@ -110,6 +111,7 @@ impl Bucket {
         self.unpriced += s.unpriced_tokens;
         self.turns += s.turns;
         self.tool_calls += s.tool_calls;
+        self.tool_calls_lower_bound |= s.tool_calls_lower_bound;
         self.prompt += s.usage.prompt();
         self.cache_read += s.usage.cache_read;
     }
@@ -137,7 +139,7 @@ pub fn build(since: SystemTime, by: GroupBy) -> Report {
         for (_id, path) in adapter.transcripts() {
             scanned += 1;
             // A transcript that is a real file and was last written before the
-            // window is skipped without parsing it. A virtual path (OpenCode's
+            // window is skipped without parsing it. A virtual path (a harness's
             // database rows) has no mtime, so it is read and judged by its
             // recorded activity.
             if let Ok(md) = std::fs::metadata(&path)
@@ -146,7 +148,8 @@ pub fn build(since: SystemTime, by: GroupBy) -> Report {
             {
                 continue;
             }
-            let Some(mut tracker) = harness::open_transcript(&path, harness, SpanRetention::Recent) else { continue };
+            // Reuse the adapter's discovery/enrichment cache across sessions.
+            let mut tracker = adapter.open(&path, SpanRetention::Recent);
             if tracker.refresh_all().is_err() {
                 continue;
             }
@@ -245,6 +248,7 @@ impl Report {
             serde_json::json!({
                 "sessions": b.sessions, "tokens": b.tokens, "cost_usd": b.cost,
                 "unpriced_tokens": b.unpriced, "turns": b.turns, "tool_calls": b.tool_calls,
+                "tool_calls_lower_bound": b.tool_calls_lower_bound,
                 "prompt_tokens": b.prompt, "cache_read_tokens": b.cache_read,
                 "cache_hit_rate": b.cache_hit(),
             })

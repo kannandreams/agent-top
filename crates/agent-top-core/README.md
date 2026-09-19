@@ -36,10 +36,10 @@ later.
 ## What it does
 
 **Discovery.** Walks the process table with `sysinfo` and identifies Claude
-Code, Codex, Gemini CLI, OpenCode, Aider, Copilot CLI and cursor-agent
+Code, Codex, Gemini CLI, OpenCode, Kodelet, Aider, Copilot CLI and cursor-agent
 processes. Child processes are folded into a tree and labelled as agents, MCP
-servers, shells or tools. Codex logical subagents are identified separately from
-explicit transcript parent-session metadata, never from process ancestry.
+servers, shells or tools. Codex and Kodelet logical subagents are identified
+separately from explicit parent-session metadata, never from process ancestry.
 An MCP server whose agent has exited is reported as an
 orphan, which is a common way for these tools to leak memory.
 
@@ -47,8 +47,8 @@ orphan, which is a common way for these tools to leak memory.
 publishes a registry of its own sessions or holds its transcript open, that is
 used and the result is exact. Otherwise the match is made on working directory
 and start time. Each harness is a `HarnessAdapter` in `harness::adapters()`;
-Claude Code, Codex, Gemini CLI and OpenCode have one. OpenCode keeps its
-history in a SQLite database rather than a JSONL log, which the adapter reads
+Claude Code, Codex, Gemini CLI, OpenCode and Kodelet have one. OpenCode and Kodelet
+keep their history in SQLite databases rather than JSONL logs, which the adapters read
 read-only. Every agent
 records which method was used, so a caller never has to guess how much to trust
 a row.

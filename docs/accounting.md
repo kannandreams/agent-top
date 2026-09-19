@@ -12,9 +12,9 @@ about which ones are exact and which are inferred.
   several transcript lines is counted once.
 - **Costs come from a table you can read and change.** `agent-top --prices`
   shows it. It carries Anthropic, OpenAI and Google list prices, so Claude Code,
-  Codex, Gemini and OpenCode rows all price from it (OpenCode is the exception:
-  it runs third-party models and computes its own cost, which agent-top uses
-  directly). A model with no price anywhere is reported as unpriced rather than
+  Codex and Gemini rows price from it. OpenCode and Kodelet record their own
+  costs, which agent-top uses directly and does not reprice at the current model's
+  rate. A model with no price anywhere is reported as unpriced rather than
   guessed at, which is why a total containing one is shown as a floor (`≥`, `+`)
   instead of a number that looks more precise than it is.
 - **Attribution says how confident it is.** Claude Code publishes a per-pid
@@ -39,6 +39,23 @@ about which ones are exact and which are inferred.
   `kill`.
 
 ## Context by source
+
+Kodelet records cumulative usage, not per-response usage, so it has no
+context-by-source ledger. Its Responses input counter includes cache reads;
+the adapter separates those once, while Chat Completions and Anthropic input
+counters already exclude them. Cache creation tokens and costs have no saved
+TTL split: the JSON `cache_write_5m` slot carries the unsplit aggregate, and the
+UI labels it `cache write`. Recorded costs are estimates from the harness,
+not proof of an invoice or subscription charge. Child sessions contribute
+their own usage once, never both separately and folded into a parent.
+
+Kodelet's **tool count is a lower bound** (`≥N`, `tool_calls_lower_bound` in JSON),
+unlike its cumulative token usage. Compaction removes previous tool calls and
+results without keeping a lifetime tool counter. Each distinct retained/observed
+call ID counts once, including failures; child calls stay on the child's row.
+The live tracker remembers observed IDs across compactions, but cold starts and
+exports cannot restore deleted history. For forks, only completed results whose
+timestamps establish new work are counted, not potentially inherited pending calls.
 
 The detail pane's `context` section says what each tool's results added to the
 prompt and what carrying that has cost. Token sizes are derived from usage

@@ -3,7 +3,8 @@
 
 use crate::app::{App, DetailView, Overlay, Panel};
 use crate::format::{
-    age, bytes, cost, cpu_cell, duration_ms, mem_cell, nested_name, session_name, short_cmd, short_model, tokens, tokens_cell, truncate,
+    age, bytes, cost, cpu_cell, duration_ms, mem_cell, nested_name, session_name, short_cmd, short_model, tokens, tokens_cell, tool_calls,
+    truncate,
 };
 use crate::theme::{Ramp, Theme};
 use agent_top_core::{Agent, AgentState, Attribution, McpMatch, OrphanOrigin, ProcKind, ProcNode, SpanKind, ToolSpan};
@@ -674,7 +675,7 @@ fn draw_table(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             Cell::from(cost(a)).style(Style::default().fg(theme.mauve)),
             Cell::from(cpu),
             Cell::from(mem),
-            Cell::from(a.tool_calls.to_string()),
+            Cell::from(tool_calls(a)),
             Cell::from(if a.shares_process {
                 "·".to_string()
             } else if a.pid.is_some() {
@@ -717,7 +718,7 @@ fn draw_table(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         let msg = Paragraph::new(Line::from(vec![
             Span::styled("no coding agents found. ", Style::default().fg(theme.dim)),
             Span::styled(
-                "start claude, codex or gemini in another terminal, or run agent-top --json to debug discovery.",
+                "start a coding agent in another terminal, or run agent-top --json to debug discovery.",
                 Style::default().fg(theme.dim),
             ),
         ]))
@@ -757,10 +758,9 @@ fn table_session_name(a: &Agent, depth: usize) -> String {
 /// and what that came to. The price column is the row's current model's; the
 /// cost column is exact even when the session changed model part way.
 fn cost_row(label: &str, n: u64, per_m: Option<f64>, usd: f64, theme: &Theme) -> Line<'static> {
-    let (per_m, usd) = match per_m {
-        Some(p) => (format!("{p:>9.2}"), format!("{usd:>10.2}")),
-        None => (format!("{:>9}", "n/a"), format!("{:>10}", "-")),
-    };
+    // A harness can record the cost without preserving a per-model rate.
+    let usd = if per_m.is_some() || usd > 0.0 { format!("{usd:>10.2}") } else { format!("{:>10}", "-") };
+    let per_m = per_m.map(|p| format!("{p:>9.2}")).unwrap_or_else(|| format!("{:>9}", "n/a"));
     Line::from(vec![
         Span::styled(format!("{label:<13}"), Style::default().fg(theme.dim)),
         Span::raw(format!("{:>7}", tokens(n))),
@@ -775,6 +775,7 @@ fn price_basis(a: &Agent) -> String {
     match a.price_source {
         Some(agent_top_core::PriceSource::Builtin) => "list price, built-in table".into(),
         Some(agent_top_core::PriceSource::UserFile) => "your price file".into(),
+        Some(agent_top_core::PriceSource::Harness) => "harness-reported cost".into(),
         None if a.unpriced_tokens > 0 => "no price for this model".into(),
         None => String::new(),
     }
@@ -845,7 +846,11 @@ fn cache_line(a: &Agent, theme: &Theme) -> Line<'static> {
 fn agent_facts(a: &Agent, now: SystemTime, theme: &Theme) -> Text<'static> {
     let u = &a.usage;
     let b = &a.cost_breakdown;
-    let price = a.model.as_deref().and_then(agent_top_core::pricing::price_for);
+    let price = a
+        .model
+        .as_deref()
+        .filter(|_| a.price_source != Some(agent_top_core::PriceSource::Harness))
+        .and_then(agent_top_core::pricing::price_for);
     let attribution = match a.attribution {
         Attribution::HarnessRegistry => "harness registry (exact)",
         Attribution::CommandLine => "command line --resume (exact)",
@@ -894,15 +899,18 @@ fn agent_facts(a: &Agent, now: SystemTime, theme: &Theme) -> Text<'static> {
         kv("tokens", tokens(u.total()), theme),
         kv(
             "turns",
-            if a.harness == agent_top_core::Harness::Codex {
+            if matches!(a.harness, agent_top_core::Harness::Codex | agent_top_core::Harness::Kodelet) {
                 a.turns.to_string()
             } else {
                 format!("{} ({} subagent)", a.turns, a.subagent_turns)
             },
             theme,
         ),
-        kv("tool calls", a.tool_calls.to_string(), theme),
+        kv("tool calls", tool_calls(a), theme),
     ]);
+    if a.tool_calls_lower_bound {
+        lines.push(Line::from(dim("  retained/observed calls; earlier history may be missing", theme)));
+    }
     if a.web_searches > 0 {
         let priced = if b.web_search > 0.0 { format!(" (${:.2})", b.web_search) } else { " (not priced)".to_string() };
         lines.push(kv("web search", format!("{}{priced}", a.web_searches), theme));
@@ -916,10 +924,18 @@ fn agent_facts(a: &Agent, now: SystemTime, theme: &Theme) -> Text<'static> {
     lines.extend(vec![
         cost_row("  input", u.input, price.map(|p| p.input), b.input, theme),
         cost_row("  cache rd", u.cache_read, price.map(|p| p.cache_read), b.cache_read, theme),
-        cost_row("  cache wr 5m", u.cache_write_5m, price.map(|p| p.cache_write_5m), b.cache_write_5m, theme),
-        cost_row("  cache wr 1h", u.cache_write_1h, price.map(|p| p.cache_write_1h), b.cache_write_1h, theme),
-        cost_row("  output", u.output, price.map(|p| p.output), b.output, theme),
+        cost_row(
+            if a.harness == agent_top_core::Harness::Kodelet { "  cache write" } else { "  cache wr 5m" },
+            u.cache_write_5m,
+            price.map(|p| p.cache_write_5m),
+            b.cache_write_5m,
+            theme,
+        ),
     ]);
+    if a.harness != agent_top_core::Harness::Kodelet {
+        lines.push(cost_row("  cache wr 1h", u.cache_write_1h, price.map(|p| p.cache_write_1h), b.cache_write_1h, theme));
+    }
+    lines.push(cost_row("  output", u.output, price.map(|p| p.output), b.output, theme));
     if let Some(rl) = &a.rate_limit {
         lines.push(Line::raw(""));
         let head = match &rl.plan {
@@ -941,9 +957,9 @@ fn agent_facts(a: &Agent, now: SystemTime, theme: &Theme) -> Text<'static> {
         lines.push(kv("transcript", tilde(p), theme));
     }
     if let Some(id) = &a.session_id {
-        // The first eight characters are almost always unique on one machine,
-        // and are what a user can type. The command resolves a prefix.
-        let short: String = id.chars().take(8).collect();
+        // Kodelet IDs begin with a date shared by all sessions that day.
+        // Other harnesses use a short prefix that the command can resolve.
+        let short = if a.harness == agent_top_core::Harness::Kodelet { id.clone() } else { id.chars().take(8).collect() };
         lines.push(kv("export", format!("agent-top trace --session {short} -o trace.json"), theme));
     }
     Text::from(lines)
@@ -961,7 +977,7 @@ fn tool_trace(a: &Agent, now: SystemTime, width: usize, height: usize, theme: &T
     };
     if a.spans.is_empty() {
         return Text::from(vec![
-            head(vec![Span::styled(format!("   {} tool calls", a.tool_calls), Style::default().fg(theme.dim))]),
+            head(vec![Span::styled(format!("   {} tool calls", tool_calls(a)), Style::default().fg(theme.dim))]),
             Line::styled(
                 if a.tool_calls > 0 { "  (calls happened before agent-top started reading)" } else { "  (no tool calls yet)" },
                 Style::default().fg(theme.dim),
@@ -998,7 +1014,7 @@ fn tool_trace(a: &Agent, now: SystemTime, width: usize, height: usize, theme: &T
     let calls = shown.iter().filter(|s| s.kind == SpanKind::Tool).count();
     let mut lines = vec![
         head(vec![Span::styled(
-            format!("   {} of {} calls · window {}", calls, a.tool_calls, duration_ms(window_ms)),
+            format!("   {} of {} calls · window {}", calls, tool_calls(a), duration_ms(window_ms)),
             Style::default().fg(theme.dim),
         )]),
         Line::from(trace_summary(&shown, turn, now, window_ms, theme)),
@@ -1509,6 +1525,7 @@ mod tests {
             turns: 12,
             subagent_turns: 1,
             tool_calls: 71,
+            tool_calls_lower_bound: false,
             web_searches: 0,
             spans,
             age_secs: 1080,
@@ -1628,6 +1645,45 @@ mod tests {
         assert!(out.contains("↳ Scout (explorer)"), "{out}");
         assert!(out.contains("Scout (explorer) · codex · running  [tree]"), "the detail title identifies the selected session: {out}");
         assert!(out.contains("process tree"));
+    }
+
+    #[test]
+    fn kodelet_children_share_resources_and_show_recorded_costs_without_ttl_guesses() {
+        let mut family = codex_family();
+        for a in &mut family {
+            a.harness = agent_top_core::Harness::Kodelet;
+            a.price_source = Some(agent_top_core::PriceSource::Harness);
+            a.tool_calls_lower_bound = true;
+            a.usage.cache_write_5m = 1_000;
+            a.cost_breakdown.cache_write_5m = 0.12;
+            a.cost_usd = 0.12;
+        }
+        let mut app = App::new(snapshot(family));
+        app.selected_id = Some("session-scout".into());
+        app.rebuild_rows();
+        assert_eq!(app.row_depths, vec![0, 1, 2]);
+        assert_eq!(app.snapshot.totals.tokens, 3_600);
+        assert_eq!(app.snapshot.totals.rss_bytes, 256 << 20);
+        let selected = app.selected_agent().unwrap();
+        let facts = agent_facts(selected, app.snapshot.taken_at, &Theme::new(ThemeMode::Dark, true)).to_string();
+        assert!(facts.contains("harness-reported cost"), "{facts}");
+        assert!(facts.contains("≥71") && facts.contains("earlier history may be missing"), "{facts}");
+        assert!(facts.contains("cache write"), "{facts}");
+        assert!(!facts.contains("cache wr 5m") && !facts.contains("cache wr 1h"), "no recorded TTL split: {facts}");
+        assert!(!facts.contains("list price") && !facts.contains("subagent)"), "{facts}");
+        assert!(facts.lines().any(|l| l.contains("cache write") && l.contains("0.12") && l.contains("n/a")), "{facts}");
+        let out = crate::format::plain_table(&app.snapshot);
+        assert!(out.contains("↳ Scout (explorer)") && out.contains("kodelet"), "{out}");
+        assert!(out.contains("≥71"), "{out}");
+    }
+
+    #[test]
+    fn kodelet_trace_command_keeps_the_full_timestamped_session_id() {
+        let mut a = codex_family().remove(0);
+        a.harness = agent_top_core::Harness::Kodelet;
+        a.session_id = Some("20260919T090026-0123456789abcdef".into());
+        let facts = agent_facts(&a, SystemTime::now(), &Theme::new(ThemeMode::Dark, true)).to_string();
+        assert!(facts.contains("agent-top trace --session 20260919T090026-0123456789abcdef -o trace.json"), "{facts}");
     }
 
     #[test]

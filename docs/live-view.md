@@ -21,18 +21,18 @@ One row per agent, or per conversation for a harness that hosts several in one p
 | Column | What it is |
 |---|---|
 | AGENT | the project name, taken from the working directory; subagents are folded into their parent |
-| HARNESS | claude, codex, gemini or opencode |
+| HARNESS | claude, codex, gemini, opencode or kodelet |
 | STATE | `running` (mid-turn), `idle` (alive, waiting for you) or `stopped` (a recent transcript with no process) |
 | PID | the agent process |
 | MODEL | the model of the latest turn |
 | TOKENS | input, cached and output tokens, counted from the transcript |
 | COST | what the session has spent, at list price, with a `+` when some tokens ran on a model with no price |
 | CPU%, MEM | the agent's whole process tree, MCP servers included |
-| TOOLS | tool calls this session |
+| TOOLS | tool calls this session, including failures; `≥` marks a lower bound from retained/observed history |
 | PROCS, MCP | processes in the tree, and how many are MCP servers |
 | AGE | since the process started, or since the transcript began |
 
-`s` cycles the sort column and `r` reverses it. Codex subagents with explicit parent-session metadata stay nested beneath their parent; sorting applies to roots and siblings, and each row remains selectable. Stopped sessions stay visible for 30 minutes after their last write (`--stopped-window-min` changes that); `x` hides them. If a parent is hidden or outside the snapshot, its visible children remain listed.
+`s` cycles the sort column and `r` reverses it. Codex and Kodelet subagents with explicit parent-session metadata stay nested beneath their parent; sorting applies to roots and siblings, and each row remains selectable. Stopped sessions stay visible for 30 minutes after their last write (`--stopped-window-min` changes that); `x` hides them. If a parent is hidden or outside the snapshot, its visible children remain listed.
 
 ## The detail pane
 
@@ -40,7 +40,7 @@ The left column is the facts about the selected session: its id, working directo
 
 - **cost**, and which price table produced it.
 - **cache**: the share of the prompt served from cache, green when high and red when low. Every turn re-sends the conversation, and most of it can be billed at the cheap cache-read rate instead of full input price. A session at full price most turns is money left on the table.
-- **tokens**, **turns** (with folded subagent turns for harnesses that provide them) and **tool calls**. Codex rows retain their own usage rather than folding child sessions into the parent.
+- **tokens**, **turns** (with folded subagent turns for harnesses that provide them) and **tool calls**. Codex and Kodelet rows retain their own usage rather than folding child sessions into the parent. Kodelet counts durable user-turn receipts when available; legacy non-fork records fall back to assistant messages.
 - **breakdown**: each token class, the rate it was charged at, and what that came to.
 - **rate limit**, for harnesses that write one. Codex records a short window and a weekly one; each is shown with its use and its reset time, and a hit limit says so.
 - **export**: the exact `agent-top trace` command for this session.

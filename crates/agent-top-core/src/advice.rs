@@ -243,6 +243,7 @@ mod tests {
             turns: 5,
             subagent_turns: 0,
             tool_calls: 0,
+            tool_calls_lower_bound: false,
             web_searches: 0,
             spans: Vec::new(),
             age_secs: 3600,

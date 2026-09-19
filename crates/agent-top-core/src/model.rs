@@ -12,6 +12,7 @@ pub enum Harness {
     Codex,
     Gemini,
     OpenCode,
+    Kodelet,
     Aider,
     Copilot,
     Cursor,
@@ -25,6 +26,7 @@ impl Harness {
             Harness::Codex => "codex",
             Harness::Gemini => "gemini",
             Harness::OpenCode => "opencode",
+            Harness::Kodelet => "kodelet",
             Harness::Aider => "aider",
             Harness::Copilot => "copilot",
             Harness::Cursor => "cursor",
@@ -72,6 +74,8 @@ pub enum Activity {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 pub struct TokenUsage {
     pub input: u64,
+    /// Five-minute writes, or the unsplit aggregate when the harness retains
+    /// no TTL breakdown (Kodelet). Such rows must not claim a five-minute TTL.
     pub cache_write_5m: u64,
     pub cache_write_1h: u64,
     pub cache_read: u64,
@@ -403,7 +407,7 @@ pub struct Agent {
     /// tool's can be traced to the one line that differs.
     #[serde(default)]
     pub cost_breakdown: CostBreakdown,
-    /// Where the price of this row's model came from; `None` when it has none.
+    /// Where this row's costs came from; `None` when it has no known price.
     #[serde(default)]
     pub price_source: Option<PriceSource>,
     /// Tokens on messages whose model had no known price (so `cost_usd` is a floor).
@@ -411,6 +415,10 @@ pub struct Agent {
     pub turns: u64,
     pub subagent_turns: u64,
     pub tool_calls: u64,
+    /// The count is only known retained/observed calls, not an exact lifetime
+    /// total. Kodelet compaction discards old calls without a cumulative count.
+    #[serde(default)]
+    pub tool_calls_lower_bound: bool,
     /// Server-side web searches the model ran, billed per search on top of
     /// tokens. Counted for every harness; priced only where the price table
     /// has a rate (Anthropic's, for Claude Code).
@@ -497,6 +505,7 @@ impl RateLimit {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 pub struct CostBreakdown {
     pub input: f64,
+    /// Follows `TokenUsage::cache_write_5m`, including its unsplit-write case.
     pub cache_write_5m: f64,
     pub cache_write_1h: f64,
     pub cache_read: f64,
@@ -529,13 +538,14 @@ impl CostBreakdown {
     }
 }
 
-/// Where a model's price came from. The built-in table carries list prices;
-/// a user's file is whatever they chose to write, and the UI says which.
+/// Where costs came from: list prices, a user's price file, or the harness's
+/// own recorded accounting. The UI says which rather than implying a bill.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PriceSource {
     Builtin,
     UserFile,
+    Harness,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
