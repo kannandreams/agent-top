@@ -369,12 +369,11 @@ fn export_trace(session: &str, format: trace::Format, output: Option<&std::path:
         Some(path) if path != std::path::Path::new("-") => {
             std::fs::write(path, doc).with_context(|| format!("writing {}", path.display()))?;
             eprintln!(
-                "agent-top: wrote {} tool calls{still_open}, {} inferences, {} turns from {} {} to {}",
+                "agent-top: wrote {} tool calls{still_open}, {} inferences, {} turns from the {} session to {}",
                 count(agent_top_core::SpanKind::Tool),
                 count(agent_top_core::SpanKind::Inference),
                 count(agent_top_core::SpanKind::Turn),
                 src.harness.label(),
-                summary.session_id.as_deref().unwrap_or("?"),
                 path.display()
             );
         }
