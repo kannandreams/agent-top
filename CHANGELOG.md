@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-09-20
+
 ### Highlights
 Kodelet sessions now appear in the table alongside Claude Code, Codex, Gemini CLI and OpenCode. agent-top reads Kodelet's SQLite store read-only and uses the costs Kodelet recorded itself, and child sessions nest under the parent that started them.
 
