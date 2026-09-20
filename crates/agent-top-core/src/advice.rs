@@ -56,7 +56,6 @@ pub struct RssTrend {
 pub fn advise(snap: &Snapshot, trends: &HashMap<u32, RssTrend>) -> Vec<Advice> {
     let mut out = Vec::new();
     for a in snap.agents.iter().filter(|a| a.state != AgentState::Stopped) {
-        let priced = a.price_source.is_some();
         for c in &a.context {
             if c.origin == ContextOrigin::Other || c.calls == 0 {
                 continue;
@@ -65,7 +64,8 @@ pub fn advise(snap: &Snapshot, trends: &HashMap<u32, RssTrend>) -> Vec<Advice> {
             if per_call < BIG_RESULT_TOKENS || c.tokens < MIN_SOURCE_TOKENS {
                 continue;
             }
-            let cost = priced.then_some(c.cost_usd);
+            // A source only quotes money when its own share is known.
+            let cost = (c.cost_usd > 0.0).then_some(c.cost_usd);
             let paid = match cost {
                 Some(usd) => format!("re-read at a cost of ${usd:.2} since"),
                 None => "re-read on every response since (unpriced model)".to_string(),
@@ -243,6 +243,7 @@ mod tests {
             turns: 5,
             subagent_turns: 0,
             tool_calls: 0,
+            tool_calls_lower_bound: false,
             web_searches: 0,
             spans: Vec::new(),
             age_secs: 3600,

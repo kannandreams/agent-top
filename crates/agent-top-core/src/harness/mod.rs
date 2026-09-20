@@ -6,6 +6,7 @@
 pub mod claude;
 pub mod codex;
 pub mod gemini;
+pub mod kodelet;
 pub mod opencode;
 
 use crate::model::{Activity, Attribution, ContextOrigin, ContextSource, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage, ToolSpan};
@@ -63,10 +64,14 @@ pub struct SessionSummary {
     pub cost_usd: f64,
     /// `cost_usd` by kind of token. See `Agent::cost_breakdown`.
     pub cost_breakdown: CostBreakdown,
+    /// Set when the harness records its own costs instead of using our table.
+    pub price_source: Option<crate::model::PriceSource>,
     pub unpriced_tokens: u64,
     pub turns: u64,
     pub subagent_turns: u64,
     pub tool_calls: u64,
+    /// Earlier calls may have been removed from the harness's retained history.
+    pub tool_calls_lower_bound: bool,
     /// See `Agent::web_searches`.
     pub web_searches: u64,
     pub spans: SpanLog,
@@ -555,6 +560,7 @@ pub fn adapters() -> Vec<Box<dyn HarnessAdapter>> {
         Box::new(codex::CodexAdapter::default()),
         Box::new(gemini::GeminiAdapter::default()),
         Box::new(opencode::OpenCodeAdapter::default()),
+        Box::new(kodelet::KodeletAdapter::default()),
         Box::new(claude::ClaudeAdapter::default()),
     ]
 }

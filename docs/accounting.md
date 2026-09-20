@@ -12,11 +12,20 @@ about which ones are exact and which are inferred.
   several transcript lines is counted once.
 - **Costs come from a table you can read and change.** `agent-top --prices`
   shows it. It carries Anthropic, OpenAI and Google list prices, so Claude Code,
-  Codex, Gemini and OpenCode rows all price from it (OpenCode is the exception:
-  it runs third-party models and computes its own cost, which agent-top uses
-  directly). A model with no price anywhere is reported as unpriced rather than
+  Codex and Gemini rows price from it. OpenCode and Kodelet record their own
+  costs, which agent-top uses directly and does not reprice at the current model's
+  rate, and a recorded cost is that harness's own estimate rather than proof of
+  an invoice. A model with no price anywhere is reported as unpriced rather than
   guessed at, which is why a total containing one is shown as a floor (`≥`, `+`)
-  instead of a number that looks more precise than it is.
+  instead of a number that looks more precise than it is. A cache write whose
+  TTL the harness did not record is counted on its own (`cache_write_unsplit`),
+  because the TTL is what picks between the five-minute and one-hour rate, and
+  only the harness that recorded it can put a cost against it.
+- **A tool count says when it is a floor.** Most harnesses keep every call in
+  the transcript, so the count is exact. Where compaction discards old calls
+  without leaving a lifetime counter, agent-top counts the calls it retained or
+  watched happen and marks the figure `≥N` (`tool_calls_lower_bound` in JSON)
+  rather than presenting a snapshot as a total.
 - **Attribution says how confident it is.** Claude Code publishes a per-pid
   registry, so a session is matched to its process exactly. Codex has no
   registry, but it keeps every live thread's rollout file open, and on macOS and
@@ -42,8 +51,7 @@ about which ones are exact and which are inferred.
 
 The detail pane's `context` section says what each tool's results added to the
 prompt and what carrying that has cost. Token sizes are derived from usage
-records, not counted from result text. Codex nested-tool output sizes provide
-relative weights, not additional tokens.
+records, not counted from result text.
 
 **Tokens.** A response's prompt is the previous response's prompt plus
 everything appended since: the previous reply, and the tool results that
@@ -54,29 +62,6 @@ them. When several results were answered by one response the growth is split
 evenly between them, so per-source figures are not exact. The first response's
 whole prompt, the replies, and any growth that no result explains (your own
 messages) go to one row, `prompts & replies`.
-
-**Codex response ordering.** Some versions log tool results before the usage
-of the response that requested them. Those results wait for the following,
-consuming response; they do not receive the initial prompt's tokens. Repeated
-usage snapshots do not consume queued results or add cost.
-
-**Codex code mode.** Recognised nested tools whose timing fits entirely inside
-one wrapper share that wrapper's allocation. This link is a timing heuristic;
-unknown calls, invalid timing or overlapping wrappers keep `exec` (or `wait`).
-Each wrapper output contributes once, regardless of its number of children.
-
-Children are weighted by decoded UTF-8 output-text bytes: formatted command
-output (falling back to aggregate output or stdout/stderr), patch stdout/stderr,
-and text-only MCP or dynamic-tool results. Arguments, patch diffs, JSON envelope
-keys and duplicate output fields do not contribute. If any size is unavailable
-(including structured or non-text results), or all outputs are empty, children
-split evenly. Rounding preserves the wrapper's exact allocation; the `calls`
-column counts the nested calls, not an additional wrapper call.
-
-This is a heuristic, not exact per-tool token usage. A wrapper can filter,
-combine or discard child output, and byte lengths are not tokenizer counts.
-No output text is retained or exported, and session token and cost totals are
-unchanged.
 
 **Cost.** Every response re-reads the whole context, so each source's tokens
 are charged at every response that read them, at that response's own prompt
@@ -95,14 +80,59 @@ compaction; nothing else shrinks it by that much. Thinking blocks a harness
 drops between turns shrink it by less, and that shrink is taken off the
 `prompts & replies` row, whose replies they were.
 
-**What it cannot see.** A model with no price shows tokens and a `-` for
-cost. OpenCode records one cost per reply rather than one per kind of token, so
-for an OpenCode row the price table divides that figure between input, cache
-and output, and the rows add up to OpenCode's own prompt-side share; a model the
-table does not price gets tokens only. And the split is
-per response, so two tools answered together are assumed the same size; if that
-matters, the `agent-top trace` export has each call's duration, which is often
-a fair proxy.
+**What it cannot see.** A model with no price shows tokens and a `-` for cost.
+And the split is per response, so two tools answered together are assumed the
+same size; if that matters, the `agent-top trace` export has each call's
+duration, which is often a fair proxy.
+
+### By harness
+
+Only what differs. Where a harness is not named here, the rules above apply as
+written.
+
+**Codex response ordering.** Some versions log tool results before the usage
+of the response that requested them. Those results wait for the following,
+consuming response; they do not receive the initial prompt's tokens. Repeated
+usage snapshots do not consume queued results or add cost.
+
+**Codex code mode.** Nested-tool output sizes provide relative weights, not
+additional tokens. Recognised nested tools whose timing fits entirely inside
+one wrapper share that wrapper's allocation. This link is a timing heuristic;
+unknown calls, invalid timing or overlapping wrappers keep `exec` (or `wait`).
+Each wrapper output contributes once, regardless of its number of children.
+
+Children are weighted by decoded UTF-8 output-text bytes: formatted command
+output (falling back to aggregate output or stdout/stderr), patch stdout/stderr,
+and text-only MCP or dynamic-tool results. Arguments, patch diffs, JSON envelope
+keys and duplicate output fields do not contribute. If any size is unavailable
+(including structured or non-text results), or all outputs are empty, children
+split evenly. Rounding preserves the wrapper's exact allocation; the `calls`
+column counts the nested calls, not an additional wrapper call.
+
+This is a heuristic, not exact per-tool token usage. A wrapper can filter,
+combine or discard child output, and byte lengths are not tokenizer counts.
+No output text is retained or exported, and session token and cost totals are
+unchanged.
+
+**OpenCode.** It records one cost per reply rather than one per kind of token,
+so the price table divides that figure between input, cache and output, and the
+rows add up to OpenCode's own prompt-side share. A model the table does not
+price gets tokens only.
+
+**Kodelet.** It records cumulative usage rather than per-response usage, so
+there is no ledger to build and the `context` section is empty for its rows.
+Its Responses input counter includes cache reads; the adapter separates those
+once, while Chat Completions and Anthropic input counters already exclude them.
+Child sessions contribute their own usage once, never both separately and
+folded into a parent.
+
+Its tool count is a lower bound. Compaction removes previous calls and results
+without keeping a lifetime counter, so each distinct retained or observed call
+ID counts once, including failures, and child calls stay on the child's row.
+The live tracker remembers observed IDs across compactions, but a cold start or
+an export cannot restore deleted history. For forks, only completed results
+whose timestamps establish new work are counted, not pending calls that may
+have been inherited.
 
 ## If the cost does not match your harness
 

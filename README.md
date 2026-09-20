@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust 2024](https://img.shields.io/badge/rust-edition%202024-orange.svg)](Cargo.toml)
 
-`agent-top` is a terminal dashboard for the coding agents running on your machine. It reads the transcripts the harnesses already write and the process table the OS already keeps, then shows every Claude Code, Codex, Gemini CLI and OpenCode session in one place: what each one is doing, how many tokens and dollars it has spent, and which helper processes it has left behind.
+`agent-top` is a terminal dashboard for the coding agents running on your machine. It reads the transcripts the harnesses already write and the process table the OS already keeps, then shows every Claude Code, Codex, Gemini CLI, OpenCode and Kodelet session in one place: what each one is doing, how many tokens and dollars it has spent, and which helper processes it has left behind.
 
 Coding agents have become long-running processes, and you tend to keep several at once, each in its own window with its own cost and its own leaks. No single harness shows them together. `agent-top` does, the way `htop` does it for processes and `btop` for the whole machine. At a glance you can see which agent is burning tokens, which is waiting on you, and which MCP server is still alive after the agent that started it died.
 
@@ -20,8 +20,8 @@ Coding agents have become long-running processes, and you tend to keep several a
 
 ## Key features
 
-- **[Every harness in one view](https://agenttop.dev/live-view/).** Claude Code, Codex, Gemini CLI and OpenCode sessions in a single table, live or recently stopped, so you never tab between four tools to see what is running.
-- **[Real tokens and cost](https://agenttop.dev/accounting/).** Counted from the harness's own transcript, never estimated, and priced from a table you can read and edit (Anthropic, OpenAI and Google list prices). Codex subagent sessions are grouped by their recorded parent, with usage kept separate.
+- **[Every harness in one view](https://agenttop.dev/live-view/).** Claude Code, Codex, Gemini CLI, OpenCode and Kodelet sessions in a single table, live or recently stopped, so you never tab between tools to see what is running.
+- **[Real tokens and cost](https://agenttop.dev/accounting/).** Counted from the harness's own transcript, never estimated, and priced from a table you can read and edit (Anthropic, OpenAI and Google list prices), or from OpenCode's and Kodelet's recorded costs. Codex and Kodelet child sessions are grouped by their recorded parent, with usage kept separate.
 - **[`agent-top report`](#what-it-all-costs-agent-top-report).** What all of it has cost, across every harness, from the transcripts on disk, grouped by harness, model, project or day. The one place that adds your agent spend up together.
 - **MCP leak detection.** One row per MCP server with its call count, and orphaned servers, a memory leak agent-top watches for on every tick, flagged in red with the agent they were orphaned from.
 - **[Context by source](https://agenttop.dev/accounting/#context-by-source).** Which tool's results are filling the prompt, and what re-reading them on every response since has cost: a `Read` that returned 40k tokens is billed again on every turn for the rest of the session, and no harness shows that. Computed from the usage records. The one thing taken from a tool result is its length, for Codex code mode, and no output text is kept.
@@ -69,7 +69,7 @@ AGENT_TOP_NO_UPDATE_CHECK=1   # env var: disable the daily update check entirely
 | 🔢&nbsp;**TOKENS** | input + cache read + cache write + output, from the harness's own transcript |
 | 💰&nbsp;**COST** | USD at list price, from [the price table](#prices). `+` or `≥` means some tokens had no known price and the number is a floor; `n/a` means none of them did |
 | 🖥️&nbsp;**CPU%&nbsp;/&nbsp;MEM** | summed over the agent's whole process tree |
-| 🔧&nbsp;**TOOLS** | tool calls in the session |
+| 🔧&nbsp;**TOOLS** | tool calls in the session, including failures; `≥` marks a lower bound from retained/observed history |
 | 🧩&nbsp;**PROCS&nbsp;/&nbsp;MCP** | processes in the tree, and how many of them look like Model Context Protocol servers |
 | ⏱️&nbsp;**AGE** | process age, or time since the last transcript write for stopped sessions |
 
@@ -314,7 +314,7 @@ one case where agent-top sends one itself, because you gave it the address.
 The live table is one moment. `agent-top report` reads the transcripts already
 on disk and totals cost and tokens over a window you choose, grouped by
 harness, model, project or day. It is the one place that adds Claude, Codex,
-Gemini and OpenCode into a single figure, priced the same way, so "what has all
+Gemini, OpenCode and Kodelet into a single figure, using each harness's accounting, so "what has all
 of this cost me, together" finally has an answer. Nothing is written and
 nothing leaves the machine; it reads the same files the live view does.
 
@@ -401,12 +401,19 @@ not a bill.
 
 ## Supported harnesses
 
+One adapter per harness, each producing the same row, so the table, the report,
+the trace and the snapshot look the same whichever tool wrote the transcript.
+[Harness support](https://agenttop.dev/harnesses/) has how each one is
+attributed, how its MCP calls are counted, and what happens when a format
+drifts.
+
 | Harness | Discovery | Tokens and cost | State |
 |---|---|---|---|
 | Claude Code | process table + `~/.claude/sessions/<pid>.json` (exact) | transcript usage, priced per model, subagent transcripts folded into their parent | harness-reported |
 | Codex CLI / app-server | process table + the rollout files the process holds open (exact on macOS and Linux; `cwd` heuristic elsewhere) | transcript usage, priced per model (OpenAI list prices) | transcript events |
 | Gemini CLI | process table + `cwd` heuristic (the CLI keeps no registry and does not hold its transcript open) | transcript usage, priced per model, subagent transcripts folded into their parent | transcript events |
 | OpenCode | process table + `cwd` heuristic; reads its SQLite session store read-only | tokens and OpenCode's own computed cost, subagent sessions folded into their parent | transcript times |
+| Kodelet | process table + Kodelet's own runner and turn records, matched on host, pid and heartbeat (exact); `cwd` heuristic otherwise; reads its SQLite store read-only | cumulative tokens and Kodelet's own recorded cost; child sessions keep their own usage under their parent; tool count is a lower bound | run and turn receipts |
 | Aider, Copilot CLI, cursor-agent | process table only | not yet | CPU heuristic |
 
 ## Install

@@ -454,7 +454,15 @@ impl OpenCodeTranscript {
 
         // The parent row plus every subagent row (parent_id = this session),
         // so the fold is one query.
-        let mut summary = SessionSummary { harness: Some(Harness::OpenCode), spans: retention.log(), ..Default::default() };
+        // `cost` below is OpenCode's own figure for every row, so the price
+        // table never sets this session's cost and must not be named as its
+        // source.
+        let mut summary = SessionSummary {
+            harness: Some(Harness::OpenCode),
+            price_source: Some(crate::model::PriceSource::Harness),
+            spans: retention.log(),
+            ..Default::default()
+        };
         let mut ids: Vec<(String, bool)> = Vec::new(); // (session id, is subagent)
         {
             let sql = "SELECT id, directory, agent, model, cost, tokens_input, tokens_output, tokens_reasoning, \
@@ -469,6 +477,7 @@ impl OpenCodeTranscript {
                 ids.push((row_id.clone(), is_sub));
 
                 let usage = TokenUsage {
+                    cache_write_unsplit: 0,
                     input: r.get::<_, i64>(5)? as u64,
                     output: (r.get::<_, i64>(6)? + r.get::<_, i64>(7)?) as u64, // output + reasoning
                     cache_read: r.get::<_, i64>(8)? as u64,
@@ -753,6 +762,7 @@ fn context_ledger(conn: &Connection, session_id: &str, servers: &[String]) -> ru
     while let Some(r) = rows.next()? {
         let id: String = r.get(0)?;
         let usage = TokenUsage {
+            cache_write_unsplit: 0,
             input: n(r.get(1)?),
             output: n(r.get(2)?) + n(r.get(3)?),
             cache_read: n(r.get(4)?),
@@ -794,6 +804,7 @@ fn scaled(b: CostBreakdown, total: f64) -> CostBreakdown {
         input: b.input * k,
         cache_write_5m: b.cache_write_5m * k,
         cache_write_1h: b.cache_write_1h * k,
+        cache_write_unsplit: b.cache_write_unsplit * k,
         cache_read: b.cache_read * k,
         output: b.output * k,
         web_search: b.web_search * k,
@@ -910,6 +921,11 @@ mod tests {
         // OpenCode's own cost, parent + subagent, used directly.
         assert!((s.cost_usd - 0.30).abs() < 1e-9, "{}", s.cost_usd);
         assert_eq!(s.unpriced_tokens, 0, "OpenCode prices its own session");
+        assert_eq!(
+            s.price_source,
+            Some(crate::model::PriceSource::Harness),
+            "the cost came from OpenCode, so no price table may be named as its source"
+        );
         assert_eq!(s.turns, 3, "two assistant turns in the parent, one in the subagent");
         assert_eq!(s.subagent_turns, 1);
         assert_eq!(s.tool_calls, 3);

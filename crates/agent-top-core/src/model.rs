@@ -12,6 +12,7 @@ pub enum Harness {
     Codex,
     Gemini,
     OpenCode,
+    Kodelet,
     Aider,
     Copilot,
     Cursor,
@@ -25,10 +26,29 @@ impl Harness {
             Harness::Codex => "codex",
             Harness::Gemini => "gemini",
             Harness::OpenCode => "opencode",
+            Harness::Kodelet => "kodelet",
             Harness::Aider => "aider",
             Harness::Copilot => "copilot",
             Harness::Cursor => "cursor",
             Harness::Unknown => "unknown",
+        }
+    }
+
+    /// How much of a session id identifies it to `agent-top trace --session`,
+    /// which matches a prefix against the ids of every harness and fails when
+    /// one matches more than one session. `None` means the whole id is needed:
+    /// Kodelet's begin with a date that every session started that day shares.
+    pub fn session_id_prefix_len(self) -> Option<usize> {
+        match self {
+            Harness::Kodelet => None,
+            Harness::Claude
+            | Harness::Codex
+            | Harness::Gemini
+            | Harness::OpenCode
+            | Harness::Aider
+            | Harness::Copilot
+            | Harness::Cursor
+            | Harness::Unknown => Some(8),
         }
     }
 }
@@ -74,13 +94,19 @@ pub struct TokenUsage {
     pub input: u64,
     pub cache_write_5m: u64,
     pub cache_write_1h: u64,
+    /// Cache creation a harness recorded without the TTL that decides its
+    /// rate. No price table can cover it: charging either TTL's rate would be
+    /// a guess about a lifetime nobody wrote down. Only a harness that reports
+    /// its own costs can put a number against these tokens.
+    #[serde(default)]
+    pub cache_write_unsplit: u64,
     pub cache_read: u64,
     pub output: u64,
 }
 
 impl TokenUsage {
     pub fn cache_write(&self) -> u64 {
-        self.cache_write_5m + self.cache_write_1h
+        self.cache_write_5m + self.cache_write_1h + self.cache_write_unsplit
     }
 
     /// Everything the model consumed or produced. This is the "TOKENS" column.
@@ -108,6 +134,7 @@ impl TokenUsage {
         self.input += other.input;
         self.cache_write_5m += other.cache_write_5m;
         self.cache_write_1h += other.cache_write_1h;
+        self.cache_write_unsplit += other.cache_write_unsplit;
         self.cache_read += other.cache_read;
         self.output += other.output;
     }
@@ -116,6 +143,7 @@ impl TokenUsage {
         self.input = self.input.saturating_sub(other.input);
         self.cache_write_5m = self.cache_write_5m.saturating_sub(other.cache_write_5m);
         self.cache_write_1h = self.cache_write_1h.saturating_sub(other.cache_write_1h);
+        self.cache_write_unsplit = self.cache_write_unsplit.saturating_sub(other.cache_write_unsplit);
         self.cache_read = self.cache_read.saturating_sub(other.cache_read);
         self.output = self.output.saturating_sub(other.output);
     }
@@ -403,7 +431,7 @@ pub struct Agent {
     /// tool's can be traced to the one line that differs.
     #[serde(default)]
     pub cost_breakdown: CostBreakdown,
-    /// Where the price of this row's model came from; `None` when it has none.
+    /// Where this row's costs came from; `None` when it has no known price.
     #[serde(default)]
     pub price_source: Option<PriceSource>,
     /// Tokens on messages whose model had no known price (so `cost_usd` is a floor).
@@ -411,6 +439,10 @@ pub struct Agent {
     pub turns: u64,
     pub subagent_turns: u64,
     pub tool_calls: u64,
+    /// The count is only known retained/observed calls, not an exact lifetime
+    /// total. Kodelet compaction discards old calls without a cumulative count.
+    #[serde(default)]
+    pub tool_calls_lower_bound: bool,
     /// Server-side web searches the model ran, billed per search on top of
     /// tokens. Counted for every harness; priced only where the price table
     /// has a rate (Anthropic's, for Claude Code).
@@ -499,6 +531,10 @@ pub struct CostBreakdown {
     pub input: f64,
     pub cache_write_5m: f64,
     pub cache_write_1h: f64,
+    /// What a harness recorded against `TokenUsage::cache_write_unsplit`.
+    /// Always zero when the cost came from a price table.
+    #[serde(default)]
+    pub cache_write_unsplit: f64,
     pub cache_read: f64,
     pub output: f64,
     /// Server-side web searches, billed per search on top of the tokens.
@@ -507,13 +543,14 @@ pub struct CostBreakdown {
 
 impl CostBreakdown {
     pub fn total(&self) -> f64 {
-        self.input + self.cache_write_5m + self.cache_write_1h + self.cache_read + self.output + self.web_search
+        self.input + self.cache_write_5m + self.cache_write_1h + self.cache_write_unsplit + self.cache_read + self.output + self.web_search
     }
 
     pub fn add(&mut self, o: &CostBreakdown) {
         self.input += o.input;
         self.cache_write_5m += o.cache_write_5m;
         self.cache_write_1h += o.cache_write_1h;
+        self.cache_write_unsplit += o.cache_write_unsplit;
         self.cache_read += o.cache_read;
         self.output += o.output;
         self.web_search += o.web_search;
@@ -523,19 +560,21 @@ impl CostBreakdown {
         self.input -= o.input;
         self.cache_write_5m -= o.cache_write_5m;
         self.cache_write_1h -= o.cache_write_1h;
+        self.cache_write_unsplit -= o.cache_write_unsplit;
         self.cache_read -= o.cache_read;
         self.output -= o.output;
         self.web_search -= o.web_search;
     }
 }
 
-/// Where a model's price came from. The built-in table carries list prices;
-/// a user's file is whatever they chose to write, and the UI says which.
+/// Where costs came from: list prices, a user's price file, or the harness's
+/// own recorded accounting. The UI says which rather than implying a bill.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PriceSource {
     Builtin,
     UserFile,
+    Harness,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -707,12 +746,12 @@ mod usage_tests {
 
     #[test]
     fn cache_hit_rate_is_reads_over_the_prompt() {
-        let u = TokenUsage { input: 200, cache_read: 800, cache_write_5m: 0, cache_write_1h: 0, output: 50 };
+        let u = TokenUsage { input: 200, cache_read: 800, output: 50, ..Default::default() };
         // Prompt is 1000 (output excluded); 800 of it from cache.
         assert_eq!(u.prompt(), 1000);
         assert!((u.cache_hit_rate().unwrap() - 0.8).abs() < 1e-9);
         // A cache write counts as prompt input, not as a hit.
-        let u = TokenUsage { input: 100, cache_read: 0, cache_write_5m: 900, cache_write_1h: 0, output: 0 };
+        let u = TokenUsage { input: 100, cache_write_5m: 900, ..Default::default() };
         assert_eq!(u.cache_hit_rate(), Some(0.0));
         // Nothing to judge.
         assert_eq!(TokenUsage::default().cache_hit_rate(), None);

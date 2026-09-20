@@ -704,6 +704,8 @@ fn parse_usage(u: &Value) -> TokenUsage {
         input: g("input_tokens"),
         cache_write_5m: w5m,
         cache_write_1h: w1h,
+        // Claude Code records the TTL, so nothing is ever unsplit here.
+        cache_write_unsplit: 0,
         cache_read: g("cache_read_input_tokens"),
         output: g("output_tokens"),
     }

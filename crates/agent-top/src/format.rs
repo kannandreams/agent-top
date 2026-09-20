@@ -148,6 +148,11 @@ pub fn short_cmd(node: &ProcNode, width: usize) -> String {
     s
 }
 
+/// A known lower bound must not look like an exact lifetime total.
+pub fn tool_calls(a: &Agent) -> String {
+    if a.tool_calls_lower_bound { format!("≥{}", a.tool_calls) } else { a.tool_calls.to_string() }
+}
+
 /// Plain table for `--once` and for non-tty use.
 pub fn plain_table(snap: &Snapshot) -> String {
     let mut out = String::new();
@@ -169,7 +174,7 @@ pub fn plain_table(snap: &Snapshot) -> String {
             cost(a),
             cpu_cell(a),
             mem_cell(a),
-            a.tool_calls,
+            tool_calls(a),
             if a.shares_process { "·".into() } else { a.process_count.to_string() },
             a.mcp_count,
             age(a.age_secs),

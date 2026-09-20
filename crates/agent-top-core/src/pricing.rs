@@ -40,6 +40,11 @@ impl Price {
             input: usage.input as f64 * self.input / M,
             cache_write_5m: usage.cache_write_5m as f64 * self.cache_write_5m / M,
             cache_write_1h: usage.cache_write_1h as f64 * self.cache_write_1h / M,
+            // `cache_write_unsplit` has no rate here and never gets one: the
+            // TTL that picks between the two above was not recorded. A harness
+            // that sets it either reports its own cost or counts the tokens as
+            // unpriced, so that the total is shown as a floor.
+            cache_write_unsplit: 0.0,
             cache_read: usage.cache_read as f64 * self.cache_read / M,
             output: usage.output as f64 * self.output / M,
             web_search: 0.0,
@@ -273,6 +278,21 @@ mod tests {
         assert_eq!(t.lookup("gemini-2.5-pro").unwrap().cache_write_1h, 1.25);
         assert_eq!(t.lookup("gemini-3.1-pro-preview").unwrap().input, 2.0);
         assert!(t.lookup("<synthetic>").is_none());
+    }
+
+    #[test]
+    fn a_write_with_no_recorded_ttl_is_never_priced_from_the_table() {
+        let t = builtin();
+        let p = t.lookup("claude-sonnet-5").unwrap();
+        // The two rates below differ, and the TTL is what chooses between
+        // them, so a write that never recorded one cannot be charged either.
+        assert_ne!(p.cache_write_5m, p.cache_write_1h);
+        let u = TokenUsage { cache_write_unsplit: 1_000_000, ..Default::default() };
+        assert_eq!(p.cost(&u), 0.0);
+        assert_eq!(p.breakdown(&u).cache_write_unsplit, 0.0);
+        // A recorded TTL still prices as before.
+        let u = TokenUsage { cache_write_5m: 1_000_000, ..Default::default() };
+        assert!(p.cost(&u) > 0.0);
     }
 
     #[test]
