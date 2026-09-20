@@ -5,12 +5,14 @@
     "cache_read": 40,
     "cache_write_1h": 0,
     "cache_write_5m": 0,
+    "cache_write_unsplit": 0,
     "input": 600,
     "output": 360,
     "web_search": 0
   },
   "cost_usd_micros": 1000,
   "cwd": "/tmp/p",
+  "folds_child_usage": false,
   "harness_version": "0.152.0",
   "last_activity_ms": 1788602411000,
   "mcp": [
@@ -26,6 +28,7 @@
     }
   ],
   "model": "gpt-5.6-luna",
+  "price_source": null,
   "rate_limit": null,
   "session_id": "01000000-0000-7000-0000-0000000000mc",
   "spans": {
@@ -104,12 +107,14 @@
   "started_at_ms": 1788602400000,
   "subagent_turns": 0,
   "tool_calls": 3,
+  "tool_calls_lower_bound": false,
   "turns": 1,
   "unpriced_tokens": 0,
   "usage": {
     "cache_read": 2000,
     "cache_write_1h": 0,
     "cache_write_5m": 0,
+    "cache_write_unsplit": 0,
     "input": 3000,
     "output": 300,
     "total": 5300

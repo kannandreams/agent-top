@@ -47,6 +47,7 @@ fn describe(s: &SessionSummary) -> Value {
             "input": u.input,
             "cache_write_5m": u.cache_write_5m,
             "cache_write_1h": u.cache_write_1h,
+            "cache_write_unsplit": u.cache_write_unsplit,
             "cache_read": u.cache_read,
             "output": u.output,
             "total": u.total(),
@@ -56,14 +57,21 @@ fn describe(s: &SessionSummary) -> Value {
             "input": (s.cost_breakdown.input * 1_000_000.0).round() as i64,
             "cache_write_5m": (s.cost_breakdown.cache_write_5m * 1_000_000.0).round() as i64,
             "cache_write_1h": (s.cost_breakdown.cache_write_1h * 1_000_000.0).round() as i64,
+            "cache_write_unsplit": (s.cost_breakdown.cache_write_unsplit * 1_000_000.0).round() as i64,
             "cache_read": (s.cost_breakdown.cache_read * 1_000_000.0).round() as i64,
             "output": (s.cost_breakdown.output * 1_000_000.0).round() as i64,
             "web_search": (s.cost_breakdown.web_search * 1_000_000.0).round() as i64,
         },
         "unpriced_tokens": s.unpriced_tokens,
+        // How much to trust the numbers above, which no recorded total
+        // reflects: where the cost came from, whether the tool count is a
+        // floor, whether a child's usage is inside these figures.
+        "price_source": s.price_source,
         "turns": s.turns,
         "subagent_turns": s.subagent_turns,
+        "folds_child_usage": s.folds_child_usage,
         "tool_calls": s.tool_calls,
+        "tool_calls_lower_bound": s.tool_calls_lower_bound,
         "web_searches": s.web_searches,
         "rate_limit": s.rate_limit.as_ref().map(|rl| json!({
             "plan": rl.plan,
