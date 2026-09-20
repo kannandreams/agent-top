@@ -4,7 +4,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Highlights
+Kodelet sessions now appear in the table alongside Claude Code, Codex, Gemini CLI and OpenCode. agent-top reads Kodelet's SQLite store read-only and uses the costs Kodelet recorded itself, and child sessions nest under the parent that started them.
+
+### Added
+- Kodelet: sessions in the table, the report and the trace, with tokens and cost from Kodelet's own records and child sessions nested under their parent. ([#47](https://github.com/kannandreams/agent-top/pull/47))
+- `TOOLS` shows `≥N` where a harness has compacted its history and the count is a floor; `--json` gains `tool_calls_lower_bound`. ([#47](https://github.com/kannandreams/agent-top/pull/47))
+- `--json` gains `cache_write_unsplit` on `usage` and `cost_breakdown`, for cache writes a harness records without a TTL. ([#47](https://github.com/kannandreams/agent-top/pull/47))
+
 ### Fixed
+- OpenCode and Kodelet rows no longer name agent-top's price table as the source of a cost the harness recorded itself. ([#47](https://github.com/kannandreams/agent-top/pull/47))
 - `trace -o` no longer prints the session id in its stderr summary. ([#46](https://github.com/kannandreams/agent-top/pull/46))
 
 ## [0.19.1] - 2026-09-19
