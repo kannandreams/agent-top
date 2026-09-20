@@ -44,6 +44,7 @@
    "unpriced_tokens": 0,
    "turns": 34,
    "subagent_turns": 6,
+   "folds_child_usage": true,
    "tool_calls": 128,
    "web_searches": 2,
    "spans": [
@@ -548,6 +549,7 @@
    "unpriced_tokens": 0,
    "turns": 11,
    "subagent_turns": 2,
+   "folds_child_usage": true,
    "tool_calls": 37,
    "web_searches": 0,
    "spans": [
@@ -792,6 +794,7 @@
    "unpriced_tokens": 0,
    "turns": 22,
    "subagent_turns": 0,
+   "folds_child_usage": false,
    "tool_calls": 91,
    "web_searches": 0,
    "spans": [
@@ -1071,6 +1074,7 @@
    "unpriced_tokens": 0,
    "turns": 7,
    "subagent_turns": 0,
+   "folds_child_usage": false,
    "tool_calls": 23,
    "web_searches": 0,
    "spans": [
@@ -1237,6 +1241,7 @@
    "unpriced_tokens": 0,
    "turns": 2,
    "subagent_turns": 0,
+   "folds_child_usage": false,
    "tool_calls": 5,
    "web_searches": 0,
    "spans": [
@@ -1355,6 +1360,7 @@
    "unpriced_tokens": 0,
    "turns": 4,
    "subagent_turns": 0,
+   "folds_child_usage": true,
    "tool_calls": 9,
    "web_searches": 0,
    "spans": [
@@ -1550,6 +1556,7 @@
    "unpriced_tokens": 0,
    "turns": 9,
    "subagent_turns": 0,
+   "folds_child_usage": true,
    "tool_calls": 27,
    "web_searches": 0,
    "spans": [
@@ -1765,6 +1772,7 @@
    "unpriced_tokens": 0,
    "turns": 15,
    "subagent_turns": 0,
+   "folds_child_usage": true,
    "tool_calls": 44,
    "web_searches": 0,
    "spans": [
@@ -1899,6 +1907,7 @@
    "unpriced_tokens": 0,
    "turns": 19,
    "subagent_turns": 0,
+   "folds_child_usage": true,
    "tool_calls": 71,
    "web_searches": 0,
    "spans": [],
