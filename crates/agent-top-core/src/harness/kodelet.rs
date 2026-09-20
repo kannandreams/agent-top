@@ -16,6 +16,10 @@
 //!   counter. Retained/observed calls therefore provide only a lower bound.
 //! * Tool-result timestamps mark completion; `metadata.executionTime` is in
 //!   nanoseconds. Per-response usage and message timestamps are not persisted.
+//! * An MCP call is an ordinary tool named `mcp__<server>_<tool>`
+//!   (`sdk/src/extensions/mcp/register.ts`, `extensionToolName`, read on
+//!   2026-09-20). Taken from that registration rather than a live session, as
+//!   no Kodelet install was to hand; the split is unit-tested, not golden.
 
 mod subagent;
 
@@ -555,9 +559,26 @@ fn accounting(usage: &Value, responses: bool, summary: &mut SessionSummary) {
     summary.price_source = Some(PriceSource::Harness);
 }
 
+/// The server behind a Kodelet MCP tool name.
+///
+/// Kodelet registers an MCP tool as `mcp__<server>_<tool>`: a double
+/// underscore after the prefix, a single one before the tool
+/// (`sdk/src/extensions/mcp/register.ts`, `extensionToolName`). So the
+/// boundary between server and tool is the first underscore after the prefix,
+/// and a server whose own name contains one is split the same way Kodelet
+/// splits it, which keeps the grouping consistent with what the harness shows.
+pub fn mcp_server_of(tool_name: &str) -> Option<&str> {
+    let rest = tool_name.strip_prefix("mcp__")?;
+    let server = rest.split_once('_').map(|(a, _)| a).unwrap_or(rest);
+    if server.is_empty() { None } else { Some(server) }
+}
+
 fn read_tools(conn: &Connection, id: &str, fork: bool, summary: &mut SessionSummary) -> anyhow::Result<HashMap<String, bool>> {
     let mut seen = HashMap::new();
     let mut spans = Vec::new();
+    // (name, failed, completed at), by call id, so the fold below counts a
+    // call once however many places recorded it.
+    let mut calls: HashMap<String, (String, bool, Option<SystemTime>)> = HashMap::new();
     let mut stmt = conn.prepare("SELECT t.key, json_extract(t.value, '$.toolName'), json_extract(t.value, '$.timestamp'), json_extract(t.value, '$.success'), json_extract(t.value, '$.metadata.executionTime') FROM conversations c, json_each(CAST(c.tool_results AS TEXT)) t WHERE c.id = ?1 AND t.type = 'object'")?;
     let rows = stmt.query_map([id], |r| {
         Ok((
@@ -578,6 +599,7 @@ fn read_tools(conn: &Connection, id: &str, fork: bool, summary: &mut SessionSumm
             continue;
         }
         seen.insert(call_id.clone(), name == "openai_web_search");
+        calls.insert(call_id.clone(), (name.clone(), success == Some(false), ended));
         if let Some(end) = ended {
             let duration = Duration::from_nanos(nanos.unwrap_or(0).max(0) as u64);
             let start = end.checked_sub(duration).unwrap_or(end);
@@ -604,9 +626,21 @@ fn read_tools(conn: &Connection, id: &str, fork: bool, summary: &mut SessionSumm
         let rows = stmt.query_map([id], |r| Ok((r.get::<_, Option<String>>(0)?, r.get::<_, Option<String>>(1)?)))?;
         for (call_id, name) in rows.flatten() {
             if let Some(call_id) = call_id.filter(|s| !s.is_empty()) {
-                seen.entry(call_id).or_insert(name.as_deref() == Some("openai_web_search"));
+                seen.entry(call_id.clone()).or_insert(name.as_deref() == Some("openai_web_search"));
+                // No result was recorded for these, so nothing is known about
+                // whether they failed or when they finished.
+                if let Some(name) = name.filter(|s| !s.is_empty()) {
+                    calls.entry(call_id).or_insert((name, false, None));
+                }
             }
         }
+    }
+    for (name, failed, ended) in calls.into_values() {
+        let Some(server) = mcp_server_of(&name) else { continue };
+        let u = summary.mcp.entry(server.to_string()).or_default();
+        u.calls += 1;
+        u.errors += u64::from(failed);
+        u.last_call = u.last_call.max(ended);
     }
     Ok(seen)
 }
@@ -793,6 +827,48 @@ mod tests {
             assert_eq!(summary.last_activity, timestamp(UPDATED));
             assert!(summary.context.is_empty(), "cumulative usage cannot reconstruct per-response context");
         }
+    }
+
+    #[test]
+    fn names_the_server_behind_a_kodelet_mcp_tool() {
+        assert_eq!(mcp_server_of("mcp__filesystem_read_text_file"), Some("filesystem"));
+        assert_eq!(mcp_server_of("mcp__chrome-devtools_take_screenshot"), Some("chrome-devtools"));
+        // One underscore separates server from tool, so a server whose name
+        // has one is split Kodelet's way, not ours.
+        assert_eq!(mcp_server_of("mcp__google_workspace_search"), Some("google"));
+        assert_eq!(mcp_server_of("bash"), None);
+        assert_eq!(mcp_server_of("mcp__"), None);
+        // Claude's shape is not Kodelet's: the tool half keeps its underscores.
+        assert_eq!(mcp_server_of("mcp__scratchfs__read_text_file"), Some("scratchfs"));
+    }
+
+    #[test]
+    fn counts_mcp_calls_per_server_including_the_ones_that_failed() {
+        let fixture = Fixture::new();
+        fixture.insert(
+            "mcp",
+            "anthropic",
+            json!({"model":"claude-sonnet-5"}),
+            usage(),
+            json!([]),
+            json!({
+                "c1": {"toolName":"mcp__scratchfs_read_text_file","success":true,"timestamp":"2026-09-19T10:00:01Z"},
+                "c2": {"toolName":"mcp__scratchfs_write_file","success":false,"timestamp":"2026-09-19T10:00:09Z"},
+                "c3": {"toolName":"mcp__node-repl_eval","success":true,"timestamp":"2026-09-19T10:00:05Z"},
+                "c4": {"toolName":"bash","success":true,"timestamp":"2026-09-19T10:00:07Z"}
+            }),
+        );
+        let mut tracker = fixture.tracker("mcp");
+        tracker.refresh_all().unwrap();
+        let s = tracker.summary();
+
+        let fs = s.mcp.get("scratchfs").expect("the server is named by the tool");
+        assert_eq!((fs.calls, fs.errors), (2, 1));
+        assert_eq!(fs.last_call, timestamp("2026-09-19T10:00:09Z"), "the latest call, not the latest success");
+        let repl = s.mcp.get("node-repl").unwrap();
+        assert_eq!((repl.calls, repl.errors), (1, 0));
+        assert!(!s.mcp.contains_key("bash"), "an ordinary tool is not a server");
+        assert_eq!(s.tool_calls, 4, "MCP calls are tool calls too, counted once");
     }
 
     #[test]
