@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-09-20
+
 ### Added
 - Kodelet: MCP call counts per server, with errors, read from its `mcp__<server>_<tool>` tool names. ([#52](https://github.com/kannandreams/agent-top/pull/52))
 
