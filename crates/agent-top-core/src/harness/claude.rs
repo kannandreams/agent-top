@@ -319,7 +319,7 @@ impl Parser {
     fn new(path: impl Into<PathBuf>, spans: SpanRetention) -> Self {
         Parser {
             reader: TailReader::new(path),
-            summary: SessionSummary { harness: Some(Harness::Claude), spans: spans.log(), ..Default::default() },
+            summary: SessionSummary { harness: Some(Harness::Claude), folds_child_usage: true, spans: spans.log(), ..Default::default() },
             last_msg_id: None,
             last_contrib: Contrib::default(),
             inference: None,
@@ -605,7 +605,7 @@ impl ClaudeTranscript {
             subagents: BTreeMap::new(),
             prices: pricing::table(),
             retention,
-            summary: SessionSummary { harness: Some(Harness::Claude), ..Default::default() },
+            summary: SessionSummary { harness: Some(Harness::Claude), folds_child_usage: true, ..Default::default() },
         }
     }
 
@@ -957,6 +957,7 @@ mod tests {
         assert_eq!(s.usage.total(), 1210);
         assert_eq!(s.turns, 2);
         assert_eq!(s.subagent_turns, 1);
+        assert!(s.folds_child_usage, "a child's usage is inside this summary, so the share is worth breaking out");
         assert_eq!(s.tool_calls, 2);
         // opus-5: 1000*5 + 100*25 = 7500 micro-dollars, on top of the parent's 300
         assert!((s.cost_usd - 0.007800).abs() < 1e-9, "{}", s.cost_usd);

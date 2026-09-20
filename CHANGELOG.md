@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+- The detail pane's `context` section marks its figures as estimates, which `--once` already did. ([#49](https://github.com/kannandreams/agent-top/pull/49))
+- `--json` gains `folds_child_usage`, true for a harness whose child sessions are counted in the parent's totals. ([#49](https://github.com/kannandreams/agent-top/pull/49))
+
 ## [0.20.0] - 2026-09-20
 
 ### Highlights

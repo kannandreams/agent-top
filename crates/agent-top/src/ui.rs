@@ -900,11 +900,10 @@ fn agent_facts(a: &Agent, now: SystemTime, theme: &Theme) -> Text<'static> {
         kv("tokens", tokens(u.total()), theme),
         kv(
             "turns",
-            if matches!(a.harness, agent_top_core::Harness::Codex | agent_top_core::Harness::Kodelet) {
-                a.turns.to_string()
-            } else {
-                format!("{} ({} subagent)", a.turns, a.subagent_turns)
-            },
+            // A row that folded its children in says how much of the count
+            // was theirs. One whose children have rows of their own has
+            // nothing to break out, and "(0 subagent)" would deny they exist.
+            if a.folds_child_usage { format!("{} ({} subagent)", a.turns, a.subagent_turns) } else { a.turns.to_string() },
             theme,
         ),
         kv("tool calls", tool_calls(a), theme),
@@ -1257,7 +1256,7 @@ fn context_by_source(a: &Agent, theme: &Theme) -> Vec<Line<'static>> {
     let mut lines = vec![
         Line::from(vec![
             Span::styled("context", Style::default().fg(theme.accent).bold()),
-            Span::styled("   tokens each tool added to the prompt, and their cost since", Style::default().fg(theme.dim)),
+            Span::styled("   tokens each tool added to the prompt, and their cost since (est.)", Style::default().fg(theme.dim)),
         ]),
         Line::styled(format!("  {:<18} {:>5} {:>7} {:>8}", "source", "calls", "added", "cost"), Style::default().fg(theme.dim)),
     ];
@@ -1528,6 +1527,7 @@ mod tests {
             unpriced_tokens: 0,
             turns: 12,
             subagent_turns: 1,
+            folds_child_usage: true,
             tool_calls: 71,
             tool_calls_lower_bound: false,
             web_searches: 0,
@@ -1576,6 +1576,7 @@ mod tests {
         parent.session_id = Some("session-main".into());
         parent.id = "session-main".into();
         parent.subagent_turns = 0;
+        parent.folds_child_usage = false;
         parent.usage = TokenUsage { input: 100, ..Default::default() };
         parent.rss_bytes = 256 << 20;
         parent.process_count = 1;
@@ -1688,6 +1689,22 @@ mod tests {
         a.session_id = Some("20260919T090026-0123456789abcdef".into());
         let facts = agent_facts(&a, SystemTime::now(), &Theme::new(ThemeMode::Dark, true)).to_string();
         assert!(facts.contains("agent-top trace --session 20260919T090026-0123456789abcdef -o trace.json"), "{facts}");
+    }
+
+    #[test]
+    fn the_subagent_share_is_shown_only_where_children_were_folded_in() {
+        let theme = Theme::new(ThemeMode::Dark, true);
+        let mut a = agent("tuff", Vec::new()); // a Claude row: children fold in
+        a.turns = 12;
+        a.subagent_turns = 3;
+        let facts = agent_facts(&a, SystemTime::now(), &theme).to_string();
+        assert!(facts.contains("12 (3 subagent)"), "{facts}");
+
+        // The same numbers on a harness that gives each child its own row.
+        // "(0 subagent)" there would deny the children that are in the table.
+        a.folds_child_usage = false;
+        let facts = agent_facts(&a, SystemTime::now(), &theme).to_string();
+        assert!(facts.contains("turns") && !facts.contains("subagent)"), "{facts}");
     }
 
     #[test]

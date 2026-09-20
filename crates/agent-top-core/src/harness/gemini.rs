@@ -268,7 +268,7 @@ impl Parser {
     fn new(path: impl Into<PathBuf>, spans: SpanRetention, subagent: bool) -> Self {
         Parser {
             reader: TailReader::new(path),
-            summary: SessionSummary { harness: Some(Harness::Gemini), spans: spans.log(), ..Default::default() },
+            summary: SessionSummary { harness: Some(Harness::Gemini), folds_child_usage: true, spans: spans.log(), ..Default::default() },
             subagent,
             messages: BTreeMap::new(),
             prompts: HashSet::new(),
@@ -557,7 +557,7 @@ impl GeminiTranscript {
             subagents: BTreeMap::new(),
             prices: pricing::table(),
             retention,
-            summary: SessionSummary { harness: Some(Harness::Gemini), ..Default::default() },
+            summary: SessionSummary { harness: Some(Harness::Gemini), folds_child_usage: true, ..Default::default() },
         }
     }
 
@@ -825,6 +825,7 @@ mod tests {
         assert_eq!(s.usage.total(), 165);
         assert_eq!(s.turns, 2);
         assert_eq!(s.subagent_turns, 1);
+        assert!(s.folds_child_usage, "a child's usage is inside this summary, so the share is worth breaking out");
         assert_eq!(s.tool_calls, 1);
         assert_eq!(s.model.as_deref(), Some("gemini-2.5-pro"), "the parent's model, not the subagent's");
         let sidechain: Vec<_> = s.spans.iter().filter(|sp| sp.sidechain).collect();
