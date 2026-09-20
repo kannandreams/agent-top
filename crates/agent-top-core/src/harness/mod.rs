@@ -69,6 +69,10 @@ pub struct SessionSummary {
     pub unpriced_tokens: u64,
     pub turns: u64,
     pub subagent_turns: u64,
+    /// Child sessions are counted in this row's own totals, so the subagent
+    /// share of them is worth breaking out. A harness that gives each child a
+    /// row of its own leaves this false: nothing was folded in to separate.
+    pub folds_child_usage: bool,
     pub tool_calls: u64,
     /// Earlier calls may have been removed from the harness's retained history.
     pub tool_calls_lower_bound: bool,

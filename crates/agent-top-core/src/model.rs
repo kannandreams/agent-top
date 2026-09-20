@@ -438,6 +438,11 @@ pub struct Agent {
     pub unpriced_tokens: u64,
     pub turns: u64,
     pub subagent_turns: u64,
+    /// See `SessionSummary::folds_child_usage`. Claude Code, Gemini CLI and
+    /// OpenCode fold a child's usage into its parent, the way those harnesses
+    /// bill it; Codex and Kodelet give each child its own row instead.
+    #[serde(default)]
+    pub folds_child_usage: bool,
     pub tool_calls: u64,
     /// The count is only known retained/observed calls, not an exact lifetime
     /// total. Kodelet compaction discards old calls without a cumulative count.

@@ -427,7 +427,12 @@ impl OpenCodeTranscript {
             virtual_path: virtual_path.to_path_buf(),
             conn: None,
             retention,
-            summary: SessionSummary { harness: Some(Harness::OpenCode), spans: retention.log(), ..Default::default() },
+            summary: SessionSummary {
+                harness: Some(Harness::OpenCode),
+                folds_child_usage: true,
+                spans: retention.log(),
+                ..Default::default()
+            },
             last_updated: None,
             config: ConfigRoots::detect(),
         }
@@ -459,6 +464,9 @@ impl OpenCodeTranscript {
         // source.
         let mut summary = SessionSummary {
             harness: Some(Harness::OpenCode),
+            // The query below sums the parent and every `parent_id = parent`
+            // row into this one summary.
+            folds_child_usage: true,
             price_source: Some(crate::model::PriceSource::Harness),
             spans: retention.log(),
             ..Default::default()
@@ -928,6 +936,7 @@ mod tests {
         );
         assert_eq!(s.turns, 3, "two assistant turns in the parent, one in the subagent");
         assert_eq!(s.subagent_turns, 1);
+        assert!(s.folds_child_usage, "a child's usage is inside this summary, so the share is worth breaking out");
         assert_eq!(s.tool_calls, 3);
         let tools: Vec<_> = s.spans.iter().filter(|sp| sp.kind == SpanKind::Tool).collect();
         assert_eq!(tools.len(), 3);

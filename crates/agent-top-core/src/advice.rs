@@ -242,6 +242,7 @@ mod tests {
             unpriced_tokens: 0,
             turns: 5,
             subagent_turns: 0,
+            folds_child_usage: false,
             tool_calls: 0,
             tool_calls_lower_bound: false,
             web_searches: 0,
