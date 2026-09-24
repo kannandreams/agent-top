@@ -582,9 +582,15 @@ impl CodexTranscript {
                         }
                     }
                     // The rate-limit snapshot rides on every token_count; the
-                    // latest one is the current state.
+                    // latest one is the current state. Codex also reports other
+                    // quotas by `limit_id` (`premium`, seen since 0.131) that
+                    // can arrive with no windows at all; one of those says
+                    // nothing about the limit and must not blank the last one.
                     if let Some(rl) = payload.and_then(|p| p.get("rate_limits")).filter(|v| v.is_object()) {
-                        self.summary.rate_limit = Some(parse_rate_limits(rl));
+                        let rl = parse_rate_limits(rl);
+                        if rl.primary.is_some() || rl.secondary.is_some() {
+                            self.summary.rate_limit = Some(rl);
+                        }
                     }
                 }
                 "task_started" => {
@@ -734,7 +740,8 @@ impl CodexTranscript {
 fn parse_rate_limits(v: &Value) -> crate::model::RateLimit {
     use crate::model::{RateLimit, RateWindow};
     let window = |w: Option<&Value>| -> Option<RateWindow> {
-        let w = w?;
+        // `"primary": null` is a missing window, not an empty one.
+        let w = w.filter(|w| w.is_object())?;
         Some(RateWindow {
             used_percent: w.get("used_percent").and_then(Value::as_f64).unwrap_or(0.0),
             window_minutes: w.get("window_minutes").and_then(Value::as_u64).unwrap_or(0),
@@ -1074,6 +1081,23 @@ mod tests {
         assert_eq!(p.window_minutes, 300);
         assert_eq!(rl.secondary.unwrap().used_percent, 28.0);
         assert_eq!(rl.tightest().map(|w| w.used_percent), Some(42.0));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_snapshot_with_no_windows_keeps_the_last_one() {
+        let dir = std::env::temp_dir().join(format!("agent-top-codex-rl-premium-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rollout.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-09-24T10:00:00.000Z","type":"event_msg","payload":{{"type":"token_count","info":null,"rate_limits":{{"limit_id":"codex","primary":{{"used_percent":12.0,"window_minutes":300,"resets_at":1790000000}},"secondary":{{"used_percent":40.0,"window_minutes":10080,"resets_at":1790500000}},"plan_type":"plus","rate_limit_reached_type":null}}}}}}"#).unwrap();
+        writeln!(f, r#"{{"timestamp":"2026-09-24T10:00:05.000Z","type":"event_msg","payload":{{"type":"token_count","info":null,"rate_limits":{{"limit_id":"premium","limit_name":null,"primary":null,"secondary":null,"credits":{{"has_credits":false,"unlimited":false,"balance":"0"}},"plan_type":"plus","rate_limit_reached_type":null}}}}}}"#).unwrap();
+        drop(f);
+        let mut t = CodexTranscript::new(&path);
+        t.refresh().unwrap();
+        let rl = t.summary().rate_limit.as_ref().expect("the codex snapshot survives");
+        assert_eq!(rl.primary.map(|w| w.used_percent), Some(12.0));
+        assert_eq!(rl.secondary.map(|w| w.used_percent), Some(40.0));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
