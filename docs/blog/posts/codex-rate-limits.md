@@ -83,7 +83,7 @@ The allowance is per ChatGPT account, and every Codex session on it reports the 
 
 **A second quota can blank the first.** Codex sometimes writes a snapshot for another quota, `limit_id: "premium"`, with both windows `null`. agent-top took the latest snapshot as the current state and read a `null` window as one at 0%. A session whose last snapshot was a `premium` one therefore showed 0% used. In 7 of the 124 Codex sessions on the development machine, the last snapshot is one of these.
 
-The golden fixture for Codex 0.154 had recorded the wrong reading. That session ended at 91% of its 5-hour window and 100% of its weekly one, and the expected output said 0% and 0%. [#55](https://github.com/kannandreams/agent-top/pull/55) fixes it: a `null` window is missing, and a snapshot with no windows leaves the last one in place. The fixture now expects 91% and 100%.
+The golden fixture for Codex 0.154 had recorded the wrong reading. That session ended at 91% of its 5-hour window and 100% of its weekly one, and the expected output said 0% and 0%. [#55](https://github.com/kannandreams/agent-top/pull/55) fixes it for the next release: a `null` window is missing, and a snapshot with no windows leaves the last one in place. Up to v0.21.0, a Codex row showing 0% for both windows is probably this bug. The fixture now expects 91% and 100%.
 
 ## What agent-top does not show
 
