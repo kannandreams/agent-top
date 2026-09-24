@@ -111,14 +111,16 @@ plugins:
 nav:
   - Home: index.md
   - Getting started: getting-started.md
-  - Guide:
+  - Using agent-top:
       - The live view: live-view.md
       - Views and panes: views-and-panes.md
-      - Cost report: report.md
       - Tool trace and export: trace.md
       - Snapshots and replay: replay.md
+  - Cost:
+      - Cost report: report.md
       - Prices: prices.md
       - Accounting: accounting.md
+  - Harnesses:
       - Harness support: harnesses.md
   - Project:
       - Why agent-top exists: why-this-exists.md
