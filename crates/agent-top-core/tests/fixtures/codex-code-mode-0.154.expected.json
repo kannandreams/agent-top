@@ -49,9 +49,9 @@
   "price_source": null,
   "rate_limit": {
     "plan": "plus",
-    "primary_pct": 0.0,
+    "primary_pct": 91.0,
     "reached": false,
-    "secondary_pct": 0.0
+    "secondary_pct": 100.0
   },
   "session_id": "01000000-0000-7000-0000-000000000154",
   "spans": {

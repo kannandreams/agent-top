@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- Codex: the rate limit no longer drops to 0% when Codex reports a second quota with no windows. The last reading that had windows stays on screen. ([#55](https://github.com/kannandreams/agent-top/pull/55))
+
 ## [0.21.0] - 2026-09-20
 
 ### Added
