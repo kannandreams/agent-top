@@ -71,10 +71,24 @@ extra_css:
 hooks:
   - docs/hooks/changelog_links.py
   - docs/hooks/cache_bust.py
+  - docs/hooks/nav_icons.py
   - docs/hooks/security_scan.py
 
 extra:
   generator: false
+  # Icons for the top-level sidebar entries, by title, applied by
+  # docs/hooks/nav_icons.py. Names are Material's bundled icon paths.
+  nav_icons:
+    Home: octicons/home-16
+    Getting started: octicons/rocket-16
+    Using agent-top: octicons/terminal-16
+    Cost: octicons/credit-card-16
+    Harnesses: octicons/plug-16
+    Project: octicons/repo-16
+    Blogs: octicons/note-16
+    GitHub: octicons/mark-github-16
+    crates.io: octicons/package-16
+    Security scan: octicons/shield-check-16
 
 markdown_extensions:
   - admonition
