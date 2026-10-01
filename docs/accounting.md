@@ -149,7 +149,7 @@ pane shows it on the line under agent-top's cost:
 
 ```text
 cost       $44.12   list price, built-in table
-harness    $51.91   its own figure, written 3m ago
+harness    $51.91   written 3m ago
 ```
 
 `--json` carries it as `harness_cost`, with `usd`, `lower_bound`, `as_of` and
@@ -163,7 +163,7 @@ figure. Three things keep the two apart:
   checked its cache reads came out 4 to 57% higher than the transcripts record.
 - **Timing.** Claude Code writes it when a session exits. While a session
   runs, the figure is the one from its last exit and leaves out everything
-  since. The pane then says `later usage not in it`, and `current` is false.
+  since. The pane then says `before later usage`, and `current` is false.
 
 It includes the session's subagents, as agent-top's Claude rows do, and it keeps
 counting across `--resume`.

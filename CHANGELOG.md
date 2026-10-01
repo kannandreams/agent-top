@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- The detail pane's `harness` cost line fits on one line in a 120-column terminal. ([#63](https://github.com/kannandreams/agent-top/pull/63))
+
 ## [0.22.0] - 2026-10-01
 
 ### Highlights

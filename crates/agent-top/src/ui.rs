@@ -789,16 +789,17 @@ fn price_basis(a: &Agent) -> String {
 fn harness_cost_line(h: &agent_top_core::HarnessCost, now: SystemTime, theme: &Theme) -> Line<'static> {
     let usd = if h.lower_bound { format!("≥${:.2}", h.usd) } else { format!("${:.2}", h.usd) };
     let ago = h.as_of.and_then(|t| now.duration_since(t).ok()).map(|d| age(d.as_secs()));
+    // Short enough for the facts column of a 120-column terminal.
     let when = match (ago, h.current) {
-        (Some(ago), true) => format!(", written {ago} ago"),
-        (Some(ago), false) => format!(", written {ago} ago; later usage not in it"),
+        (Some(ago), true) => format!("written {ago} ago"),
+        (Some(ago), false) => format!("{ago} ago, before later usage"),
         (None, true) => String::new(),
-        (None, false) => "; later usage not in it".into(),
+        (None, false) => "before later usage".into(),
     };
     Line::from(vec![
         Span::styled(format!("{:<11}", "harness"), Style::default().fg(theme.dim)),
         Span::raw(usd),
-        dim(format!("   its own figure{when}"), theme),
+        dim(format!("   {when}"), theme),
     ])
 }
 
@@ -2085,7 +2086,7 @@ mod tests {
         let now = SystemTime::now();
         let mut a = agent("tuff", Vec::new());
         let facts = agent_facts(&a, now, &theme).to_string();
-        assert!(!facts.contains("its own figure"), "{facts}");
+        assert!(!facts.lines().any(|l| l.starts_with("harness")), "{facts}");
 
         a.harness_cost = Some(agent_top_core::HarnessCost {
             usd: 228.23,
@@ -2095,26 +2096,31 @@ mod tests {
         });
         let facts = agent_facts(&a, now, &theme).to_string();
         let line = facts.lines().find(|l| l.starts_with("harness")).unwrap_or_else(|| panic!("{facts}"));
-        assert!(line.contains("$228.23") && line.contains("its own figure, written 3m ago"), "{line}");
+        assert!(line.contains("$228.23") && line.trim_end().ends_with("written 3m ago"), "{line}");
         let cost = facts.lines().position(|l| l.starts_with("cost")).unwrap();
         assert_eq!(facts.lines().nth(cost + 1), Some(line), "directly under our figure");
 
         a.harness_cost = Some(agent_top_core::HarnessCost { usd: 1.5, lower_bound: true, as_of: None, current: true });
         let facts = agent_facts(&a, now, &theme).to_string();
-        assert!(
-            facts.lines().any(|l| l.starts_with("harness") && l.contains("≥$1.50") && l.trim_end().ends_with("its own figure")),
-            "{facts}"
-        );
+        assert!(facts.lines().any(|l| l.starts_with("harness") && l.trim_end().ends_with("≥$1.50")), "{facts}");
+    }
 
-        // Claude Code writes it at exit: a session that has run since says so.
-        a.harness_cost = Some(agent_top_core::HarnessCost {
-            usd: 2.57,
-            lower_bound: false,
-            as_of: Some(now - std::time::Duration::from_secs(11 * 3600)),
-            current: false,
-        });
-        let facts = agent_facts(&a, now, &theme).to_string();
-        assert!(facts.lines().any(|l| l.starts_with("harness") && l.contains("written 11h00m ago; later usage not in it")), "{facts}");
+    /// Claude Code writes its figure at exit, so a session that has run since
+    /// says so, on one line of the facts column of a 120-column terminal.
+    #[test]
+    fn harness_figure_before_later_usage_fits_on_one_line() {
+        let mut snap = snapshot(vec![agent("tuff", Vec::new())]);
+        let as_of = snap.taken_at - std::time::Duration::from_secs(11 * 3600 + 51 * 60);
+        snap.agents[0].harness_cost =
+            Some(agent_top_core::HarnessCost { usd: 228.23, lower_bound: true, as_of: Some(as_of), current: false });
+        let mut app = App::new(snap);
+        app.detail = DetailView::Tree;
+        let out = render(&mut app, 120, 50);
+        let row = out.lines().position(|l| l.trim_start_matches('│').starts_with("harness")).unwrap_or_else(|| panic!("{out}"));
+        let line = out.lines().nth(row).unwrap();
+        assert!(line.contains("≥$228.23") && line.contains("11h51m ago, before later usage"), "wrapped:\n{out}");
+        let next = out.lines().nth(row + 1).unwrap();
+        assert!(next.trim_start_matches('│').starts_with("cache"), "nothing spilled onto the next line:\n{next}");
     }
 
     /// Renders the whole frame with the trace panel open. Run with
