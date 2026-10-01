@@ -36,13 +36,22 @@
 //! * Context by source: each `tool_result` is filed under its `tool_use`'s
 //!   name (the MCP server for `mcp__` tools) and sized by the growth of the
 //!   next message's prompt. See `ContextLedger`.
+//! * Claude Code's own cost (verified on 2.1.278 to 2.1.286, 2026-10-01): a
+//!   `type: "cost-state"` line, written twice in a row when a session exits
+//!   (after its last turn, before any resume), with `totalCostUSD`,
+//!   `hasUnknownModelCost` and a `modelUsage` map of tokens and `costUSD` per
+//!   model. It carries no timestamp. The total is cumulative across resumes
+//!   and includes the subagents, whose own transcripts have no such line. It also counts requests no transcript
+//!   records (Haiku calls, and 4 to 57% more cache reads on 2026-10-01's
+//!   sample), so it is shown beside our figure as `HarnessCost`, never
+//!   reconciled with it.
 
 use super::{
     AttributeContext, HarnessAdapter, REFRESH_BUDGET_BYTES, RegistryHints, SessionSummary, SessionTracker, SpanLog, SpanRetention,
     mcp_server_of, parse_rfc3339_utc,
 };
 use crate::jsonl::TailReader;
-use crate::model::{Activity, Attribution, ContextOrigin, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage};
+use crate::model::{Activity, Attribution, ContextOrigin, CostBreakdown, Harness, HarnessCost, ProcNode, SpanKind, TokenUsage};
 use crate::pricing::{self, Table};
 use crate::process::{RawProc, session_id_from_args};
 use serde::Deserialize;
@@ -364,7 +373,12 @@ impl Parser {
         let is_meta = v.get("isMeta").and_then(Value::as_bool).unwrap_or(false);
         let ts = v.get("timestamp").and_then(Value::as_str).and_then(parse_rfc3339_utc);
         match kind {
-            "assistant" => self.ingest_assistant(&v, sidechain, ts, prices),
+            "assistant" => {
+                self.ingest_assistant(&v, sidechain, ts, prices);
+                if let Some(h) = &mut self.summary.harness_cost {
+                    h.current = false;
+                }
+            }
             "user" if !is_meta => {
                 // Either a prompt or a tool_result: in both cases the model owes a response.
                 self.summary.activity = Activity::Working;
@@ -387,6 +401,16 @@ impl Parser {
             }
             "system" if v.get("subtype").and_then(Value::as_str) == Some("compact_boundary") => {
                 self.summary.context.compacted();
+            }
+            "cost-state" => {
+                if let Some(usd) = v.get("totalCostUSD").and_then(Value::as_f64) {
+                    self.summary.harness_cost = Some(HarnessCost {
+                        usd,
+                        lower_bound: v.get("hasUnknownModelCost").and_then(Value::as_bool).unwrap_or(false),
+                        as_of: self.summary.last_activity,
+                        current: true,
+                    });
+                }
             }
             _ => {}
         }
@@ -675,6 +699,13 @@ impl ClaudeTranscript {
                 s.mcp.entry(server.clone()).or_default().add(u);
             }
             s.context.merge(&t.context);
+            // A subagent that wrote after the record ran after that exit.
+            if let Some(h) = &mut s.harness_cost
+                && t.last_activity > h.as_of
+                && t.health.usage_records > 0
+            {
+                h.current = false;
+            }
         }
         if !self.subagents.is_empty() {
             let logs = std::iter::once(&self.main.summary.spans).chain(self.subagents.values().map(|c| &c.summary.spans));
@@ -775,6 +806,63 @@ mod tests {
         t.refresh().unwrap();
         assert_eq!(t.summary().turns, 2);
         assert_eq!(t.summary().activity, Activity::Waiting);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn keeps_claude_codes_own_cost_beside_ours_and_never_in_it() {
+        let dir = std::env::temp_dir().join(format!("agent-top-claude-cost-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("s.jsonl");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, r#"{{"type":"assistant","timestamp":"2026-10-01T07:00:01.000Z","sessionId":"abc","message":{{"id":"msg_1","model":"claude-sonnet-5","stop_reason":"end_turn","content":[],"usage":{{"input_tokens":1000000,"output_tokens":0}}}}}}"#).unwrap();
+        let mut t = ClaudeTranscript::new(&path);
+        t.refresh().unwrap();
+        assert_eq!(t.summary().harness_cost, None, "no record, no figure");
+
+        // Written twice in a row, with no timestamp of its own.
+        let state = r#"{"type":"cost-state","sessionId":"abc","totalCostUSD":2.5,"hasUnknownModelCost":false,"modelUsage":{}}"#;
+        writeln!(f, "{state}\n{state}").unwrap();
+        t.refresh().unwrap();
+        let s = t.summary();
+        let h = s.harness_cost.expect("read");
+        assert_eq!(h.usd, 2.5);
+        assert!(!h.lower_bound);
+        assert!(h.current, "nothing has run since it was written");
+        assert_eq!(h.as_of, parse_rfc3339_utc("2026-10-01T07:00:01.000Z"), "dated by the line before it");
+        assert!((s.cost_usd - 2.0).abs() < 1e-9, "our figure is still the transcript at list price");
+
+        // The newest record wins, and an unpriced model makes it a floor.
+        writeln!(f, r#"{{"type":"cost-state","totalCostUSD":3.75,"hasUnknownModelCost":true}}"#).unwrap();
+        t.refresh().unwrap();
+        let h = t.summary().harness_cost.unwrap();
+        assert_eq!((h.usd, h.lower_bound), (3.75, true));
+
+        // A subagent that finished before the record is inside it.
+        let subs = subagents_dir(&path).unwrap();
+        std::fs::create_dir_all(&subs).unwrap();
+        let reply = |ts: &str| {
+            format!(
+                r#"{{"type":"assistant","timestamp":"{ts}","isSidechain":true,"message":{{"id":"m_{ts}","model":"claude-sonnet-5","stop_reason":"end_turn","content":[],"usage":{{"input_tokens":1,"output_tokens":1}}}}}}"#
+            )
+        };
+        std::fs::write(subs.join("agent-a.jsonl"), reply("2026-10-01T06:59:00.000Z") + "\n").unwrap();
+        t.refresh().unwrap();
+        assert!(t.summary().harness_cost.unwrap().current);
+
+        // One that ran after it is not, and neither is the resumed session's next reply.
+        std::fs::write(subs.join("agent-b.jsonl"), reply("2026-10-01T09:00:00.000Z") + "\n").unwrap();
+        t.refresh().unwrap();
+        assert!(!t.summary().harness_cost.unwrap().current, "the subagent ran after the exit");
+        std::fs::remove_file(subs.join("agent-b.jsonl")).unwrap();
+        let mut t = ClaudeTranscript::new(&path);
+        t.refresh().unwrap();
+        assert!(t.summary().harness_cost.unwrap().current);
+        writeln!(f, "{}", reply("2026-10-01T09:30:00.000Z").replace(r#""isSidechain":true,"#, "")).unwrap();
+        t.refresh().unwrap();
+        let h = t.summary().harness_cost.unwrap();
+        assert!(!h.current, "a resumed session's usage since is not in it");
+        assert_eq!(h.usd, 3.75, "and the figure itself is unchanged until the next exit");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

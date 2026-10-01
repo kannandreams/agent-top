@@ -782,6 +782,26 @@ fn price_basis(a: &Agent) -> String {
     }
 }
 
+/// The harness's own running total, under ours. It is labelled as the
+/// harness's and dated, and when the session has used tokens since it was
+/// written the line says so: Claude Code writes it at exit, so a running
+/// session's figure leaves out the current run.
+fn harness_cost_line(h: &agent_top_core::HarnessCost, now: SystemTime, theme: &Theme) -> Line<'static> {
+    let usd = if h.lower_bound { format!("≥${:.2}", h.usd) } else { format!("${:.2}", h.usd) };
+    let ago = h.as_of.and_then(|t| now.duration_since(t).ok()).map(|d| age(d.as_secs()));
+    let when = match (ago, h.current) {
+        (Some(ago), true) => format!(", written {ago} ago"),
+        (Some(ago), false) => format!(", written {ago} ago; later usage not in it"),
+        (None, true) => String::new(),
+        (None, false) => "; later usage not in it".into(),
+    };
+    Line::from(vec![
+        Span::styled(format!("{:<11}", "harness"), Style::default().fg(theme.dim)),
+        Span::raw(usd),
+        dim(format!("   its own figure{when}"), theme),
+    ])
+}
+
 /// A window's label from its length: `5h`, `weekly`, `24h`.
 pub fn window_label(minutes: u64) -> String {
     match minutes {
@@ -896,6 +916,11 @@ fn agent_facts(a: &Agent, now: SystemTime, theme: &Theme) -> Text<'static> {
             Span::styled(cost(a), Style::default().bold()),
             dim(format!("   {}", price_basis(a)), theme),
         ]),
+    ]);
+    if let Some(h) = &a.harness_cost {
+        lines.push(harness_cost_line(h, now, theme));
+    }
+    lines.extend(vec![
         cache_line(a, theme),
         kv("tokens", tokens(u.total()), theme),
         kv(
@@ -1545,6 +1570,7 @@ mod tests {
             shares_process: false,
             parse_warning: None,
             rate_limit: None,
+            harness_cost: None,
         }
     }
 
@@ -2049,6 +2075,46 @@ mod tests {
         let line = |label: &str| out.lines().find(|l| l.contains(label)).unwrap().to_string();
         assert!(line("cache rd").contains("n/a") && line("cache rd").contains("22k"));
         assert!(line("no price for this model").contains("n/a"));
+    }
+
+    /// The harness's own figure sits under ours, labelled and dated, and is
+    /// absent rather than zero when the harness wrote none.
+    #[test]
+    fn detail_pane_shows_the_harness_figure_beside_ours() {
+        let theme = Theme::new(ThemeMode::Dark, true);
+        let now = SystemTime::now();
+        let mut a = agent("tuff", Vec::new());
+        let facts = agent_facts(&a, now, &theme).to_string();
+        assert!(!facts.contains("its own figure"), "{facts}");
+
+        a.harness_cost = Some(agent_top_core::HarnessCost {
+            usd: 228.23,
+            lower_bound: false,
+            as_of: Some(now - std::time::Duration::from_secs(180)),
+            current: true,
+        });
+        let facts = agent_facts(&a, now, &theme).to_string();
+        let line = facts.lines().find(|l| l.starts_with("harness")).unwrap_or_else(|| panic!("{facts}"));
+        assert!(line.contains("$228.23") && line.contains("its own figure, written 3m ago"), "{line}");
+        let cost = facts.lines().position(|l| l.starts_with("cost")).unwrap();
+        assert_eq!(facts.lines().nth(cost + 1), Some(line), "directly under our figure");
+
+        a.harness_cost = Some(agent_top_core::HarnessCost { usd: 1.5, lower_bound: true, as_of: None, current: true });
+        let facts = agent_facts(&a, now, &theme).to_string();
+        assert!(
+            facts.lines().any(|l| l.starts_with("harness") && l.contains("≥$1.50") && l.trim_end().ends_with("its own figure")),
+            "{facts}"
+        );
+
+        // Claude Code writes it at exit: a session that has run since says so.
+        a.harness_cost = Some(agent_top_core::HarnessCost {
+            usd: 2.57,
+            lower_bound: false,
+            as_of: Some(now - std::time::Duration::from_secs(11 * 3600)),
+            current: false,
+        });
+        let facts = agent_facts(&a, now, &theme).to_string();
+        assert!(facts.lines().any(|l| l.starts_with("harness") && l.contains("written 11h00m ago; later usage not in it")), "{facts}");
     }
 
     /// Renders the whole frame with the trace panel open. Run with

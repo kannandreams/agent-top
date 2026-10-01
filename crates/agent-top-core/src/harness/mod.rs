@@ -90,6 +90,8 @@ pub struct SessionSummary {
     pub last_activity: Option<SystemTime>,
     /// How close the session is to its rate limit, when the harness writes it.
     pub rate_limit: Option<crate::model::RateLimit>,
+    /// The harness's own cost figure, when it writes one. See `HarnessCost`.
+    pub harness_cost: Option<crate::model::HarnessCost>,
 }
 
 /// What a transcript says about one MCP server: how often it was called,

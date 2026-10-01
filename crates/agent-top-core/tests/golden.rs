@@ -73,6 +73,13 @@ fn describe(s: &SessionSummary) -> Value {
         "tool_calls": s.tool_calls,
         "tool_calls_lower_bound": s.tool_calls_lower_bound,
         "web_searches": s.web_searches,
+        // The harness's own figure, beside ours: never added to it.
+        "harness_cost": s.harness_cost.map(|h| json!({
+            "usd_micros": (h.usd * 1_000_000.0).round() as i64,
+            "lower_bound": h.lower_bound,
+            "as_of_ms": millis(h.as_of),
+            "current": h.current,
+        })),
         "rate_limit": s.rate_limit.as_ref().map(|rl| json!({
             "plan": rl.plan,
             "reached": rl.reached,
@@ -154,6 +161,14 @@ fn check(fixture: &str, mut tracker: Box<dyn SessionTracker>) {
 fn claude_2_1_226() {
     let p = fixtures().join("claude-2.1.226.jsonl");
     check("claude-2.1.226", Box::new(ClaudeTranscript::new(p).with_prices(pricing::builtin_table())));
+}
+
+/// Started on 2.1.278 and resumed on 2.1.280, with four `cost-state` lines:
+/// Claude Code's own running total, which no older fixture has.
+#[test]
+fn claude_2_1_278() {
+    let p = fixtures().join("claude-2.1.278.jsonl");
+    check("claude-2.1.278", Box::new(ClaudeTranscript::new(p).with_prices(pricing::builtin_table())));
 }
 
 #[test]

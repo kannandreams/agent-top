@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- Claude Code: the detail pane shows Claude Code's own running cost under agent-top's, with when it was written; `--json` gains `harness_cost`. ([#61](https://github.com/kannandreams/agent-top/pull/61))
+
 ## [0.21.2] - 2026-10-01
 
 ### Fixed
