@@ -250,7 +250,7 @@ mod tests {
     fn ships_a_valid_builtin_table() {
         let t = builtin();
         assert!(t.warnings.is_empty(), "{:?}", t.warnings);
-        assert_eq!(t.updated.as_deref(), Some("2026-09-05"));
+        assert_eq!(t.updated.as_deref(), Some("2026-10-01"));
         assert_eq!(t.web_search_per_1k, Some(10.0));
         assert!((t.web_search_cost(3) - 0.03).abs() < 1e-12);
         assert!(t.entries.len() >= 11);
@@ -264,6 +264,13 @@ mod tests {
         assert_eq!(t.lookup("claude-fable-5").unwrap().cache_read, 1.0);
         assert_eq!(t.lookup("claude-sonnet-4-6-20251114").unwrap().input, 3.0);
         assert_eq!(t.lookup("us.anthropic.claude-opus-5").unwrap().input, 5.0);
+        // Opus 5.5 is cheaper than Opus 5, whose prefix it extends.
+        let opus = t.lookup("claude-opus-5-5").unwrap();
+        assert_eq!((opus.input, opus.output, opus.cache_read), (4.0, 20.0, 0.20));
+        assert_eq!((opus.cache_write_5m, opus.cache_write_1h), (5.0, 8.0));
+        assert_eq!(t.lookup("claude-opus-4-1-20250805").unwrap().input, 15.0);
+        assert_eq!(t.lookup("claude-opus-4-20250514").unwrap().input, 15.0);
+        assert_eq!(t.lookup("claude-3-5-haiku-20241022").unwrap().output, 4.0);
         // OpenAI's rows: a named variant is exact, a versioned prefix beats the
         // bare one, and a codex variant with no entry resolves to its base.
         assert_eq!(t.lookup("gpt-5.6-luna").unwrap().output, 1.20);
@@ -278,6 +285,39 @@ mod tests {
         assert_eq!(t.lookup("gemini-2.5-pro").unwrap().cache_write_1h, 1.25);
         assert_eq!(t.lookup("gemini-3.1-pro-preview").unwrap().input, 2.0);
         assert!(t.lookup("<synthetic>").is_none());
+    }
+
+    /// Every Claude model on the pricing page, with the prefix that must price
+    /// it. A new model whose id extends an older one's (`claude-opus-5-5` and
+    /// `claude-opus-5`) silently takes the older price unless it has its own
+    /// row; this catches that when the list here is updated from the page.
+    #[test]
+    fn every_listed_claude_model_has_its_own_row() {
+        let t = builtin();
+        for (id, prefix) in [
+            ("claude-fable-5-1", "claude-fable-5-1"),
+            ("claude-mythos-5-1", "claude-mythos-5-1"),
+            ("claude-fable-5", "claude-fable-5"),
+            ("claude-mythos-5", "claude-mythos-5"),
+            ("claude-opus-5-5", "claude-opus-5-5"),
+            ("claude-opus-5", "claude-opus-5"),
+            ("claude-opus-4-8", "claude-opus-4-8"),
+            ("claude-opus-4-7", "claude-opus-4-7"),
+            ("claude-opus-4-6", "claude-opus-4-6"),
+            ("claude-opus-4-5-20251101", "claude-opus-4-5"),
+            ("claude-opus-4-1-20250805", "claude-opus-4-1"),
+            ("claude-opus-4-20250514", "claude-opus-4-2025"),
+            ("claude-sonnet-5-5", "claude-sonnet-5-5"),
+            ("claude-sonnet-5", "claude-sonnet-5"),
+            ("claude-sonnet-4-6", "claude-sonnet-4-6"),
+            ("claude-sonnet-4-5-20250929", "claude-sonnet-4-5"),
+            ("claude-sonnet-4-20250514", "claude-sonnet-4-2025"),
+            ("claude-haiku-4-5-20251001", "claude-haiku-4-5"),
+            ("claude-3-5-haiku-20241022", "claude-3-5-haiku"),
+        ] {
+            let e = t.entry_for(id).unwrap_or_else(|| panic!("{id} is unpriced"));
+            assert_eq!(e.prefix, prefix, "{id} resolved to another model's row");
+        }
     }
 
     #[test]

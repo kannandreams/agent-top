@@ -19,10 +19,9 @@
 # A model with no entry is not guessed at. Its tokens are counted and reported
 # as unpriced, and any total containing them is shown as a floor.
 
-# Anthropic rows checked 2026-06-24 (cache reads re-checked 2026-09-04),
-# Google rows 2026-09-05.
-updated = "2026-09-05"
-source = "https://www.anthropic.com/pricing and https://ai.google.dev/gemini-api/docs/pricing"
+# Anthropic rows checked 2026-10-01, Google rows 2026-09-05.
+updated = "2026-10-01"
+source = "https://platform.claude.com/docs/en/about-claude/pricing and https://ai.google.dev/gemini-api/docs/pricing"
 
 # Server-side tools billed per call, on top of the tokens they produce, in US
 # dollars per 1,000 calls. Anthropic charges for web search only; web fetch and
@@ -56,6 +55,14 @@ input = 10.0
 output = 50.0
 cache_read = 1.0
 
+# Opus 5.5 cache reads are 0.05x input, not the usual 0.1x. Without this row
+# `claude-opus-5-5` would resolve to `claude-opus-5` and cost 25% more.
+[[model]]
+prefix = "claude-opus-5-5"
+input = 4.0
+output = 20.0
+cache_read = 0.20
+
 [[model]]
 prefix = "claude-opus-5"
 input = 5.0
@@ -80,6 +87,14 @@ input = 5.0
 output = 25.0
 cache_read = 0.5
 
+# The same price as Sonnet 5 today, listed so that a change to either is not
+# silently applied to the other.
+[[model]]
+prefix = "claude-sonnet-5-5"
+input = 2.0
+output = 10.0
+cache_read = 0.2
+
 [[model]]
 prefix = "claude-sonnet-5"
 input = 2.0
@@ -87,7 +102,19 @@ output = 10.0
 cache_read = 0.2
 
 [[model]]
+prefix = "claude-opus-4-5"
+input = 5.0
+output = 25.0
+cache_read = 0.5
+
+[[model]]
 prefix = "claude-sonnet-4-6"
+input = 3.0
+output = 15.0
+cache_read = 0.3
+
+[[model]]
+prefix = "claude-sonnet-4-5"
 input = 3.0
 output = 15.0
 cache_read = 0.3
@@ -97,6 +124,34 @@ prefix = "claude-haiku-4-5"
 input = 1.0
 output = 5.0
 cache_read = 0.1
+
+# Retired on the Claude API, still served on Bedrock or Google Cloud, and still
+# in old transcripts that `agent-top report` reads. Opus 4 and Sonnet 4 are
+# anchored on their date suffix: a bare `claude-opus-4` prefix would catch any
+# future 4.x model that has no row of its own.
+[[model]]
+prefix = "claude-opus-4-1"
+input = 15.0
+output = 75.0
+cache_read = 1.5
+
+[[model]]
+prefix = "claude-opus-4-2025"
+input = 15.0
+output = 75.0
+cache_read = 1.5
+
+[[model]]
+prefix = "claude-sonnet-4-2025"
+input = 3.0
+output = 15.0
+cache_read = 0.3
+
+[[model]]
+prefix = "claude-3-5-haiku"
+input = 0.80
+output = 4.0
+cache_read = 0.08
 
 # Google, paid tier, text input, checked 2026-09-05 at
 # https://ai.google.dev/gemini-api/docs/pricing. Gemini bills thinking

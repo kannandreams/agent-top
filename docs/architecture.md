@@ -94,7 +94,7 @@ Verified 2026-09-03. Each adapter is locked with a golden fixture, a small real 
 
 ## Pricing
 
-USD per million tokens, from a table compiled into the binary and overridable per model from `~/.config/agent-top/prices.toml`. Anthropic cache writes are 1.25x input for the five-minute TTL and 2x for the hour; cache reads are 0.1x input, with one exception the table carries. Gemini rows use the under-200k-token tier. A model not in the table contributes to `unpriced_tokens` and its cost is shown as a floor, never estimated. Details in [Prices](prices.md) and [Accounting](accounting.md).
+USD per million tokens, from a table compiled into the binary and overridable per model from `~/.config/agent-top/prices.toml`. Anthropic cache writes are 1.25x input for the five-minute TTL and 2x for the hour; cache reads are 0.1x input, except on the models whose rows set a lower rate (Fable 5.1, Mythos 5.1 and Opus 5.5). Gemini rows use the under-200k-token tier. A model not in the table contributes to `unpriced_tokens` and its cost is shown as a floor, never estimated. Details in [Prices](prices.md) and [Accounting](accounting.md).
 
 ## Non-goals of the current design
 
