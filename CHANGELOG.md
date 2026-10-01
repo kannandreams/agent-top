@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-01
+
+### Highlights
+The detail pane shows Claude Code's own cost for a session on the line under agent-top's. Claude Code writes that figure when a session exits, so the line says when it was written and marks it when the session has used tokens since.
+
 ### Added
 - Claude Code: the detail pane shows Claude Code's own running cost under agent-top's, with when it was written; `--json` gains `harness_cost`. ([#61](https://github.com/kannandreams/agent-top/pull/61))
 
