@@ -42,6 +42,7 @@
   "cost_usd_micros": 99316,
   "cwd": "/tmp/p",
   "folds_child_usage": false,
+  "harness_cost": null,
   "harness_version": "0.154.0",
   "last_activity_ms": 1789581785521,
   "mcp": [],

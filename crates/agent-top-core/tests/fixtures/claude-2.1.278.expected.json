@@ -1,0 +1,133 @@
+{
+  "activity": "Waiting",
+  "context": [
+    {
+      "calls": 0,
+      "cost_usd_micros": 572358,
+      "name": "other",
+      "origin": "Other",
+      "tokens": 44022
+    },
+    {
+      "calls": 17,
+      "cost_usd_micros": 66599,
+      "name": "Bash",
+      "origin": "Tool",
+      "tokens": 12346
+    }
+  ],
+  "cost_breakdown_micros": {
+    "cache_read": 321567,
+    "cache_write_1h": 317250,
+    "cache_write_5m": 0,
+    "cache_write_unsplit": 0,
+    "input": 140,
+    "output": 125925,
+    "web_search": 0
+  },
+  "cost_usd_micros": 764882,
+  "cwd": "/Users/dev/code/example",
+  "folds_child_usage": true,
+  "harness_cost": {
+    "as_of_ms": 1790111170745,
+    "current": true,
+    "lower_bound": false,
+    "usd_micros": 765860
+  },
+  "harness_version": "2.1.278",
+  "last_activity_ms": 1790111170745,
+  "mcp": [],
+  "model": "claude-opus-5",
+  "price_source": null,
+  "rate_limit": null,
+  "session_id": "00000000-1111-2222-3333-555555555555",
+  "spans": {
+    "by_kind": [
+      {
+        "count": 17,
+        "kind": "tool",
+        "open": 0,
+        "total_duration_ms": 35123
+      },
+      {
+        "count": 17,
+        "kind": "inference",
+        "open": 0,
+        "total_duration_ms": 63250
+      },
+      {
+        "count": 3,
+        "kind": "turn",
+        "open": 0,
+        "total_duration_ms": 95987
+      }
+    ],
+    "count": 37,
+    "errors": 0,
+    "first": [
+      {
+        "duration_ms": 0,
+        "error": false,
+        "kind": "turn",
+        "name": "turn",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 0,
+        "error": false,
+        "kind": "turn",
+        "name": "turn",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 95987,
+        "error": false,
+        "kind": "turn",
+        "name": "turn",
+        "sidechain": false
+      }
+    ],
+    "last": [
+      {
+        "duration_ms": 13137,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 1424,
+        "error": false,
+        "kind": "tool",
+        "name": "Bash",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 3422,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      }
+    ],
+    "open": 0,
+    "sidechain": 0,
+    "total_duration_ms": 194360
+  },
+  "started_at_ms": 1790020627762,
+  "subagent_turns": 0,
+  "tool_calls": 17,
+  "tool_calls_lower_bound": false,
+  "turns": 14,
+  "unpriced_tokens": 0,
+  "usage": {
+    "cache_read": 643134,
+    "cache_write_1h": 31725,
+    "cache_write_5m": 0,
+    "cache_write_unsplit": 0,
+    "input": 28,
+    "output": 5037,
+    "total": 679924
+  },
+  "web_searches": 0
+}

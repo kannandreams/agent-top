@@ -679,6 +679,7 @@ mod tests {
             shares_process: false,
             parse_warning: None,
             rate_limit: None,
+            harness_cost: None,
         };
         let mut s = Snapshot {
             schema_version: agent_top_core::SNAPSHOT_SCHEMA_VERSION,

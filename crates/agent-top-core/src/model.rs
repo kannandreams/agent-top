@@ -488,6 +488,32 @@ pub struct Agent {
     /// How close the session is to its rate limit, when the harness reports it.
     #[serde(default)]
     pub rate_limit: Option<RateLimit>,
+    /// The session's cost as the harness itself last recorded it, beside
+    /// `cost_usd` and never mixed into it. See `HarnessCost`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness_cost: Option<HarnessCost>,
+}
+
+/// A harness's own running total for a session, read from its transcript.
+/// Claude Code writes one; the other harnesses do not, or (OpenCode, Kodelet)
+/// their costs are already the row's `cost_usd`.
+///
+/// It is a different measurement from `cost_usd`, not a correction to it: it
+/// is priced at the harness's private table, and it includes requests the
+/// transcript never records. Claude Code writes it when a session exits, so
+/// while a session runs it is the figure from the last exit.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+pub struct HarnessCost {
+    pub usd: f64,
+    /// The harness said some of its usage had no price, so `usd` is a floor.
+    pub lower_bound: bool,
+    /// The timestamp of the last transcript line before the record, which
+    /// carries none of its own.
+    pub as_of: Option<SystemTime>,
+    /// No usage has been recorded since, in the transcript or a subagent's.
+    /// False for a live session that has done anything since it last exited:
+    /// `usd` leaves that out.
+    pub current: bool,
 }
 
 /// One rolling usage window a harness reports against a rate limit: how much

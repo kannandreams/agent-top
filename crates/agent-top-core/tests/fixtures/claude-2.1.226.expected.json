@@ -70,6 +70,7 @@
   "cost_usd_micros": 3554320,
   "cwd": "/Users/dev/code/example",
   "folds_child_usage": true,
+  "harness_cost": null,
   "harness_version": "2.1.226",
   "last_activity_ms": 1786283224243,
   "mcp": [],

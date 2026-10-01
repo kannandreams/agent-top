@@ -229,6 +229,7 @@ impl Collector {
                     shares_process: false,
                     parse_warning: None,
                     rate_limit: None,
+                    harness_cost: None,
                 });
                 continue;
             }
@@ -312,6 +313,7 @@ impl Collector {
                     shares_process: !owns_process,
                     parse_warning: parse_warning(&summary, harness),
                     rate_limit: summary.rate_limit.clone(),
+                    harness_cost: summary.harness_cost,
                 });
             }
         }
@@ -366,6 +368,7 @@ impl Collector {
                 shares_process: false,
                 parse_warning: parse_warning(&s, harness),
                 rate_limit: s.rate_limit.clone(),
+                harness_cost: s.harness_cost,
             });
         }
 
@@ -829,6 +832,7 @@ mod tests {
             shares_process: false,
             parse_warning: None,
             rate_limit: None,
+            harness_cost: None,
         };
         let procs = [raw(10, 5), raw(11, 6), raw(99, 7)];
         let by_pid: HashMap<u32, &RawProc> = procs.iter().map(|p| (p.pid, p)).collect();
@@ -907,6 +911,7 @@ mod tests {
             shares_process: false,
             parse_warning: None,
             rate_limit: None,
+            harness_cost: None,
         };
         let procs = [raw(10, 5), raw(11, 6)];
         let by_pid: HashMap<u32, &RawProc> = procs.iter().map(|p| (p.pid, p)).collect();

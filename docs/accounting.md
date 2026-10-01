@@ -136,14 +136,41 @@ have been inherited.
 
 ## If the cost does not match your harness
 
-It usually will not match to the cent, and that is not a bug in either tool.
-agent-top prices the harness's own token counts at the vendor's published list
-price. Harnesses keep their own price tables, and those can differ from the
-published page for a model, or lag behind a price change. Neither number is a
-bill: on a subscription plan nothing is charged per token, and both figures are
-"what this would have cost on the API".
+It usually will not match to the cent. agent-top prices the harness's own token
+counts at the vendor's published list price. Harnesses keep their own price
+tables, and those can differ from the published page for a model, or lag behind
+a price change. Neither number is a bill: on a subscription plan nothing is
+charged per token, and both figures are "what this would have cost on the API".
 
-A real example. One Claude Code session, read at the same moment by both tools:
+### The harness's own figure
+
+Claude Code writes its own running total into the transcript, and the detail
+pane shows it on the line under agent-top's cost:
+
+```text
+cost       $44.12   list price, built-in table
+harness    $51.91   its own figure, written 3m ago
+```
+
+`--json` carries it as `harness_cost`, with `usd`, `lower_bound`, `as_of` and
+`current`, and leaves it out for a session that has none: a Claude Code session older than
+about 2.1.251, or another harness. It is shown, never added to agent-top's
+figure. Three things keep the two apart:
+
+- **Prices.** It is priced at Claude Code's own table.
+- **Requests the transcript does not record.** Claude Code counts calls that
+  never reach a transcript, such as small Haiku requests, and on the sessions we
+  checked its cache reads came out 4 to 57% higher than the transcripts record.
+- **Timing.** Claude Code writes it when a session exits. While a session
+  runs, the figure is the one from its last exit and leaves out everything
+  since. The pane then says `later usage not in it`, and `current` is false.
+
+It includes the session's subagents, as agent-top's Claude rows do, and it keeps
+counting across `--resume`.
+
+### Finding the line that differs
+
+A real example from Claude Code 2.1.259. One session, read at the same moment by both tools:
 
 | Line | Tokens | agent-top | Claude Code |
 |---|---|---|---|
@@ -157,7 +184,7 @@ Three lines agree, the cache read line does not: the pricing page lists Fable
 5.1 cache hits at $0.25 per million, and Claude Code 2.1.259 charged $0.50.
 Because every turn re-sends the whole conversation from cache, that one line
 is most of a long session's cost, and a small difference on it becomes a large
-gap in the total.
+gap in the total. Later Claude Code versions charge the published rate.
 
 The detail pane shows this breakdown for every row, so the differing line can
 be found without arithmetic. If you would rather see the same figure as your
