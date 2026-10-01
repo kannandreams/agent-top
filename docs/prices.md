@@ -28,7 +28,7 @@ cache_read = 0.125
 
 ## How a model finds its price
 
-The longest matching prefix wins, so `claude-fable-5-1` beats `claude-fable-5`, and a date-suffixed id like `claude-sonnet-4-6-20251114` resolves to its base model. A Codex model with no entry of its own resolves to its base model the same way.
+The longest matching prefix wins, so `claude-fable-5-1` beats `claude-fable-5`, and a date-suffixed id like `claude-sonnet-4-6-20251114` resolves to its base model. A Codex model with no entry of its own resolves to its base model the same way. The same rule means a new model whose id extends an older one's, such as `claude-opus-5-5` after `claude-opus-5`, takes the older price until the table has its row, so check `--prices` after a model launch.
 
 A model with no entry anywhere is never guessed at. Its tokens are counted and reported as unpriced, and any total containing them carries a `+` so an incomplete figure is never read as a cheap one. `--prices` is the quickest way to find out why something shows `n/a`.
 

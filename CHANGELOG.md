@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- `claude-opus-5-5` is priced at its own $4 / $20 rate, with cache reads at $0.20. It was priced as `claude-opus-5`, which overstated its cost. ([#59](https://github.com/kannandreams/agent-top/pull/59))
+- Prices for `claude-sonnet-5-5`, `claude-opus-4-5`, `claude-sonnet-4-5` and the retired Opus 4, Opus 4.1, Sonnet 4 and Haiku 3.5, so older sessions in `agent-top report` are no longer unpriced. ([#59](https://github.com/kannandreams/agent-top/pull/59))
+
 ## [0.21.1] - 2026-09-24
 
 ### Fixed
