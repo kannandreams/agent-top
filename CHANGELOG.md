@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-05
+
+### Highlights
+`agent-top sync` keeps sessions, spans and MCP calls in a SQLite file on your machine. Claude Code deletes transcripts after 30 days by default, and `agent-top report` loses their cost with them; synced sessions stay. Any SQLite client can query the file.
+
 ### Added
 - `agent-top sync` keeps sessions, spans and MCP calls in a local SQLite file, so cost history survives a harness deleting its transcripts. ([#65](https://github.com/kannandreams/agent-top/pull/65))
 
