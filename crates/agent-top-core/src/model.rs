@@ -226,6 +226,38 @@ impl ToolSpan {
     }
 }
 
+/// The last two components of a path, so `/Users/me/code/app` reads as
+/// `code/app` and two projects called `app` are still told apart.
+pub fn project_name(p: &std::path::Path) -> String {
+    let names: Vec<String> = p
+        .components()
+        .filter_map(|c| match c {
+            std::path::Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect();
+    let tail = names.iter().rev().take(2).rev().cloned().collect::<Vec<_>>().join("/");
+    if tail.is_empty() { p.to_string_lossy().into_owned() } else { tail }
+}
+
+/// The turn a span belongs to: the newest turn that started at or before it
+/// and had not ended when it started. Subagent spans prefer the subagent's
+/// own turn, which their transcript carries, and fall back to the main
+/// agent's. A turn has no parent.
+pub fn parent_turn<'a>(spans: &[&'a ToolSpan], i: usize) -> Option<&'a ToolSpan> {
+    let sp = spans[i];
+    if sp.kind == SpanKind::Turn {
+        return None;
+    }
+    let contains = |t: &ToolSpan| {
+        t.kind == SpanKind::Turn
+            && t.started_at <= sp.started_at
+            && t.duration_ms.map(|ms| t.started_at + std::time::Duration::from_millis(ms) >= sp.started_at).unwrap_or(true)
+    };
+    let own = spans[..i].iter().rev().find(|t| t.sidechain == sp.sidechain && contains(t));
+    own.or_else(|| spans[..i].iter().rev().find(|t| !t.sidechain && contains(t))).copied()
+}
+
 /// One MCP server an agent uses, seen from either side or both: the process
 /// table has the server's pid, CPU and memory; the transcript has how often
 /// the agent called it. Claude Code names an MCP tool `mcp__<server>__<tool>`,
@@ -786,5 +818,17 @@ mod usage_tests {
         assert_eq!(u.cache_hit_rate(), Some(0.0));
         // Nothing to judge.
         assert_eq!(TokenUsage::default().cache_hit_rate(), None);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn project_name_keeps_two_components() {
+        assert_eq!(project_name(Path::new("/Users/me/code/app")), "code/app");
+        assert_eq!(project_name(Path::new("/app")), "app");
     }
 }

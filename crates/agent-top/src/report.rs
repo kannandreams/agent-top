@@ -12,9 +12,9 @@
 use agent_top_core::Harness;
 use agent_top_core::harness::SessionSummary;
 use agent_top_core::harness::{self, SpanRetention};
+use agent_top_core::model::project_name;
 use anyhow::{Result, bail};
 use std::collections::BTreeMap;
-use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -180,20 +180,6 @@ fn group_key(by: GroupBy, harness: Harness, s: &SessionSummary) -> String {
     }
 }
 
-/// The last two components of a path, so `/Users/me/code/app` reads as
-/// `code/app` and two projects called `app` are still told apart.
-fn project_name(p: &Path) -> String {
-    let names: Vec<String> = p
-        .components()
-        .filter_map(|c| match c {
-            std::path::Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
-            _ => None,
-        })
-        .collect();
-    let tail = names.iter().rev().take(2).rev().cloned().collect::<Vec<_>>().join("/");
-    if tail.is_empty() { p.to_string_lossy().into_owned() } else { tail }
-}
-
 impl Report {
     /// The report as a plain table, sorted by cost then tokens, with a total.
     pub fn to_plain(&self) -> String {
@@ -337,11 +323,5 @@ mod tests {
         for &(y, m, d) in &[(1970, 1, 1), (2026, 9, 5), (2000, 2, 29), (2026, 12, 31)] {
             assert_eq!(civil_from_days(days_from_civil(y, m, d)), (y, m, d));
         }
-    }
-
-    #[test]
-    fn project_name_keeps_two_components() {
-        assert_eq!(project_name(Path::new("/Users/me/code/app")), "code/app");
-        assert_eq!(project_name(Path::new("/app")), "app");
     }
 }

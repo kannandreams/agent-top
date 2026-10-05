@@ -13,6 +13,7 @@ name = "agent-top"
 version = "0.22.1"
 dependencies = [
  "agent-top-core",
+ "agent-top-store",
  "anyhow",
  "clap",
  "clap_complete",
@@ -34,6 +35,16 @@ dependencies = [
  "sysinfo",
  "thiserror 2.0.20",
  "toml",
+]
+
+[[package]]
+name = "agent-top-store"
+version = "0.22.1"
+dependencies = [
+ "agent-top-core",
+ "anyhow",
+ "rusqlite",
+ "serde_json",
 ]
 
 [[package]]

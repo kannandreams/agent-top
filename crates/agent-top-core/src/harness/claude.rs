@@ -47,8 +47,8 @@
 //!   reconciled with it.
 
 use super::{
-    AttributeContext, HarnessAdapter, REFRESH_BUDGET_BYTES, RegistryHints, SessionSummary, SessionTracker, SpanLog, SpanRetention,
-    mcp_server_of, parse_rfc3339_utc,
+    AttributeContext, HarnessAdapter, REFRESH_BUDGET_BYTES, RegistryHints, SessionSummary, SessionTracker, SourceStamp, SpanLog,
+    SpanRetention, mcp_server_of, parse_rfc3339_utc,
 };
 use crate::jsonl::TailReader;
 use crate::model::{Activity, Attribution, ContextOrigin, CostBreakdown, Harness, HarnessCost, ProcNode, SpanKind, TokenUsage};
@@ -273,6 +273,14 @@ impl HarnessAdapter for ClaudeAdapter {
             .filter(|p| !is_subagent_transcript(p))
             .map(|p| (p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(), p))
             .collect()
+    }
+
+    /// The transcript and every subagent transcript folded into it, since a
+    /// subagent can write after the parent's last line.
+    fn stamp(&self, path: &Path) -> Option<SourceStamp> {
+        let main = SourceStamp::of_file(path)?;
+        let subs = subagents_dir(path).and_then(|d| std::fs::read_dir(d).ok());
+        Some(subs.into_iter().flatten().flatten().filter_map(|e| SourceStamp::of_file(&e.path())).fold(main, SourceStamp::with))
     }
 }
 

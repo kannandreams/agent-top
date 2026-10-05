@@ -1,0 +1,15 @@
+[package]
+name = "agent-top-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme = "README.md"
+description = "The local SQLite store behind `agent-top sync`: sessions, spans and MCP calls kept after a harness deletes its transcripts."
+
+[dependencies]
+agent-top-core.workspace = true
+anyhow.workspace = true
+rusqlite.workspace = true
+serde_json.workspace = true

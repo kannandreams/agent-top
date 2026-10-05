@@ -556,6 +556,35 @@ pub trait HarnessAdapter {
     /// Every transcript on disk, however old, with the id a user would type
     /// to name it. For `agent-top trace --session <id>`.
     fn transcripts(&self) -> Vec<(String, PathBuf)>;
+
+    /// The size and modification time of everything `open` reads for this
+    /// transcript, so the store can skip one that has not changed since it
+    /// was synced. `None` when the transcript is not a file (a database row),
+    /// which is always re-read.
+    fn stamp(&self, path: &Path) -> Option<SourceStamp> {
+        SourceStamp::of_file(path)
+    }
+}
+
+/// What `HarnessAdapter::stamp` compares: total bytes and the newest
+/// modification time, in milliseconds since the epoch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceStamp {
+    pub size: u64,
+    pub mtime_ms: i64,
+}
+
+impl SourceStamp {
+    pub fn of_file(path: &Path) -> Option<SourceStamp> {
+        let md = std::fs::metadata(path).ok().filter(|m| m.is_file())?;
+        let mtime_ms = md.modified().ok()?.duration_since(SystemTime::UNIX_EPOCH).ok()?.as_millis() as i64;
+        Some(SourceStamp { size: md.len(), mtime_ms })
+    }
+
+    /// Both files' bytes, and the later of their times.
+    pub fn with(self, other: SourceStamp) -> SourceStamp {
+        SourceStamp { size: self.size + other.size, mtime_ms: self.mtime_ms.max(other.mtime_ms) }
+    }
 }
 
 /// Every harness that has a transcript adapter, in the order they are asked.

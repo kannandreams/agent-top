@@ -14,6 +14,7 @@ agent-top is a single Rust binary, MIT licensed, source at https://github.com/ka
 
 - [The live view](https://agenttop.dev/live-view/): the header, the agents table, the process tree, the tool trace, MCP servers, context by source, advice.
 - [Cost report](https://agenttop.dev/report/): `agent-top report`, cross-harness cost and tokens by harness, model, project or day.
+- [History store](https://agenttop.dev/history/): `agent-top sync`, a local SQLite file that keeps sessions, spans and MCP calls after a harness deletes its transcripts.
 - [Tool trace and export](https://agenttop.dev/trace/): `agent-top trace`, Chrome trace and OTLP/JSON export.
 - [Snapshots and replay](https://agenttop.dev/replay/): `--json` and `--replay`, for bug reports and demos.
 - [Prices](https://agenttop.dev/prices/): the built-in price table and overriding it.
