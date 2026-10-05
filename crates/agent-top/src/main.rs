@@ -4,6 +4,7 @@ mod app;
 mod format;
 mod pane;
 mod report;
+mod sql;
 mod theme;
 mod trace;
 mod ui;
@@ -145,6 +146,27 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Query the history store `sync` fills, read-only. Tables: sessions,
+    /// spans, mcp_calls, sources. Views: cost_by_day, cost_by_harness,
+    /// cost_by_model, cost_by_project, tool_latency, mcp_errors.
+    Sql {
+        /// One SQL statement, for example
+        /// "select * from cost_by_project order by cost_usd desc limit 10".
+        #[arg(value_name = "QUERY", required_unless_present = "schema")]
+        query: Option<String>,
+        /// List the tables and views with their columns, and exit.
+        #[arg(long, conflicts_with = "query")]
+        schema: bool,
+        /// The store file; the same default as `sync`.
+        #[arg(long, value_name = "FILE")]
+        db: Option<PathBuf>,
+        /// Print the rows as a JSON array of objects.
+        #[arg(long, conflicts_with = "csv")]
+        json: bool,
+        /// Print the rows as CSV.
+        #[arg(long)]
+        csv: bool,
+    },
     /// Start on the slowest-tools panel, filling the terminal. Same keys as
     /// the main view; q quits. Meant for a second pane or window.
     Slow,
@@ -165,7 +187,7 @@ impl Command {
             Command::Fails => Some(app::Panel::FailedTools),
             Command::Advice => Some(app::Panel::Advice),
             Command::Mcp => Some(app::Panel::Mcp),
-            Command::Trace { .. } | Command::Report { .. } | Command::Sync { .. } => None,
+            Command::Trace { .. } | Command::Report { .. } | Command::Sync { .. } | Command::Sql { .. } => None,
         }
     }
 }
@@ -208,13 +230,18 @@ impl Source {
     }
 }
 
+/// `--db`, or the store's default path.
+fn store_path(db: Option<&std::path::Path>) -> Result<PathBuf> {
+    match db {
+        Some(p) => Ok(p.to_path_buf()),
+        None => agent_top_store::default_path().context("no store path: set HOME, XDG_DATA_HOME or AGENT_TOP_DB, or pass --db"),
+    }
+}
+
 /// `agent-top sync`: fill the store and say what changed.
 fn sync(since: &str, db: Option<&std::path::Path>, json: bool) -> Result<()> {
     let since = report::parse_since(since)?;
-    let path = match db {
-        Some(p) => p.to_path_buf(),
-        None => agent_top_store::default_path().context("no store path: set HOME, XDG_DATA_HOME or AGENT_TOP_DB, or pass --db")?,
-    };
+    let path = store_path(db)?;
     let mut store = agent_top_store::Store::open(&path)?;
     let stats = store.sync((since > std::time::UNIX_EPOCH).then_some(since))?;
     let sessions = store.session_count()?;
@@ -278,6 +305,22 @@ fn main() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&rep.to_json())?);
         } else {
             print!("{}", rep.to_plain());
+        }
+        return Ok(());
+    }
+    if let Some(Command::Sql { query, schema, db, json, csv }) = &cli.command {
+        let reader = agent_top_store::Reader::open(&store_path(db.as_deref())?)?;
+        if *schema {
+            print!("{}", sql::schema(&reader.describe()?));
+            return Ok(());
+        }
+        let result = reader.query(query.as_deref().unwrap_or_default())?;
+        if *json {
+            println!("{}", serde_json::to_string_pretty(&sql::to_json(&result))?);
+        } else if *csv {
+            print!("{}", sql::to_csv(&result));
+        } else {
+            print!("{}", sql::to_table(&result));
         }
         return Ok(());
     }

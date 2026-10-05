@@ -19,11 +19,14 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// The schema this build writes, kept in `PRAGMA user_version`.
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 
 /// Recorded on every synced source, so a newer agent-top re-reads what an
 /// older one stored and a parser or price fix reaches the stored rows.
 pub const WRITER_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+mod query;
+pub use query::{Column, Described, QueryResult, Reader, Value};
 
 const SCHEMA_V1: &str = "
 CREATE TABLE sessions (
@@ -92,6 +95,53 @@ CREATE TABLE sources (
     synced_at          INTEGER NOT NULL,
     synced_by_version  TEXT NOT NULL
 );
+";
+
+/// The saved questions. A session counts when it has tokens or turns, as in
+/// `agent-top report`, and is dated by its last activity, in UTC.
+const SCHEMA_V2: &str = "
+CREATE VIEW counted_sessions AS
+    SELECT *, input + cache_write_5m + cache_write_1h + cache_write_unsplit + cache_read + output AS tokens
+    FROM sessions
+    WHERE input + cache_write_5m + cache_write_1h + cache_write_unsplit + cache_read + output > 0 OR turns > 0;
+
+CREATE VIEW cost_by_day AS
+    SELECT date(last_activity / 1000, 'unixepoch') AS day, count(*) AS sessions, sum(tokens) AS tokens,
+           sum(cost_usd) AS cost_usd, sum(unpriced_tokens) AS unpriced_tokens
+    FROM counted_sessions GROUP BY day;
+
+CREATE VIEW cost_by_harness AS
+    SELECT harness, count(*) AS sessions, sum(tokens) AS tokens,
+           sum(cost_usd) AS cost_usd, sum(unpriced_tokens) AS unpriced_tokens
+    FROM counted_sessions GROUP BY harness;
+
+CREATE VIEW cost_by_model AS
+    SELECT coalesce(model, 'unknown') AS model, count(*) AS sessions, sum(tokens) AS tokens,
+           sum(cost_usd) AS cost_usd, sum(unpriced_tokens) AS unpriced_tokens
+    FROM counted_sessions GROUP BY 1;
+
+CREATE VIEW cost_by_project AS
+    SELECT coalesce(project, 'unknown') AS project, count(*) AS sessions, sum(tokens) AS tokens,
+           sum(cost_usd) AS cost_usd, sum(unpriced_tokens) AS unpriced_tokens
+    FROM counted_sessions GROUP BY 1;
+
+CREATE VIEW tool_latency AS
+    WITH ranked AS (
+        SELECT name, duration_ms, error,
+               row_number() OVER (PARTITION BY name ORDER BY duration_ms) AS rank,
+               count(*) OVER (PARTITION BY name) AS n
+        FROM spans WHERE kind = 'tool' AND duration_ms IS NOT NULL
+    )
+    SELECT name, max(n) AS calls, sum(error) AS errors,
+           min(CASE WHEN rank >= 0.5 * n THEN duration_ms END) AS p50_ms,
+           min(CASE WHEN rank >= 0.95 * n THEN duration_ms END) AS p95_ms,
+           max(duration_ms) AS max_ms
+    FROM ranked GROUP BY name;
+
+CREATE VIEW mcp_errors AS
+    SELECT server, count(*) AS sessions, sum(calls) AS calls, sum(errors) AS errors,
+           round(1.0 * sum(errors) / sum(calls), 4) AS error_rate, max(last_call_at) AS last_call_at
+    FROM mcp_calls GROUP BY server;
 ";
 
 /// Where the store lives when `--db` is not given: `AGENT_TOP_DB`, else
@@ -180,11 +230,13 @@ impl Store {
                 self.path.display()
             );
         }
-        if v < 1 {
-            let tx = self.conn.transaction()?;
-            tx.execute_batch(SCHEMA_V1)?;
-            tx.pragma_update(None, "user_version", 1)?;
-            tx.commit()?;
+        for (version, sql) in [(1, SCHEMA_V1), (2, SCHEMA_V2)] {
+            if v < version {
+                let tx = self.conn.transaction()?;
+                tx.execute_batch(sql)?;
+                tx.pragma_update(None, "user_version", version)?;
+                tx.commit()?;
+            }
         }
         Ok(())
     }

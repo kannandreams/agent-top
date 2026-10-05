@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- `agent-top sql` queries the history store read-only, as a table, `--json` or `--csv`, with views for cost by day, harness, model and project, tool latency and MCP errors. ([#PR](https://github.com/kannandreams/agent-top/pull/PR))
+
 ## [0.23.0] - 2026-10-05
 
 ### Highlights
