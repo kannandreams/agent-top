@@ -8,7 +8,7 @@ Three crates in one Cargo workspace, split by dependency rather than by size.
 
 **`agent-top-core`** is everything that does not need a terminal: process discovery, transcript parsing, pricing, the process model, and the collector that joins them into a snapshot. It is what `--json` prints, so all of it is testable without a TTY.
 
-**`agent-top-store`** is the SQLite [history store](history.md) that `sync` fills. It is the only crate that writes a file of its own.
+**`agent-top-store`** is the SQLite [local store](store/index.md) that `sync` fills and `sql` reads. It is the only crate that writes a file of its own.
 
 **`agent-top`** is the ratatui front end and the command line: the live view, `--once`, `report`, `trace`, `sync` and `sql`.
 
