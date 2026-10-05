@@ -132,9 +132,13 @@ nav:
       - Snapshots and replay: replay.md
   - Cost:
       - Cost report: report.md
-      - History store: history.md
       - Prices: prices.md
       - Accounting: accounting.md
+  - Local store:
+      - Overview: store/index.md
+      - Sync: store/sync.md
+      - Query: store/query.md
+      - Schema: store/schema.md
   - Harnesses:
       - Harness support: harnesses.md
   - Project:

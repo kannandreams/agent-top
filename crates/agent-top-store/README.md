@@ -1,6 +1,6 @@
 # agent-top-store
 
-The SQLite history store behind `agent-top sync`, part of
+The SQLite local store behind `agent-top sync` and `agent-top sql`, part of
 [`agent-top`](https://crates.io/crates/agent-top).
 
 **If you want the tool, install `agent-top` instead.** This crate is published
@@ -20,7 +20,7 @@ println!("{} stored, {} unchanged", stats.stored, stats.unchanged);
 # Ok::<(), anyhow::Error>(())
 ```
 
-The schema is documented at <https://agenttop.dev/history/>.
+The schema is documented at <https://agenttop.dev/store/schema/>.
 
 Licensed under MIT. Source, roadmap and the tool itself are at
 <https://github.com/kannandreams/agent-top>.

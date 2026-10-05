@@ -1,4 +1,4 @@
-//! `agent-top sql`: print a query against the history store as a table,
+//! `agent-top sql`: print a query against the local store as a table,
 //! JSON or CSV.
 
 use agent_top_store::{Described, QueryResult, Value};

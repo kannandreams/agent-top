@@ -146,7 +146,7 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Query the history store `sync` fills, read-only. Tables: sessions,
+    /// Query the local store `sync` fills, read-only. Tables: sessions,
     /// spans, mcp_calls, sources. Views: cost_by_day, cost_by_harness,
     /// cost_by_model, cost_by_project, tool_latency, mcp_errors.
     Sql {
