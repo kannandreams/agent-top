@@ -10,7 +10,7 @@ Three crates in one Cargo workspace, split by dependency rather than by size.
 
 **`agent-top-store`** is the SQLite [history store](history.md) that `sync` fills. It is the only crate that writes a file of its own.
 
-**`agent-top`** is the ratatui front end and the command line: the live view, `--once`, `report`, `trace` and `sync`.
+**`agent-top`** is the ratatui front end and the command line: the live view, `--once`, `report`, `trace`, `sync` and `sql`.
 
 ```text
 crates/agent-top-core
@@ -23,13 +23,15 @@ crates/agent-top-core
   collector.rs    joins processes and transcripts into a Snapshot
 
 crates/agent-top-store
-  lib.rs          schema, migrations, and the sync that skips unchanged transcripts
+  lib.rs          schema, views, migrations, and the sync that skips unchanged transcripts
+  query.rs        the read-only reader behind `agent-top sql`
 
 crates/agent-top
   main.rs         flags, event loop, --once and --json, the subcommands
   app.rs          selection, sort, toggles, burn rate, sparkline histories
   ui.rs           header, table, detail pane, popups
   report.rs       the cross-harness cost report
+  sql.rs          table, JSON and CSV output for `agent-top sql`
   trace.rs        session lookup, Chrome trace and OTLP/JSON writers
   update.rs       the daily version check and the upgrade popup
   format.rs       tokens, bytes, age and cost formatting; the plain table

@@ -13,3 +13,6 @@ agent-top-core.workspace = true
 anyhow.workspace = true
 rusqlite.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+rusqlite.workspace = true

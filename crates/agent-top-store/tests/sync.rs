@@ -3,43 +3,10 @@
 
 use agent_top_core::Harness;
 use agent_top_core::harness::{self, SpanRetention};
-use agent_top_store::{Source, Store, SyncStats, WRITER_VERSION};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
+use agent_top_store::{Store, SyncStats, WRITER_VERSION};
+mod common;
 
-fn fixture(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../agent-top-core/tests/fixtures").join(name)
-}
-
-/// A fresh directory under the system temp dir, removed when dropped.
-struct TempDir(PathBuf);
-
-impl TempDir {
-    fn new() -> TempDir {
-        static N: AtomicU32 = AtomicU32::new(0);
-        let p = std::env::temp_dir().join(format!("agent-top-store-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
-        let _ = std::fs::remove_dir_all(&p);
-        std::fs::create_dir_all(&p).unwrap();
-        TempDir(p)
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-/// A copy of a fixture in `dir`, so a test can append to it or delete it.
-fn copy(dir: &TempDir, name: &str) -> PathBuf {
-    let to = dir.0.join(name);
-    std::fs::copy(fixture(name), &to).unwrap();
-    to
-}
-
-fn source(harness: Harness, path: &Path) -> Source {
-    Source { harness, id: path.file_stem().unwrap().to_string_lossy().into_owned(), path: path.to_path_buf() }
-}
+use common::{TempDir, copy, source};
 
 fn stats(stored: u64, unchanged: u64) -> SyncStats {
     SyncStats { seen: stored + unchanged, stored, unchanged, ..Default::default() }

@@ -27,12 +27,31 @@ The first of these that is set: `--db`, `AGENT_TOP_DB`, `$XDG_DATA_HOME/agent-to
 
 What `--json` shows, and nothing else: no prompt, reply or tool content is ever read, so none can be stored. The file does hold working-directory paths and project names.
 
-Any SQLite client opens it:
+## Querying it
+
+`agent-top sql` runs one statement against the store and prints the rows. It opens the file read-only, and a statement that would change anything is refused.
 
 ```sh
-sqlite3 ~/.local/share/agent-top/agent-top.db \
-  "select project, round(sum(cost_usd), 2) from sessions group by 1 order by 2 desc limit 10"
+agent-top sql "select * from cost_by_project order by cost_usd desc limit 10"
+agent-top sql "select * from tool_latency order by p95_ms desc limit 10"
+agent-top sql "select day, cost_usd from cost_by_day where day >= '2026-09-01'" --csv
+agent-top sql "select model, sum(cost_usd) from sessions group by 1" --json
+agent-top sql --schema          # every table and view with its columns
 ```
+
+Any SQLite client opens the same file, and DuckDB attaches it with `ATTACH 'agent-top.db' (TYPE sqlite)`.
+
+| View | One row per | Columns |
+|---|---|---|
+| `counted_sessions` | session with tokens or turns, what `report` counts | every `sessions` column, plus `tokens` |
+| `cost_by_day` | UTC day of last activity | `day`, `sessions`, `tokens`, `cost_usd`, `unpriced_tokens` |
+| `cost_by_harness` | harness | the same |
+| `cost_by_model` | model | the same |
+| `cost_by_project` | project | the same |
+| `tool_latency` | tool name | `calls`, `errors`, `p50_ms`, `p95_ms`, `max_ms` (finished calls only) |
+| `mcp_errors` | MCP server | `sessions`, `calls`, `errors`, `error_rate`, `last_call_at` |
+
+## Tables
 
 | Table | One row per | Main columns |
 |---|---|---|
@@ -45,4 +64,4 @@ Times are milliseconds since the Unix epoch, UTC. A session is dated by its last
 
 Cost is computed with the price table of the agent-top that synced the row. After an upgrade, the next sync re-reads every transcript still on disk, so a price or parser fix reaches it. A session whose transcript is gone keeps the cost it was stored with, and `synced_by_version` in `sessions` says which version that was.
 
-The schema version is `PRAGMA user_version`. Columns are added, not renamed, and an older agent-top refuses to open a file a newer one has upgraded.
+The schema version is `PRAGMA user_version`. Columns are added, not renamed, and an older agent-top refuses to open a file a newer one has upgraded. `sync` upgrades a file an older agent-top wrote; `sql` asks you to run it first.
