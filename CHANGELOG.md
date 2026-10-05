@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- `agent-top sync` keeps sessions, spans and MCP calls in a local SQLite file, so cost history survives a harness deleting its transcripts. ([#65](https://github.com/kannandreams/agent-top/pull/65))
+
+### Changed
+- `agent-top-core`: `HarnessAdapter::stamp` and `SourceStamp` are new, and `project_name` and `parent_turn` are public in `model`. ([#65](https://github.com/kannandreams/agent-top/pull/65))
+
 ## [0.22.1] - 2026-10-01
 
 ### Fixed
