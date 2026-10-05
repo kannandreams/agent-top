@@ -132,6 +132,7 @@ nav:
       - Snapshots and replay: replay.md
   - Cost:
       - Cost report: report.md
+      - History store: history.md
       - Prices: prices.md
       - Accounting: accounting.md
   - Harnesses:

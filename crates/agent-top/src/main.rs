@@ -128,6 +128,23 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Keep what the transcripts say in a local SQLite file, so the numbers
+    /// outlive a harness deleting its history. Reads every transcript that
+    /// changed since the last sync; writes only the store file.
+    Sync {
+        /// Only read transcripts written since then: `all`, a duration like
+        /// `7d` / `12h` / `2w`, or a date `YYYY-MM-DD`.
+        #[arg(long, default_value = "all", value_name = "WHEN")]
+        since: String,
+        /// The store file. Default: `AGENT_TOP_DB`, else
+        /// `$XDG_DATA_HOME/agent-top/agent-top.db`, else
+        /// `~/.local/share/agent-top/agent-top.db`.
+        #[arg(long, value_name = "FILE")]
+        db: Option<PathBuf>,
+        /// Print what the sync did as JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Start on the slowest-tools panel, filling the terminal. Same keys as
     /// the main view; q quits. Meant for a second pane or window.
     Slow,
@@ -148,7 +165,7 @@ impl Command {
             Command::Fails => Some(app::Panel::FailedTools),
             Command::Advice => Some(app::Panel::Advice),
             Command::Mcp => Some(app::Panel::Mcp),
-            Command::Trace { .. } | Command::Report { .. } => None,
+            Command::Trace { .. } | Command::Report { .. } | Command::Sync { .. } => None,
         }
     }
 }
@@ -191,6 +208,47 @@ impl Source {
     }
 }
 
+/// `agent-top sync`: fill the store and say what changed.
+fn sync(since: &str, db: Option<&std::path::Path>, json: bool) -> Result<()> {
+    let since = report::parse_since(since)?;
+    let path = match db {
+        Some(p) => p.to_path_buf(),
+        None => agent_top_store::default_path().context("no store path: set HOME, XDG_DATA_HOME or AGENT_TOP_DB, or pass --db")?,
+    };
+    let mut store = agent_top_store::Store::open(&path)?;
+    let stats = store.sync((since > std::time::UNIX_EPOCH).then_some(since))?;
+    let sessions = store.session_count()?;
+    if json {
+        let failed: Vec<_> = stats.failed.iter().map(|(p, why)| serde_json::json!({ "path": p.to_string_lossy(), "error": why })).collect();
+        let doc = serde_json::json!({
+            "db": path.to_string_lossy(),
+            "seen": stats.seen,
+            "stored": stats.stored,
+            "unchanged": stats.unchanged,
+            "outside_window": stats.outside_window,
+            "kept": stats.kept,
+            "failed": failed,
+            "sessions": sessions,
+        });
+        println!("{}", serde_json::to_string_pretty(&doc)?);
+        return Ok(());
+    }
+    for (p, why) in &stats.failed {
+        eprintln!("agent-top: could not read {}: {why}", p.display());
+    }
+    let mut line = format!("{} transcripts: {} stored, {} unchanged", stats.seen, stats.stored, stats.unchanged);
+    for (n, what) in
+        [(stats.outside_window, "outside the window"), (stats.kept, "kept (read as empty)"), (stats.failed.len() as u64, "failed")]
+    {
+        if n > 0 {
+            line.push_str(&format!(", {n} {what}"));
+        }
+    }
+    println!("{line}");
+    println!("{} holds {sessions} sessions", path.display());
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     if let Some(shell) = cli.completions {
@@ -222,6 +280,12 @@ fn main() -> Result<()> {
             print!("{}", rep.to_plain());
         }
         return Ok(());
+    }
+    if let Some(Command::Sync { since, db, json }) = &cli.command {
+        for w in &agent_top_core::pricing::table().warnings {
+            eprintln!("agent-top: {w}");
+        }
+        return sync(since, db.as_deref(), *json);
     }
     // A user's price file that could not be read is the difference between a
     // real cost and a wrong one, so say so rather than quietly using defaults.

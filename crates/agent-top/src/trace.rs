@@ -17,7 +17,7 @@
 
 use agent_top_core::Harness;
 use agent_top_core::harness::{self, SessionSummary, SpanRetention};
-use agent_top_core::model::{SpanKind, ToolSpan};
+use agent_top_core::model::{SpanKind, ToolSpan, parent_turn};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
@@ -180,24 +180,6 @@ fn otlp(src: &Source, s: &SessionSummary) -> Value {
             }],
         }],
     })
-}
-
-/// The turn a span belongs to: the newest turn that started at or before it
-/// and had not ended when it started. Subagent spans prefer the subagent's
-/// own turn, which their transcript carries, and fall back to the main
-/// agent's. A turn has no parent.
-fn parent_turn<'a>(spans: &[&'a ToolSpan], i: usize) -> Option<&'a ToolSpan> {
-    let sp = spans[i];
-    if sp.kind == SpanKind::Turn {
-        return None;
-    }
-    let contains = |t: &ToolSpan| {
-        t.kind == SpanKind::Turn
-            && t.started_at <= sp.started_at
-            && t.duration_ms.map(|ms| t.started_at + std::time::Duration::from_millis(ms) >= sp.started_at).unwrap_or(true)
-    };
-    let own = spans[..i].iter().rev().find(|t| t.sidechain == sp.sidechain && contains(t));
-    own.or_else(|| spans[..i].iter().rev().find(|t| !t.sidechain && contains(t))).copied()
 }
 
 fn attr(key: &str, value: Value) -> Value {

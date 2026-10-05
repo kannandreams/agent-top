@@ -4,11 +4,13 @@ description: "How agent-top is built: the two-crate workspace, what happens on e
 
 # Architecture
 
-Two crates in one Cargo workspace, split by dependency rather than by size.
+Three crates in one Cargo workspace, split by dependency rather than by size.
 
 **`agent-top-core`** is everything that does not need a terminal: process discovery, transcript parsing, pricing, the process model, and the collector that joins them into a snapshot. It is what `--json` prints, so all of it is testable without a TTY.
 
-**`agent-top`** is the ratatui front end and the command line: the live view, `--once`, `report` and `trace`.
+**`agent-top-store`** is the SQLite [history store](history.md) that `sync` fills. It is the only crate that writes a file of its own.
+
+**`agent-top`** is the ratatui front end and the command line: the live view, `--once`, `report`, `trace` and `sync`.
 
 ```text
 crates/agent-top-core
@@ -19,6 +21,9 @@ crates/agent-top-core
   pricing.rs      the dated price table, longest-prefix model match
   advice.rs       the three advice rules
   collector.rs    joins processes and transcripts into a Snapshot
+
+crates/agent-top-store
+  lib.rs          schema, migrations, and the sync that skips unchanged transcripts
 
 crates/agent-top
   main.rs         flags, event loop, --once and --json, the subcommands
