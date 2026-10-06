@@ -120,6 +120,7 @@ fn a_version_one_store_is_upgraded_by_sync_not_by_sql() {
         for v in ["mcp_errors", "tool_latency", "cost_by_project", "cost_by_model", "cost_by_harness", "cost_by_day", "counted_sessions"] {
             c.execute(&format!("DROP VIEW {v}"), []).unwrap();
         }
+        c.execute("DROP TABLE telemetry_spans", []).unwrap();
         c.execute("ALTER TABLE sessions DROP COLUMN tool_calls_lower_bound", []).unwrap();
         c.pragma_update(None, "user_version", 1).unwrap();
     }

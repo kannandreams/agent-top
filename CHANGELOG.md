@@ -5,11 +5,14 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- `agent-top serve --listen <addr>` receives OpenTelemetry spans (OTLP/HTTP, protobuf or JSON) from your own agents and keeps them in the local store, priced from the same table; `report` counts them. ([#74](https://github.com/kannandreams/agent-top/pull/74))
 - `agent-top serve` syncs the local store on an interval until stopped, logging a line when a sync stores something. ([#73](https://github.com/kannandreams/agent-top/pull/73))
 
 ### Changed
 - `agent-top sync` no longer rewrites OpenCode and Kodelet sessions that have not changed. ([#73](https://github.com/kannandreams/agent-top/pull/73))
 - `agent-top-store`: `Store::sync_with` syncs sources through a given adapter. ([#73](https://github.com/kannandreams/agent-top/pull/73))
+- `agent-top report --json`: `source` gains `received_sessions`. ([#74](https://github.com/kannandreams/agent-top/pull/74))
+- `agent-top-core` gains the `otlp` module; `agent-top-store` gains `Store::receive` and `StoredSession::attribution`. ([#74](https://github.com/kannandreams/agent-top/pull/74))
 
 ## [0.25.0] - 2026-10-06
 

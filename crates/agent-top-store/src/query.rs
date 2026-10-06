@@ -33,6 +33,8 @@ pub struct StoredSession {
     pub harness: String,
     pub session_id: String,
     pub source_path: String,
+    /// `transcript`, or `telemetry` for a session received by `serve --listen`.
+    pub attribution: String,
     pub model: Option<String>,
     pub project: Option<String>,
     /// Milliseconds since the epoch.
@@ -141,7 +143,7 @@ impl Reader {
             "SELECT s.harness, s.session_id, s.source_path, s.model, s.project, s.last_activity,
                     s.input, s.cache_write_5m, s.cache_write_1h, s.cache_write_unsplit, s.cache_read, s.output,
                     s.cost_usd, s.unpriced_tokens, s.turns, s.tool_calls, s.tool_calls_lower_bound,
-                    src.size, src.mtime_ms, src.synced_by_version
+                    src.size, src.mtime_ms, src.synced_by_version, s.attribution
              FROM sessions s LEFT JOIN sources src ON src.path = s.source_path",
         )?;
         let n = |r: &rusqlite::Row, i: usize| r.get::<_, i64>(i).map(|v| v.max(0) as u64);
@@ -169,6 +171,7 @@ impl Reader {
                 source_size: r.get(17)?,
                 source_mtime_ms: r.get(18)?,
                 synced_by_version: r.get(19)?,
+                attribution: r.get(20)?,
             })
         })?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)

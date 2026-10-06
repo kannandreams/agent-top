@@ -33,6 +33,10 @@ toml = { version = "0.9", default-features = false, features = ["parse", "serde"
 rusqlite = { version = "0.32", features = ["bundled"] }
 # Only for `agent-top trace --endpoint`, which posts one file where the user says.
 ureq = "3.4"
+# Only for `agent-top serve --listen`: a blocking HTTP server (no async runtime)
+# and the protobuf decoder for the OTLP messages it accepts.
+tiny_http = "0.12"
+prost = "0.14"
 
 [profile.release]
 lto = "thin"

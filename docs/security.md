@@ -46,10 +46,12 @@ The process table (through `sysinfo` and, on macOS, `libproc`, not by shelling o
 
 ## Network calls
 
-There are two.
+There are two outbound calls, and one listener you can start.
 
 1. **A daily version check.** `GET https://crates.io/api/v1/crates/agent-top` with a fixed `User-Agent` and nothing else: no session data, no machine identifier, no query string. Cached to run at most once a day, in `~/.cache/agent-top/update-check.json` (or `$XDG_CACHE_HOME/agent-top/update-check.json`), which holds when it last checked, what it found, and which version you dismissed. `AGENT_TOP_NO_UPDATE_CHECK=1` turns it off.
 2. **`trace --endpoint <url>`.** Posts the OTLP document to the address typed on the command line, once. No default endpoint, no config key, no environment variable that turns it on.
+
+**The listener.** `agent-top serve --listen <addr>` accepts OpenTelemetry spans at the address typed on the command line, and only then; no default, no config key, no environment variable opens it. It drops every attribute not on an allow-list while decoding, so prompt and tool content never reach the store, and refuses bodies over 4 MiB. Any process that can reach the address can send spans, so bind it to `127.0.0.1`. See [Receive telemetry](store/telemetry.md).
 
 Nothing else opens a connection. `--json` and `--replay` never touch the network; replay reads only the file you give it.
 

@@ -171,6 +171,8 @@ pub enum Source {
         path: PathBuf,
         /// Counted sessions whose transcript is gone.
         only_in_store: u64,
+        /// Counted sessions received by `serve --listen`.
+        received: u64,
         /// Transcripts unchanged since sync, read from the store.
         reused: u64,
     },
@@ -269,17 +271,21 @@ fn build_with(
     }
 
     // What is left in the store has no transcript on disk any more.
-    let mut only_in_store = 0;
-    for s in stored.values() {
+    let (mut only_in_store, mut received) = (0, 0);
+    for row in stored.values() {
         scanned += 1;
-        let s = Session::stored(s);
+        let s = Session::stored(row);
         if s.counts(since) {
-            only_in_store += 1;
+            if row.attribution == "telemetry" {
+                received += 1;
+            } else {
+                only_in_store += 1;
+            }
         }
         fold(&s);
     }
     let source = match store_path {
-        Some(path) => Source::Store { path, only_in_store, reused },
+        Some(path) => Source::Store { path, only_in_store, received, reused },
         None => Source::Transcripts { hint },
     };
     Report { since, by, groups, total, scanned, source }
@@ -343,12 +349,17 @@ impl Report {
             ));
         }
         match &self.source {
-            Source::Store { path, only_in_store, .. } => {
+            Source::Store { path, only_in_store, received, .. } => {
                 out.push_str(&format!("\nRead from the transcripts on disk and the local store at {}", path.display()));
                 match only_in_store {
                     0 => {}
                     1 => out.push_str("; 1 session is only in the store, its transcript deleted"),
                     n => out.push_str(&format!("; {n} sessions are only in the store, their transcripts deleted")),
+                }
+                match received {
+                    0 => {}
+                    1 => out.push_str("; 1 session was received as telemetry"),
+                    n => out.push_str(&format!("; {n} sessions were received as telemetry")),
                 }
                 out.push_str(".\n");
             }
@@ -378,10 +389,13 @@ impl Report {
             "groups": self.groups.iter().map(|(k, b)| (k.clone(), group(b))).collect::<serde_json::Map<_, _>>(),
             "total": group(&self.total),
             "source": match &self.source {
-                Source::Store { path, only_in_store, reused } => serde_json::json!({
-                    "store": path.to_string_lossy(), "store_only_sessions": only_in_store, "reused_from_store": reused,
+                Source::Store { path, only_in_store, received, reused } => serde_json::json!({
+                    "store": path.to_string_lossy(), "store_only_sessions": only_in_store,
+                    "received_sessions": received, "reused_from_store": reused,
                 }),
-                Source::Transcripts { .. } => serde_json::json!({ "store": null, "store_only_sessions": 0, "reused_from_store": 0 }),
+                Source::Transcripts { .. } => serde_json::json!({
+                    "store": null, "store_only_sessions": 0, "received_sessions": 0, "reused_from_store": 0,
+                }),
             },
         })
     }
