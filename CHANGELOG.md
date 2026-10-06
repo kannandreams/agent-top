@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- `agent-top report` counts sessions from the local store whose transcripts were deleted, and says on its last line which it read; `--no-store` reads only the transcripts. `--json` gains `source`. ([#PR](https://github.com/kannandreams/agent-top/pull/PR))
+
+### Changed
+- `agent-top-store`: `Reader::sessions` returns each stored session with its transcript's size, time and agent-top version. ([#PR](https://github.com/kannandreams/agent-top/pull/PR))
+
 ## [0.24.0] - 2026-10-06
 
 ### Highlights

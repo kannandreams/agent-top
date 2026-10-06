@@ -6,7 +6,9 @@ description: "agent-top report totals cost and tokens across Claude Code, Codex,
 
 The live table is one moment. `agent-top report` reads the transcripts already on disk and totals cost and tokens over a window you choose, grouped by harness, model, project or day. It is the one place that adds Claude, Codex, Gemini and OpenCode into a single figure, priced the same way, so "what has all of this cost me, together" has an answer.
 
-Nothing is written and nothing leaves the machine. A harness that deletes old transcripts takes their numbers out of the report; the [local store](store/index.md) keeps them. It reads the same files the live view does, and a file outside the window is skipped by its modification time without being parsed.
+Nothing is written and nothing leaves the machine. It reads the same files the live view does, and a file outside the window is skipped by its modification time without being parsed.
+
+A harness that deletes old transcripts takes their numbers out of the report. When a [local store](store/index.md) exists, the report also counts the sessions in it whose transcripts are gone, and reads a transcript unchanged since the last `agent-top sync` from the store instead of parsing it again. The last line says which it read. The report never writes the store.
 
 ```sh
 agent-top report                          # the last 30 days, by harness
@@ -17,6 +19,8 @@ agent-top report --by day                 # a spend timeline
 agent-top report --by model               # which model cost the most
 agent-top report --by project             # which repository cost the most
 agent-top report --json                   # the same, structured
+agent-top report --no-store               # only the transcripts on disk
+agent-top report --db ./mine.db           # a store at another path
 ```
 
 ## By harness

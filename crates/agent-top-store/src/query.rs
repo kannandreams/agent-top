@@ -6,6 +6,7 @@ use rusqlite::{Connection, OpenFlags};
 use std::path::{Path, PathBuf};
 
 use crate::SCHEMA_VERSION;
+use agent_top_core::model::TokenUsage;
 
 /// One cell of a query result.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,6 +23,29 @@ pub enum Value {
 pub struct QueryResult {
     pub columns: Vec<String>,
     pub rows: Vec<Vec<Value>>,
+}
+
+/// One stored session: what `agent-top report` totals, and the size, time
+/// and agent-top version of the transcript when it was synced, so a report
+/// can tell whether the file on disk still says the same thing.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredSession {
+    pub harness: String,
+    pub session_id: String,
+    pub source_path: String,
+    pub model: Option<String>,
+    pub project: Option<String>,
+    /// Milliseconds since the epoch.
+    pub last_activity_ms: Option<i64>,
+    pub usage: TokenUsage,
+    pub cost_usd: f64,
+    pub unpriced_tokens: u64,
+    pub turns: u64,
+    pub tool_calls: u64,
+    pub tool_calls_lower_bound: bool,
+    pub source_size: Option<i64>,
+    pub source_mtime_ms: Option<i64>,
+    pub synced_by_version: Option<String>,
 }
 
 /// A table or view, for `agent-top sql --schema`.
@@ -109,6 +133,45 @@ impl Reader {
             rows.push(out);
         }
         Ok(QueryResult { columns, rows })
+    }
+
+    /// Every stored session, with the stamp of its transcript when synced.
+    pub fn sessions(&self) -> Result<Vec<StoredSession>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT s.harness, s.session_id, s.source_path, s.model, s.project, s.last_activity,
+                    s.input, s.cache_write_5m, s.cache_write_1h, s.cache_write_unsplit, s.cache_read, s.output,
+                    s.cost_usd, s.unpriced_tokens, s.turns, s.tool_calls, s.tool_calls_lower_bound,
+                    src.size, src.mtime_ms, src.synced_by_version
+             FROM sessions s LEFT JOIN sources src ON src.path = s.source_path",
+        )?;
+        let n = |r: &rusqlite::Row, i: usize| r.get::<_, i64>(i).map(|v| v.max(0) as u64);
+        let rows = stmt.query_map([], |r| {
+            Ok(StoredSession {
+                harness: r.get(0)?,
+                session_id: r.get(1)?,
+                source_path: r.get(2)?,
+                model: r.get(3)?,
+                project: r.get(4)?,
+                last_activity_ms: r.get(5)?,
+                usage: TokenUsage {
+                    input: n(r, 6)?,
+                    cache_write_5m: n(r, 7)?,
+                    cache_write_1h: n(r, 8)?,
+                    cache_write_unsplit: n(r, 9)?,
+                    cache_read: n(r, 10)?,
+                    output: n(r, 11)?,
+                },
+                cost_usd: r.get(12)?,
+                unpriced_tokens: n(r, 13)?,
+                turns: n(r, 14)?,
+                tool_calls: n(r, 15)?,
+                tool_calls_lower_bound: r.get(16)?,
+                source_size: r.get(17)?,
+                source_mtime_ms: r.get(18)?,
+                synced_by_version: r.get(19)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
     /// Every table and view the store defines, with its columns.

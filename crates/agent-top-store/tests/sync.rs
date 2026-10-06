@@ -174,3 +174,15 @@ fn a_newer_schema_is_refused() {
     let err = Store::open(&db).err().expect("a newer schema must not open").to_string();
     assert!(err.contains("upgrade agent-top"), "{err}");
 }
+
+#[test]
+fn an_empty_session_read_empty_again_is_not_kept() {
+    let dir = TempDir::new();
+    let mut store = Store::open(&dir.0.join("agent-top.db")).unwrap();
+    let path = dir.0.join("empty.jsonl");
+    std::fs::write(&path, "").unwrap();
+    let src = [source(Harness::Claude, &path)];
+    assert_eq!(store.sync_sources(&src, None).unwrap(), stats(1, 0));
+    store.connection().execute("UPDATE sources SET synced_by_version = '0.0.1'", []).unwrap();
+    assert_eq!(store.sync_sources(&src, None).unwrap(), stats(1, 0));
+}

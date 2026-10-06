@@ -6,7 +6,7 @@ description: "The agent-top local store: a SQLite file on your machine that keep
 
 Harnesses delete their own transcripts. Claude Code removes sessions older than `cleanupPeriodDays`, 30 by default, and every number agent-top computed from them goes too: `agent-top report --since all` shows less than it did a month earlier.
 
-The local store is a SQLite file on your machine that keeps those numbers. `agent-top sync` fills it from the transcripts on disk, and `agent-top sql` queries it.
+The local store is a SQLite file on your machine that keeps those numbers. `agent-top sync` fills it from the transcripts on disk, `agent-top sql` queries it, and [`agent-top report`](../report.md) counts the sessions in it whose transcripts are gone.
 
 ```sh
 agent-top sync                                       # keep what is on disk now

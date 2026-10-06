@@ -8,7 +8,7 @@ The [local store](index.md) has four tables. The saved views built on them are o
 
 | Table | One row per | Main columns |
 |---|---|---|
-| `sessions` | session, keyed by `harness`, `session_id` | `cwd`, `project`, `model`, `started_at`, `last_activity`, `turns`, `tool_calls`, token columns (`input`, `cache_write_5m`, `cache_write_1h`, `cache_write_unsplit`, `cache_read`, `output`), `cost_usd`, `unpriced_tokens`, `price_source`, `harness_cost_usd`, `parent_session_id` for a subagent session |
+| `sessions` | session, keyed by `harness`, `session_id` | `cwd`, `project`, `model`, `started_at`, `last_activity`, `turns`, `tool_calls`, token columns (`input`, `cache_write_5m`, `cache_write_1h`, `cache_write_unsplit`, `cache_read`, `output`), `cost_usd`, `unpriced_tokens`, `price_source`, `harness_cost_usd`, `tool_calls_lower_bound` (earlier calls were missing from the transcript), `parent_session_id` for a subagent session |
 | `spans` | tool call, inference or turn, keyed by `harness`, `session_id`, `seq` | `kind`, `name`, `started_at`, `duration_ms` (null while open), `error`, `sidechain`, `parent_seq` (the turn it ran in) |
 | `mcp_calls` | MCP server a session called | `server`, `calls`, `errors`, `last_call_at` |
 | `sources` | transcript synced | `path`, `size`, `mtime_ms`, `synced_by_version` |

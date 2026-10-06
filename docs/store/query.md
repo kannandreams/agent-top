@@ -25,7 +25,7 @@ opencode        48   704256191    8.456063                0
 
 The default output is an aligned table with numbers on the right. `--json` prints an array of objects keyed by column name. `--csv` prints a header row and RFC 4180 quoting.
 
-A store written by agent-top 0.23.0 needs one `agent-top sync` before `sql` opens it; the sync adds the views.
+A store written by an older agent-top needs one `agent-top sync` before `sql` or `report` reads it; the sync brings the schema up to date.
 
 ## Views
 
