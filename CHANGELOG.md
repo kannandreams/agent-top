@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-06
+
+### Highlights
+`agent-top sql` answers questions about the local store with one SQL statement, read-only. Saved views cover cost by day, harness, model and project, tool latency at p50 and p95, and MCP server errors, and the output is a table, JSON or CSV.
+
 ### Added
 - `agent-top sql` queries the local store read-only, as a table, `--json` or `--csv`, with views for cost by day, harness, model and project, tool latency and MCP errors. ([#67](https://github.com/kannandreams/agent-top/pull/67))
 
