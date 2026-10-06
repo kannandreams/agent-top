@@ -20,7 +20,7 @@ agent-top sync --json           # what the sync did, structured
 
 ## What it reads
 
-The first sync reads every transcript on disk. Later ones read only transcripts whose size or modification time changed, so a sync with nothing new takes a fraction of a second. OpenCode and Kodelet sessions live in a database rather than a file, so they are read every time; each one is a few small queries.
+The first sync reads every transcript on disk. Later ones read only transcripts whose size or modification time changed, so a sync with nothing new takes a fraction of a second. OpenCode and Kodelet sessions live in a database rather than a file, so they are read every time, a few small queries each, and written only when they read differently from what is stored.
 
 A changed transcript is read in full, and its session's rows are replaced in one transaction.
 
@@ -114,6 +114,29 @@ systemctl --user enable --now agent-top-sync.timer
 ```
 
 `Persistent=true` runs a sync missed while the machine was off. Use the path `which agent-top` prints in `ExecStart`.
+
+### Keeping it running: `agent-top serve`
+
+`agent-top serve` stays running and syncs on an interval until it is stopped, for a terminal tab or a service.
+
+```sh
+agent-top serve                 # sync every 60 seconds
+agent-top serve --interval 300  # every five minutes
+```
+
+```text
+2026-10-06T19:24:47Z syncing /Users/you/.local/share/agent-top/agent-top.db every 60s
+2026-10-06T19:24:48Z 239 transcripts: 1 stored, 238 unchanged
+```
+
+It prints a line after the first sync and after any sync that stores something, and names a transcript it cannot read the first time only. A sync that fails is logged and tried again at the next interval. To run it as a launchd service instead of a daily job, use the plist above with `serve` in place of `sync`, and replace `StartCalendarInterval` with:
+
+```xml
+  <key>KeepAlive</key>
+  <true/>
+```
+
+A daily `sync` is enough to keep history. `serve` keeps the store current to the minute.
 
 ### cron
 

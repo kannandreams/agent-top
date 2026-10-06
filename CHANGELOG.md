@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- `agent-top serve` syncs the local store on an interval until stopped, logging a line when a sync stores something. ([#PR](https://github.com/kannandreams/agent-top/pull/PR))
+
+### Changed
+- `agent-top sync` no longer rewrites OpenCode and Kodelet sessions that have not changed. ([#PR](https://github.com/kannandreams/agent-top/pull/PR))
+- `agent-top-store`: `Store::sync_with` syncs sources through a given adapter. ([#PR](https://github.com/kannandreams/agent-top/pull/PR))
+
 ## [0.25.0] - 2026-10-06
 
 ### Highlights

@@ -65,7 +65,7 @@ Pressing `o` on a panel popup inside tmux, zellij, WezTerm or kitty runs that mu
 
 **Reads:** the transcripts, the process table, and `~/.config/agent-top/prices.toml` if it exists. A malformed price file is reported on stderr and ignored; the built-in prices still apply. See [Prices](prices.md).
 
-**Writes:** the one cache file above, and the [local store](store/index.md) when you run `agent-top sync`. `--replay` and `--json` read and print; neither touches disk beyond the file you point at.
+**Writes:** the one cache file above, and the [local store](store/index.md) when you run `agent-top sync` or `agent-top serve`. `--replay` and `--json` read and print; neither touches disk beyond the file you point at.
 
 ## Reporting an issue
 
