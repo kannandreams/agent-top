@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-06
+
+### Highlights
+`agent-top serve` keeps the local store current, syncing every minute until stopped. With `--listen`, it also receives OpenTelemetry spans from agents you build and run yourself, including in a container, and keeps them beside the coding-agent sessions, priced from the same table. Prompt and tool content is dropped as the spans are decoded.
+
 ### Added
 - `agent-top serve --listen <addr>` receives OpenTelemetry spans (OTLP/HTTP, protobuf or JSON) from your own agents and keeps them in the local store, priced from the same table; `report` counts them. ([#74](https://github.com/kannandreams/agent-top/pull/74))
 - `agent-top serve` syncs the local store on an interval until stopped, logging a line when a sync stores something. ([#73](https://github.com/kannandreams/agent-top/pull/73))
