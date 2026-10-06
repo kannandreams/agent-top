@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-06
+
+### Highlights
+`agent-top report` counts the sessions in the local store whose transcripts a harness has deleted, so the all-time total stops shrinking. Transcripts unchanged since the last sync are read from the store, which makes the report several times faster.
+
 ### Added
 - `agent-top report` counts sessions from the local store whose transcripts were deleted, and says on its last line which it read; `--no-store` reads only the transcripts. `--json` gains `source`. ([#70](https://github.com/kannandreams/agent-top/pull/70))
 
