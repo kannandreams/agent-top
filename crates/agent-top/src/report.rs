@@ -8,13 +8,19 @@
 //! them into a `SessionSummary` each, and totals the cost and tokens grouped by
 //! harness, model, project or day. Nothing is written and nothing leaves the
 //! machine; it reads the same files the live view does.
+//!
+//! When a local store exists, sessions whose transcripts are gone come from
+//! it, and a transcript unchanged since it was synced is read from the store
+//! instead of parsed again. The report never writes the store.
 
 use agent_top_core::Harness;
 use agent_top_core::harness::SessionSummary;
 use agent_top_core::harness::{self, SpanRetention};
-use agent_top_core::model::project_name;
+use agent_top_core::model::{TokenUsage, project_name};
+use agent_top_store::{StoredSession, WRITER_VERSION};
 use anyhow::{Result, bail};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -103,8 +109,75 @@ impl Bucket {
     }
 }
 
+/// What the report needs from one session, parsed from its transcript or
+/// read from the local store.
+struct Session {
+    harness: String,
+    model: Option<String>,
+    project: Option<String>,
+    last_activity: Option<SystemTime>,
+    usage: TokenUsage,
+    cost_usd: f64,
+    unpriced_tokens: u64,
+    turns: u64,
+    tool_calls: u64,
+    tool_calls_lower_bound: bool,
+}
+
+impl Session {
+    fn parsed(harness: Harness, s: &SessionSummary) -> Session {
+        Session {
+            harness: harness.label().to_string(),
+            model: s.model.clone(),
+            project: s.cwd.as_deref().map(project_name),
+            last_activity: s.last_activity,
+            usage: s.usage,
+            cost_usd: s.cost_usd,
+            unpriced_tokens: s.unpriced_tokens,
+            turns: s.turns,
+            tool_calls: s.tool_calls,
+            tool_calls_lower_bound: s.tool_calls_lower_bound,
+        }
+    }
+
+    fn stored(s: &StoredSession) -> Session {
+        Session {
+            harness: s.harness.clone(),
+            model: s.model.clone(),
+            project: s.project.clone(),
+            last_activity: s.last_activity_ms.map(|ms| UNIX_EPOCH + Duration::from_millis(ms.max(0) as u64)),
+            usage: s.usage,
+            cost_usd: s.cost_usd,
+            unpriced_tokens: s.unpriced_tokens,
+            turns: s.turns,
+            tool_calls: s.tool_calls,
+            tool_calls_lower_bound: s.tool_calls_lower_bound,
+        }
+    }
+
+    /// In the window, and did something: a session with no tokens and no
+    /// turns is a file the harness opened and never used.
+    fn counts(&self, since: SystemTime) -> bool {
+        self.last_activity.is_some_and(|t| t >= since) && (self.usage.total() > 0 || self.turns > 0)
+    }
+}
+
+/// Where the report read its sessions.
+pub enum Source {
+    /// The transcripts on disk; there is no store at this path.
+    Transcripts { hint: bool },
+    /// The transcripts and the store.
+    Store {
+        path: PathBuf,
+        /// Counted sessions whose transcript is gone.
+        only_in_store: u64,
+        /// Transcripts unchanged since sync, read from the store.
+        reused: u64,
+    },
+}
+
 impl Bucket {
-    fn add(&mut self, s: &SessionSummary) {
+    fn add(&mut self, s: &Session) {
         self.sessions += 1;
         self.tokens += s.usage.total();
         self.cost += s.cost_usd;
@@ -125,19 +198,46 @@ pub struct Report {
     total: Bucket,
     /// Sessions that parsed but fell outside the window, for the header count.
     scanned: u64,
+    source: Source,
 }
 
 /// Read every session across every harness whose last activity is at or after
-/// `since`, and fold them into groups.
-pub fn build(since: SystemTime, by: GroupBy) -> Report {
+/// `since`, and fold them into groups. With a store, sessions whose transcript
+/// is gone come from it, and an unchanged transcript is not parsed again.
+/// `hint` adds the line that points at `agent-top sync` when there is no store.
+pub fn build(since: SystemTime, by: GroupBy, store: Option<(PathBuf, Vec<StoredSession>)>, hint: bool) -> Report {
+    build_with(harness::adapters(), since, by, store, hint)
+}
+
+fn build_with(
+    adapters: Vec<Box<dyn harness::HarnessAdapter>>,
+    since: SystemTime,
+    by: GroupBy,
+    store: Option<(PathBuf, Vec<StoredSession>)>,
+    hint: bool,
+) -> Report {
     let mut groups: BTreeMap<String, Bucket> = BTreeMap::new();
     let mut total = Bucket::default();
     let mut scanned = 0;
+    let (store_path, rows) = match store {
+        Some((path, rows)) => (Some(path), rows),
+        None => (None, Vec::new()),
+    };
+    let mut stored: HashMap<(String, String), StoredSession> =
+        rows.into_iter().map(|s| ((s.harness.clone(), s.session_id.clone()), s)).collect();
+    let mut reused = 0;
+    let mut fold = |s: &Session| {
+        if s.counts(since) {
+            groups.entry(group_key(by, s)).or_default().add(s);
+            total.add(s);
+        }
+    };
 
-    for adapter in harness::adapters() {
+    for adapter in adapters {
         let harness = adapter.harness();
-        for (_id, path) in adapter.transcripts() {
+        for (id, path) in adapter.transcripts() {
             scanned += 1;
+            let prior = stored.remove(&(harness.label().to_string(), id));
             // A transcript that is a real file and was last written before the
             // window is skipped without parsing it. A virtual path (a harness's
             // database rows) has no mtime, so it is read and judged by its
@@ -148,31 +248,48 @@ pub fn build(since: SystemTime, by: GroupBy) -> Report {
             {
                 continue;
             }
+            // Unchanged since this version synced it: the store already has
+            // what parsing would produce.
+            if let (Some(p), Some(st)) = (&prior, adapter.stamp(&path))
+                && p.source_size == Some(st.size as i64)
+                && p.source_mtime_ms == Some(st.mtime_ms)
+                && p.synced_by_version.as_deref() == Some(WRITER_VERSION)
+            {
+                reused += 1;
+                fold(&Session::stored(p));
+                continue;
+            }
             // Reuse the adapter's discovery/enrichment cache across sessions.
             let mut tracker = adapter.open(&path, SpanRetention::Recent);
             if tracker.refresh_all().is_err() {
                 continue;
             }
-            let s = tracker.summary();
-            if s.last_activity.map(|t| t < since).unwrap_or(true) {
-                continue;
-            }
-            if s.usage.total() == 0 && s.turns == 0 {
-                continue;
-            }
-            let key = group_key(by, harness, s);
-            groups.entry(key).or_default().add(s);
-            total.add(s);
+            fold(&Session::parsed(harness, tracker.summary()));
         }
     }
-    Report { since, by, groups, total, scanned }
+
+    // What is left in the store has no transcript on disk any more.
+    let mut only_in_store = 0;
+    for s in stored.values() {
+        scanned += 1;
+        let s = Session::stored(s);
+        if s.counts(since) {
+            only_in_store += 1;
+        }
+        fold(&s);
+    }
+    let source = match store_path {
+        Some(path) => Source::Store { path, only_in_store, reused },
+        None => Source::Transcripts { hint },
+    };
+    Report { since, by, groups, total, scanned, source }
 }
 
-fn group_key(by: GroupBy, harness: Harness, s: &SessionSummary) -> String {
+fn group_key(by: GroupBy, s: &Session) -> String {
     match by {
-        GroupBy::Harness => harness.label().to_string(),
+        GroupBy::Harness => s.harness.clone(),
         GroupBy::Model => s.model.clone().unwrap_or_else(|| "unknown".into()),
-        GroupBy::Project => s.cwd.as_deref().map(project_name).unwrap_or_else(|| "unknown".into()),
+        GroupBy::Project => s.project.clone().unwrap_or_else(|| "unknown".into()),
         GroupBy::Day => {
             let (y, m, d) = date_utc(s.last_activity.unwrap_or(UNIX_EPOCH));
             format!("{y:04}-{m:02}-{d:02}")
@@ -225,6 +342,21 @@ impl Report {
                 tokens(t.unpriced)
             ));
         }
+        match &self.source {
+            Source::Store { path, only_in_store, .. } => {
+                out.push_str(&format!("\nRead from the transcripts on disk and the local store at {}", path.display()));
+                match only_in_store {
+                    0 => {}
+                    1 => out.push_str("; 1 session is only in the store, its transcript deleted"),
+                    n => out.push_str(&format!("; {n} sessions are only in the store, their transcripts deleted")),
+                }
+                out.push_str(".\n");
+            }
+            Source::Transcripts { hint: true } => {
+                out.push_str("\nRead from the transcripts on disk. `agent-top sync` keeps sessions after a harness deletes them.\n")
+            }
+            Source::Transcripts { hint: false } => {}
+        }
         out
     }
 
@@ -245,6 +377,12 @@ impl Report {
             "scanned": self.scanned,
             "groups": self.groups.iter().map(|(k, b)| (k.clone(), group(b))).collect::<serde_json::Map<_, _>>(),
             "total": group(&self.total),
+            "source": match &self.source {
+                Source::Store { path, only_in_store, reused } => serde_json::json!({
+                    "store": path.to_string_lossy(), "store_only_sessions": only_in_store, "reused_from_store": reused,
+                }),
+                Source::Transcripts { .. } => serde_json::json!({ "store": null, "store_only_sessions": 0, "reused_from_store": 0 }),
+            },
         })
     }
 }
@@ -305,6 +443,109 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_top_core::harness::claude::ClaudeAdapter;
+    use agent_top_core::harness::{AttributeContext, HarnessAdapter, SessionTracker};
+    use agent_top_core::model::{Attribution, ProcNode};
+    use agent_top_core::process::RawProc;
+    use std::collections::HashSet;
+    use std::path::Path;
+
+    /// Claude Code's adapter, listing the transcripts a test gives it.
+    struct Listed(Vec<(String, PathBuf)>);
+
+    impl HarnessAdapter for Listed {
+        fn harness(&self) -> Harness {
+            Harness::Claude
+        }
+        fn rescan(&mut self, _: SystemTime) {}
+        fn attribute(&self, _: &ProcNode, _: Option<&RawProc>, _: &AttributeContext) -> (Vec<PathBuf>, Attribution) {
+            (Vec::new(), Attribution::CwdHeuristic)
+        }
+        fn unowned(&self, _: &HashSet<PathBuf>) -> Vec<PathBuf> {
+            Vec::new()
+        }
+        fn open(&self, path: &Path, spans: SpanRetention) -> Box<dyn SessionTracker> {
+            ClaudeAdapter::default().open(path, spans)
+        }
+        fn detect(&self, _: &Path) -> bool {
+            true
+        }
+        fn transcripts(&self) -> Vec<(String, PathBuf)> {
+            self.0.clone()
+        }
+        fn stamp(&self, path: &Path) -> Option<harness::SourceStamp> {
+            ClaudeAdapter::default().stamp(path)
+        }
+    }
+
+    /// A Claude fixture copied into a fresh directory, and a store synced from it.
+    fn synced(tag: &str) -> (PathBuf, PathBuf, Vec<StoredSession>) {
+        let dir = std::env::temp_dir().join(format!("agent-top-report-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("claude-2.1.278.jsonl");
+        std::fs::copy(Path::new(env!("CARGO_MANIFEST_DIR")).join("../agent-top-core/tests/fixtures/claude-2.1.278.jsonl"), &path).unwrap();
+        let db = dir.join("agent-top.db");
+        let src = agent_top_store::Source { harness: Harness::Claude, id: "claude-2.1.278".into(), path: path.clone() };
+        agent_top_store::Store::open(&db).unwrap().sync_sources(&[src], None).unwrap();
+        let rows = agent_top_store::Reader::open(&db).unwrap().sessions().unwrap();
+        (path, db, rows)
+    }
+
+    fn listed(path: &Path) -> Vec<Box<dyn HarnessAdapter>> {
+        vec![Box::new(Listed(vec![("claude-2.1.278".into(), path.to_path_buf())]))]
+    }
+
+    fn totals(r: &Report) -> serde_json::Value {
+        let mut j = r.to_json();
+        j.as_object_mut().unwrap().remove("source");
+        j.as_object_mut().unwrap().remove("scanned");
+        j
+    }
+
+    fn source(r: &Report) -> (u64, u64) {
+        match r.source {
+            Source::Store { only_in_store, reused, .. } => (only_in_store, reused),
+            Source::Transcripts { .. } => panic!("the store was not used"),
+        }
+    }
+
+    #[test]
+    fn an_unchanged_transcript_is_read_from_the_store_with_the_same_numbers() {
+        let (path, db, rows) = synced("reuse");
+        let plain = build_with(listed(&path), UNIX_EPOCH, GroupBy::Model, None, false);
+        let stored = build_with(listed(&path), UNIX_EPOCH, GroupBy::Model, Some((db, rows)), false);
+        assert_eq!(source(&stored), (0, 1));
+        assert_eq!(totals(&stored), totals(&plain));
+        assert_eq!(plain.total.sessions, 1);
+    }
+
+    #[test]
+    fn a_changed_transcript_is_parsed_again() {
+        let (path, db, rows) = synced("changed");
+        let mut text = std::fs::read_to_string(&path).unwrap();
+        text.push_str(
+            "{\"type\":\"system\",\"subtype\":\"informational\",\"timestamp\":\"2026-09-21T20:30:00.000Z\",\"version\":\"2.1.278\"}\n",
+        );
+        std::fs::write(&path, text).unwrap();
+        let r = build_with(listed(&path), UNIX_EPOCH, GroupBy::Harness, Some((db, rows)), false);
+        assert_eq!(source(&r), (0, 0));
+        assert_eq!(r.total.sessions, 1);
+    }
+
+    #[test]
+    fn a_deleted_transcript_is_counted_from_the_store() {
+        let (path, db, rows) = synced("deleted");
+        let before = build_with(listed(&path), UNIX_EPOCH, GroupBy::Day, None, false);
+        std::fs::remove_file(&path).unwrap();
+        let gone = build_with(Vec::new(), UNIX_EPOCH, GroupBy::Day, None, true);
+        assert_eq!(gone.total.sessions, 0);
+        assert!(gone.to_plain().contains("`agent-top sync` keeps sessions"));
+        let kept = build_with(Vec::new(), UNIX_EPOCH, GroupBy::Day, Some((db, rows)), false);
+        assert_eq!(source(&kept), (1, 0));
+        assert_eq!(totals(&kept), totals(&before));
+        assert!(kept.to_plain().contains("1 session is only in the store, its transcript deleted."));
+    }
 
     #[test]
     fn parses_since_forms() {

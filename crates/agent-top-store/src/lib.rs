@@ -19,14 +19,14 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// The schema this build writes, kept in `PRAGMA user_version`.
-pub const SCHEMA_VERSION: i64 = 2;
+pub const SCHEMA_VERSION: i64 = 3;
 
 /// Recorded on every synced source, so a newer agent-top re-reads what an
 /// older one stored and a parser or price fix reaches the stored rows.
 pub const WRITER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 mod query;
-pub use query::{Column, Described, QueryResult, Reader, Value};
+pub use query::{Column, Described, QueryResult, Reader, StoredSession, Value};
 
 const SCHEMA_V1: &str = "
 CREATE TABLE sessions (
@@ -144,6 +144,10 @@ CREATE VIEW mcp_errors AS
     FROM mcp_calls GROUP BY server;
 ";
 
+/// Whether earlier tool calls were missing from the transcript, so `report`
+/// reads the same flag from the store as from the file.
+const SCHEMA_V3: &str = "ALTER TABLE sessions ADD COLUMN tool_calls_lower_bound INTEGER NOT NULL DEFAULT 0;";
+
 /// Where the store lives when `--db` is not given: `AGENT_TOP_DB`, else
 /// `$XDG_DATA_HOME/agent-top/agent-top.db`, else
 /// `~/.local/share/agent-top/agent-top.db`, on every platform.
@@ -230,7 +234,7 @@ impl Store {
                 self.path.display()
             );
         }
-        for (version, sql) in [(1, SCHEMA_V1), (2, SCHEMA_V2)] {
+        for (version, sql) in [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3)] {
             if v < version {
                 let tx = self.conn.transaction()?;
                 tx.execute_batch(sql)?;
@@ -317,11 +321,16 @@ impl Store {
         // removed or truncated, and keeping history is the store's job.
         let empty = s.usage.total() == 0 && s.turns == 0 && s.spans.is_empty();
         let tx = self.conn.transaction()?;
-        let stored: bool = tx
-            .query_row("SELECT 1 FROM sessions WHERE harness = ?1 AND session_id = ?2", params![harness, src.id], |_| Ok(()))
+        let stored_has_numbers: bool = tx
+            .query_row(
+                "SELECT 1 FROM sessions WHERE harness = ?1 AND session_id = ?2
+                   AND input + cache_write_5m + cache_write_1h + cache_write_unsplit + cache_read + output + turns > 0",
+                params![harness, src.id],
+                |_| Ok(()),
+            )
             .optional()?
             .is_some();
-        let outcome = if empty && stored {
+        let outcome = if empty && stored_has_numbers {
             Outcome::Kept
         } else {
             replace_session(&tx, harness, &src.id, &src.path, s, now)?;
@@ -354,9 +363,9 @@ fn replace_session(tx: &Transaction, harness: &str, id: &str, path: &Path, s: &S
         "INSERT INTO sessions (harness, session_id, parent_session_id, source_path, cwd, project, model, harness_version,
             attribution, started_at, last_activity, turns, subagent_turns, tool_calls, web_searches,
             input, cache_write_5m, cache_write_1h, cache_write_unsplit, cache_read, output,
-            cost_usd, unpriced_tokens, price_source, harness_cost_usd, synced_at, synced_by_version)
+            cost_usd, unpriced_tokens, price_source, harness_cost_usd, synced_at, synced_by_version, tool_calls_lower_bound)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'transcript', ?9, ?10, ?11, ?12, ?13, ?14,
-            ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)",
+            ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)",
         params![
             harness,
             id,
@@ -384,6 +393,7 @@ fn replace_session(tx: &Transaction, harness: &str, id: &str, path: &Path, s: &S
             s.harness_cost.as_ref().map(|c| c.usd),
             now,
             WRITER_VERSION,
+            s.tool_calls_lower_bound,
         ],
     )?;
 

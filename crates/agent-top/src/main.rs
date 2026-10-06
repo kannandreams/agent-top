@@ -115,8 +115,9 @@ enum Command {
         endpoint: Option<String>,
     },
     /// What the agents have cost, across every harness, from the transcripts
-    /// already on disk. Reads history, not the live snapshot; nothing is
-    /// written and nothing leaves the machine.
+    /// already on disk and, when there is one, the local store, which keeps
+    /// sessions whose transcripts were deleted. Reads history, not the live
+    /// snapshot; nothing is written and nothing leaves the machine.
     Report {
         /// How far back to look: `all`, a duration like `7d` / `12h` / `2w`,
         /// or a date `YYYY-MM-DD`.
@@ -128,6 +129,12 @@ enum Command {
         /// Print the report as JSON instead of a table.
         #[arg(long)]
         json: bool,
+        /// The local store to read; the same default as `sync`.
+        #[arg(long, value_name = "FILE", conflicts_with = "no_store")]
+        db: Option<PathBuf>,
+        /// Read only the transcripts on disk, not the local store.
+        #[arg(long)]
+        no_store: bool,
     },
     /// Keep what the transcripts say in a local SQLite file, so the numbers
     /// outlive a harness deleting its history. Reads every transcript that
@@ -295,12 +302,26 @@ fn main() -> Result<()> {
     if let Some(Command::Trace { session, format, output, endpoint }) = &cli.command {
         return export_trace(session, *format, output.as_deref(), endpoint.as_deref());
     }
-    if let Some(Command::Report { since, by, json }) = &cli.command {
+    if let Some(Command::Report { since, by, json, db, no_store }) = &cli.command {
         for w in &agent_top_core::pricing::table().warnings {
             eprintln!("agent-top: {w}");
         }
         let since = report::parse_since(since)?;
-        let rep = report::build(since, *by);
+        // A store that exists but cannot be read is reported, and the report
+        // falls back to the transcripts rather than failing.
+        let path = if *no_store { None } else { Some(store_path(db.as_deref())?) };
+        let reader = match path.as_deref().filter(|p| p.exists()) {
+            Some(p) => match agent_top_store::Reader::open(p).and_then(|r| r.sessions()) {
+                Ok(rows) => Some((p.to_path_buf(), rows)),
+                Err(e) => {
+                    eprintln!("agent-top: not reading the local store: {e:#}");
+                    None
+                }
+            },
+            None => None,
+        };
+        let hint = path.is_some() && reader.is_none();
+        let rep = report::build(since, *by, reader, hint);
         if *json {
             println!("{}", serde_json::to_string_pretty(&rep.to_json())?);
         } else {

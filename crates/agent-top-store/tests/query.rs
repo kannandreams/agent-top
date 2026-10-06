@@ -95,7 +95,7 @@ fn nothing_a_query_does_changes_the_store_or_writes_a_file() {
         assert!(r.query(&sql).is_err(), "{sql} should be refused");
     }
     assert!(!elsewhere.exists(), "a query wrote a file");
-    assert_eq!(real(&one(&r, "PRAGMA user_version")), 2.0);
+    assert_eq!(real(&one(&r, "PRAGMA user_version")), agent_top_store::SCHEMA_VERSION as f64);
     drop(r);
     assert_eq!(std::fs::read(&db).unwrap(), before);
 }
@@ -120,6 +120,7 @@ fn a_version_one_store_is_upgraded_by_sync_not_by_sql() {
         for v in ["mcp_errors", "tool_latency", "cost_by_project", "cost_by_model", "cost_by_harness", "cost_by_day", "counted_sessions"] {
             c.execute(&format!("DROP VIEW {v}"), []).unwrap();
         }
+        c.execute("ALTER TABLE sessions DROP COLUMN tool_calls_lower_bound", []).unwrap();
         c.pragma_update(None, "user_version", 1).unwrap();
     }
     let err = Reader::open(&db).err().unwrap().to_string();
