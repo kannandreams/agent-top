@@ -17,6 +17,7 @@ agent-top sql "select * from cost_by_day order by day desc limit 7"
 |---|---|
 | [Sync](sync.md) | `agent-top sync`: what it reads, what it skips, running it on a schedule |
 | [Query](query.md) | `agent-top sql`: output formats, the saved views, other SQLite clients |
+| [Receive telemetry](telemetry.md) | `agent-top serve --listen`: OpenTelemetry spans from your own agents, in the same store |
 | [Schema](schema.md) | the tables and columns, times, and how stored cost relates to the price table |
 
 ## Where the file is

@@ -19,14 +19,16 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// The schema this build writes, kept in `PRAGMA user_version`.
-pub const SCHEMA_VERSION: i64 = 3;
+pub const SCHEMA_VERSION: i64 = 4;
 
 /// Recorded on every synced source, so a newer agent-top re-reads what an
 /// older one stored and a parser or price fix reaches the stored rows.
 pub const WRITER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 mod query;
+mod telemetry;
 pub use query::{Column, Described, QueryResult, Reader, StoredSession, Value};
+pub use telemetry::Received;
 
 const SCHEMA_V1: &str = "
 CREATE TABLE sessions (
@@ -148,6 +150,38 @@ CREATE VIEW mcp_errors AS
 /// reads the same flag from the store as from the file.
 const SCHEMA_V3: &str = "ALTER TABLE sessions ADD COLUMN tool_calls_lower_bound INTEGER NOT NULL DEFAULT 0;";
 
+/// Spans received over OTLP by `agent-top serve --listen`, one row each, so
+/// an exporter that sends a batch twice changes nothing. Received sessions
+/// are rebuilt from these.
+const SCHEMA_V4: &str = "
+CREATE TABLE telemetry_spans (
+    trace_id        TEXT NOT NULL,
+    span_id         TEXT NOT NULL,
+    parent_span_id  TEXT,
+    harness         TEXT NOT NULL,
+    session_id      TEXT NOT NULL,
+    service         TEXT NOT NULL,
+    kind            TEXT,
+    usage_role      TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    model           TEXT,
+    provider        TEXT,
+    mcp_server      TEXT,
+    started_at      INTEGER NOT NULL,
+    duration_ms     INTEGER NOT NULL,
+    open            INTEGER NOT NULL,
+    error           INTEGER NOT NULL,
+    sidechain       INTEGER NOT NULL,
+    input           INTEGER NOT NULL,
+    cache_write_5m  INTEGER NOT NULL,
+    cache_read      INTEGER NOT NULL,
+    output          INTEGER NOT NULL,
+    received_at     INTEGER NOT NULL,
+    PRIMARY KEY (trace_id, span_id)
+);
+CREATE INDEX telemetry_spans_session ON telemetry_spans (harness, session_id);
+";
+
 /// Where the store lives when `--db` is not given: `AGENT_TOP_DB`, else
 /// `$XDG_DATA_HOME/agent-top/agent-top.db`, else
 /// `~/.local/share/agent-top/agent-top.db`, on every platform.
@@ -234,7 +268,7 @@ impl Store {
                 self.path.display()
             );
         }
-        for (version, sql) in [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3)] {
+        for (version, sql) in [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3), (4, SCHEMA_V4)] {
             if v < version {
                 let tx = self.conn.transaction()?;
                 tx.execute_batch(sql)?;
@@ -348,7 +382,7 @@ impl Store {
         let outcome = if empty && stored_has_numbers {
             Outcome::Kept
         } else {
-            replace_session(&tx, harness, &src.id, &src.path, s, now)?;
+            replace_session(&tx, harness, &src.id, &src.path.to_string_lossy(), "transcript", s.cwd.as_deref().map(project_name), s, now)?;
             Outcome::Stored
         };
         tx.execute(
@@ -403,7 +437,17 @@ impl Store {
 }
 
 /// Delete one session's rows and write them again from `s`, in `tx`.
-fn replace_session(tx: &Transaction, harness: &str, id: &str, path: &Path, s: &SessionSummary, now: i64) -> Result<()> {
+#[allow(clippy::too_many_arguments)]
+fn replace_session(
+    tx: &Transaction,
+    harness: &str,
+    id: &str,
+    source: &str,
+    attribution: &str,
+    project: Option<String>,
+    s: &SessionSummary,
+    now: i64,
+) -> Result<()> {
     for table in ["sessions", "spans", "mcp_calls"] {
         tx.execute(&format!("DELETE FROM {table} WHERE harness = ?1 AND session_id = ?2"), params![harness, id])?;
     }
@@ -414,15 +458,15 @@ fn replace_session(tx: &Transaction, harness: &str, id: &str, path: &Path, s: &S
             attribution, started_at, last_activity, turns, subagent_turns, tool_calls, web_searches,
             input, cache_write_5m, cache_write_1h, cache_write_unsplit, cache_read, output,
             cost_usd, unpriced_tokens, price_source, harness_cost_usd, synced_at, synced_by_version, tool_calls_lower_bound)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'transcript', ?9, ?10, ?11, ?12, ?13, ?14,
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?28, ?9, ?10, ?11, ?12, ?13, ?14,
             ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)",
         params![
             harness,
             id,
             s.subagent.as_ref().map(|a| a.parent_session_id.as_str()),
-            path.to_string_lossy(),
+            source,
             s.cwd.as_ref().map(|p| p.to_string_lossy().into_owned()),
-            s.cwd.as_deref().map(project_name),
+            project,
             s.model,
             s.harness_version,
             s.started_at.map(ms),
@@ -444,6 +488,7 @@ fn replace_session(tx: &Transaction, harness: &str, id: &str, path: &Path, s: &S
             now,
             WRITER_VERSION,
             s.tool_calls_lower_bound,
+            attribution,
         ],
     )?;
 

@@ -2,6 +2,7 @@
 
 mod app;
 mod format;
+mod listen;
 mod pane;
 mod report;
 mod sql;
@@ -163,6 +164,11 @@ enum Command {
         /// The store file; the same default as `sync`.
         #[arg(long, value_name = "FILE")]
         db: Option<PathBuf>,
+        /// Also accept OpenTelemetry spans (OTLP/HTTP, protobuf or JSON) at
+        /// this address, for example 127.0.0.1:4318, and keep them in the
+        /// store. No port is opened without it.
+        #[arg(long, value_name = "ADDR")]
+        listen: Option<String>,
     },
     /// Query the local store `sync` fills, read-only. Tables: sessions,
     /// spans, mcp_calls, sources. Views: cost_by_day, cost_by_harness,
@@ -302,11 +308,15 @@ fn sync_line(stats: &agent_top_store::SyncStats) -> String {
 /// `agent-top serve`: sync every `interval` until the process is stopped.
 /// A sync that fails is logged and retried at the next interval; a
 /// transcript that cannot be read is logged the first time only.
-fn serve(interval: Duration, db: Option<&std::path::Path>) -> Result<()> {
+fn serve(interval: Duration, db: Option<&std::path::Path>, listen: Option<&str>) -> Result<()> {
     let path = store_path(db)?;
     let mut store = agent_top_store::Store::open(&path)?;
     let now = || report::timestamp_utc(std::time::SystemTime::now());
     println!("{} syncing {} every {}s", now(), path.display(), interval.as_secs());
+    if let Some(addr) = listen {
+        listen::start(addr, path.clone())?;
+        println!("{} receiving OTLP spans at http://{addr}/v1/traces", now());
+    }
     let mut reported: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
     let mut first = true;
     loop {
@@ -393,11 +403,11 @@ fn main() -> Result<()> {
         }
         return Ok(());
     }
-    if let Some(Command::Serve { interval, db }) = &cli.command {
+    if let Some(Command::Serve { interval, db, listen }) = &cli.command {
         for w in &agent_top_core::pricing::table().warnings {
             eprintln!("agent-top: {w}");
         }
-        return serve(Duration::from_secs(*interval), db.as_deref());
+        return serve(Duration::from_secs(*interval), db.as_deref(), listen.as_deref());
     }
     if let Some(Command::Sync { since, db, json }) = &cli.command {
         for w in &agent_top_core::pricing::table().warnings {

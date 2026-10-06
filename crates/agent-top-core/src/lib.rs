@@ -10,6 +10,7 @@ pub mod harness;
 pub mod jsonl;
 pub mod model;
 mod openfiles;
+pub mod otlp;
 pub mod pricing;
 pub mod process;
 
