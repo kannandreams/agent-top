@@ -186,3 +186,59 @@ fn an_empty_session_read_empty_again_is_not_kept() {
     store.connection().execute("UPDATE sources SET synced_by_version = '0.0.1'", []).unwrap();
     assert_eq!(store.sync_sources(&src, None).unwrap(), stats(1, 0));
 }
+
+/// Claude Code's adapter with no file stamp, the way a harness that keeps its
+/// sessions in a database looks to the store.
+struct Unstamped(agent_top_core::harness::claude::ClaudeAdapter);
+
+impl agent_top_core::harness::HarnessAdapter for Unstamped {
+    fn harness(&self) -> Harness {
+        Harness::Claude
+    }
+    fn rescan(&mut self, _: std::time::SystemTime) {}
+    fn attribute(
+        &self,
+        _: &agent_top_core::model::ProcNode,
+        _: Option<&agent_top_core::process::RawProc>,
+        _: &agent_top_core::harness::AttributeContext,
+    ) -> (Vec<std::path::PathBuf>, agent_top_core::model::Attribution) {
+        (Vec::new(), agent_top_core::model::Attribution::CwdHeuristic)
+    }
+    fn unowned(&self, _: &std::collections::HashSet<std::path::PathBuf>) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+    fn open(
+        &self,
+        path: &std::path::Path,
+        spans: agent_top_core::harness::SpanRetention,
+    ) -> Box<dyn agent_top_core::harness::SessionTracker> {
+        self.0.open(path, spans)
+    }
+    fn detect(&self, _: &std::path::Path) -> bool {
+        true
+    }
+    fn transcripts(&self) -> Vec<(String, std::path::PathBuf)> {
+        Vec::new()
+    }
+    fn stamp(&self, _: &std::path::Path) -> Option<agent_top_core::harness::SourceStamp> {
+        None
+    }
+}
+
+#[test]
+fn a_session_with_no_stamp_is_written_only_when_it_reads_differently() {
+    let dir = TempDir::new();
+    let mut store = Store::open(&dir.0.join("agent-top.db")).unwrap();
+    let path = copy(&dir, "claude-2.1.278.jsonl");
+    let src = [source(Harness::Claude, &path)];
+    let adapter = Unstamped(Default::default());
+    assert_eq!(store.sync_with(&adapter, &src, None).unwrap(), stats(1, 0));
+    assert_eq!(store.sync_with(&adapter, &src, None).unwrap(), stats(0, 1));
+
+    let mut text = std::fs::read_to_string(&path).unwrap();
+    text.push_str(
+        "{\"type\":\"system\",\"subtype\":\"informational\",\"timestamp\":\"2026-09-21T20:30:00.000Z\",\"version\":\"2.1.278\"}\n",
+    );
+    std::fs::write(&path, text).unwrap();
+    assert_eq!(store.sync_with(&adapter, &src, None).unwrap(), stats(1, 0));
+}

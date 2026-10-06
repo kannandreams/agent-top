@@ -153,6 +153,17 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Sync the local store on an interval until stopped, for a terminal tab
+    /// or a launchd or systemd service. Prints a line when a sync stores
+    /// something or a transcript cannot be read.
+    Serve {
+        /// Seconds between syncs.
+        #[arg(long, default_value_t = 60, value_name = "SECONDS", value_parser = clap::value_parser!(u64).range(1..))]
+        interval: u64,
+        /// The store file; the same default as `sync`.
+        #[arg(long, value_name = "FILE")]
+        db: Option<PathBuf>,
+    },
     /// Query the local store `sync` fills, read-only. Tables: sessions,
     /// spans, mcp_calls, sources. Views: cost_by_day, cost_by_harness,
     /// cost_by_model, cost_by_project, tool_latency, mcp_errors.
@@ -194,7 +205,7 @@ impl Command {
             Command::Fails => Some(app::Panel::FailedTools),
             Command::Advice => Some(app::Panel::Advice),
             Command::Mcp => Some(app::Panel::Mcp),
-            Command::Trace { .. } | Command::Report { .. } | Command::Sync { .. } | Command::Sql { .. } => None,
+            Command::Trace { .. } | Command::Report { .. } | Command::Sync { .. } | Command::Sql { .. } | Command::Serve { .. } => None,
         }
     }
 }
@@ -270,6 +281,13 @@ fn sync(since: &str, db: Option<&std::path::Path>, json: bool) -> Result<()> {
     for (p, why) in &stats.failed {
         eprintln!("agent-top: could not read {}: {why}", p.display());
     }
+    println!("{}", sync_line(&stats));
+    println!("{} holds {sessions} sessions", path.display());
+    Ok(())
+}
+
+/// `239 transcripts: 3 stored, 236 unchanged`, plus whatever else happened.
+fn sync_line(stats: &agent_top_store::SyncStats) -> String {
     let mut line = format!("{} transcripts: {} stored, {} unchanged", stats.seen, stats.stored, stats.unchanged);
     for (n, what) in
         [(stats.outside_window, "outside the window"), (stats.kept, "kept (read as empty)"), (stats.failed.len() as u64, "failed")]
@@ -278,9 +296,39 @@ fn sync(since: &str, db: Option<&std::path::Path>, json: bool) -> Result<()> {
             line.push_str(&format!(", {n} {what}"));
         }
     }
-    println!("{line}");
-    println!("{} holds {sessions} sessions", path.display());
-    Ok(())
+    line
+}
+
+/// `agent-top serve`: sync every `interval` until the process is stopped.
+/// A sync that fails is logged and retried at the next interval; a
+/// transcript that cannot be read is logged the first time only.
+fn serve(interval: Duration, db: Option<&std::path::Path>) -> Result<()> {
+    let path = store_path(db)?;
+    let mut store = agent_top_store::Store::open(&path)?;
+    let now = || report::timestamp_utc(std::time::SystemTime::now());
+    println!("{} syncing {} every {}s", now(), path.display(), interval.as_secs());
+    let mut reported: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+    let mut first = true;
+    loop {
+        let started = Instant::now();
+        match store.sync(None) {
+            Ok(stats) => {
+                let mut new_failure = false;
+                for (p, why) in &stats.failed {
+                    if reported.insert(p.clone()) {
+                        new_failure = true;
+                        eprintln!("{} could not read {}: {why}", now(), p.display());
+                    }
+                }
+                if first || stats.stored > 0 || stats.kept > 0 || new_failure {
+                    println!("{} {}", now(), sync_line(&stats));
+                }
+                first = false;
+            }
+            Err(e) => eprintln!("{} sync failed: {e:#}", now()),
+        }
+        std::thread::sleep(interval.saturating_sub(started.elapsed()));
+    }
 }
 
 fn main() -> Result<()> {
@@ -344,6 +392,12 @@ fn main() -> Result<()> {
             print!("{}", sql::to_table(&result));
         }
         return Ok(());
+    }
+    if let Some(Command::Serve { interval, db }) = &cli.command {
+        for w in &agent_top_core::pricing::table().warnings {
+            eprintln!("agent-top: {w}");
+        }
+        return serve(Duration::from_secs(*interval), db.as_deref());
     }
     if let Some(Command::Sync { since, db, json }) = &cli.command {
         for w in &agent_top_core::pricing::table().warnings {

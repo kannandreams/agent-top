@@ -410,6 +410,14 @@ fn format_date(t: SystemTime) -> String {
 }
 
 /// UTC calendar date of a `SystemTime`.
+/// `2026-10-06T12:00:00Z`, for log lines.
+pub fn timestamp_utc(t: SystemTime) -> String {
+    let secs = t.duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let (y, m, d) = date_utc(t);
+    let s = secs % 86_400;
+    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", s / 3600, s % 3600 / 60, s % 60)
+}
+
 fn date_utc(t: SystemTime) -> (i64, u32, u32) {
     let secs = t.duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     civil_from_days((secs / 86_400) as i64)
@@ -557,6 +565,11 @@ mod tests {
         assert!(parse_since("2w").unwrap() < SystemTime::now());
         assert!(parse_since("nonsense").is_err());
         assert!(parse_since("2026-13-01").is_err());
+    }
+
+    #[test]
+    fn timestamps_are_utc_seconds() {
+        assert_eq!(timestamp_utc(UNIX_EPOCH + Duration::from_secs(1791244800 + 3 * 3600 + 4 * 60 + 5)), "2026-10-06T03:04:05Z");
     }
 
     #[test]

@@ -272,6 +272,15 @@ impl Store {
         Ok(stats)
     }
 
+    /// Sync the given transcripts, all read by `adapter`.
+    pub fn sync_with(&mut self, adapter: &dyn HarnessAdapter, sources: &[Source], since: Option<SystemTime>) -> Result<SyncStats> {
+        let mut stats = SyncStats::default();
+        for src in sources {
+            self.sync_one(adapter, src, since, &mut stats)?;
+        }
+        Ok(stats)
+    }
+
     fn sync_one(&mut self, adapter: &dyn HarnessAdapter, src: &Source, since: Option<SystemTime>, stats: &mut SyncStats) -> Result<()> {
         stats.seen += 1;
         // A transcript that cannot be read is reported and skipped; a store
@@ -316,6 +325,12 @@ impl Store {
         let harness = src.harness.label();
         let now = ms(SystemTime::now());
 
+        // A session with no file to stamp (a database row) is read on every
+        // sync. When it reads the same as what is stored, nothing is written.
+        if stamp.is_none() && prior.as_ref().is_some_and(|(_, _, v)| v == WRITER_VERSION) && self.matches_stored(harness, &src.id, s)? {
+            return Ok(Outcome::Unchanged);
+        }
+
         // A re-read never replaces stored numbers with none. A transcript that
         // reads as empty where the store has a session is one the harness
         // removed or truncated, and keeping history is the store's job.
@@ -344,6 +359,41 @@ impl Store {
         )?;
         tx.commit()?;
         Ok(outcome)
+    }
+
+    /// Whether the stored row for this session has the same activity,
+    /// tokens, cost, counts and spans as `s`.
+    fn matches_stored(&self, harness: &str, id: &str, s: &SessionSummary) -> Result<bool> {
+        use rusqlite::types::Value as V;
+        let row: Option<Vec<V>> = self
+            .conn
+            .query_row(
+                "SELECT last_activity, input, cache_write_5m, cache_write_1h, cache_write_unsplit, cache_read, output,
+                        turns, cost_usd, tool_calls,
+                        (SELECT count(*) FROM spans p WHERE p.harness = s.harness AND p.session_id = s.session_id),
+                        (SELECT count(*) FROM spans p WHERE p.harness = s.harness AND p.session_id = s.session_id AND p.duration_ms IS NULL)
+                 FROM sessions s WHERE harness = ?1 AND session_id = ?2",
+                params![harness, id],
+                |r| (0..12).map(|i| r.get::<_, V>(i)).collect(),
+            )
+            .optional()?;
+        let u = &s.usage;
+        let int = |n: u64| V::Integer(n as i64);
+        let read = vec![
+            s.last_activity.map(|t| V::Integer(ms(t))).unwrap_or(V::Null),
+            int(u.input),
+            int(u.cache_write_5m),
+            int(u.cache_write_1h),
+            int(u.cache_write_unsplit),
+            int(u.cache_read),
+            int(u.output),
+            int(s.turns),
+            V::Real(s.cost_usd),
+            int(s.tool_calls),
+            int(s.spans.len() as u64),
+            int(s.spans.iter().filter(|sp| sp.is_open()).count() as u64),
+        ];
+        Ok(row == Some(read))
     }
 
     /// How many sessions the store holds.

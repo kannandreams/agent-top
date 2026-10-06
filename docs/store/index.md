@@ -21,7 +21,7 @@ agent-top sql "select * from cost_by_day order by day desc limit 7"
 
 ## Where the file is
 
-The first of these that is set: `--db`, `AGENT_TOP_DB`, `$XDG_DATA_HOME/agent-top/agent-top.db`, `~/.local/share/agent-top/agent-top.db`. It is created with mode `0600`. Only `agent-top sync` creates or writes it; `sql`, `report` and the live view never do.
+The first of these that is set: `--db`, `AGENT_TOP_DB`, `$XDG_DATA_HOME/agent-top/agent-top.db`, `~/.local/share/agent-top/agent-top.db`. It is created with mode `0600`. Only `agent-top sync` and `agent-top serve` create or write it; `sql`, `report` and the live view never do.
 
 ## What is in it
 
