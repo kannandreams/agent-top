@@ -42,7 +42,8 @@ check() {
   code=$(docker run --rm "$@" "$IMAGE" -s -o /dev/null -w '%{http_code}' --max-time 5 \
     -H 'Content-Type: application/json' --data "$(span "case-$n" "$n")" "$url" || true)
   local stored
-  stored=$("$BIN" sql --csv --db "$db" "SELECT count(*) FROM sessions WHERE project = 'case-$n'" | tail -1)
+  # CSV rows end in CRLF.
+  stored=$("$BIN" sql --csv --db "$db" "SELECT count(*) FROM sessions WHERE project = 'case-$n'" | tail -1 | tr -d '\r')
   kill "$pid" && wait "$pid" 2>/dev/null || true
   local got=unreachable
   [ "$code" = 200 ] && [ "$stored" = 1 ] && got=reachable
