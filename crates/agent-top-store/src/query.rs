@@ -111,6 +111,11 @@ impl Reader {
 
     /// Run one statement and collect every row.
     pub fn query(&self, sql: &str) -> Result<QueryResult> {
+        self.query_with(sql, &[])
+    }
+
+    /// Run one statement with `?1`, `?2`... bound to `params`, in order.
+    pub fn query_with(&self, sql: &str, params: &[Value]) -> Result<QueryResult> {
         let mut stmt = self.conn.prepare(sql)?;
         // `query_only` stops writes to the database; this also stops the
         // statements that write elsewhere, such as `VACUUM INTO`.
@@ -120,7 +125,16 @@ impl Reader {
         let columns: Vec<String> = stmt.column_names().into_iter().map(str::to_string).collect();
         let n = columns.len();
         let mut rows = Vec::new();
-        let mut cursor = stmt.query([])?;
+        let bound: Vec<rusqlite::types::Value> = params
+            .iter()
+            .map(|v| match v {
+                Value::Null | Value::Blob(_) => rusqlite::types::Value::Null,
+                Value::Integer(i) => rusqlite::types::Value::Integer(*i),
+                Value::Real(f) => rusqlite::types::Value::Real(*f),
+                Value::Text(s) => rusqlite::types::Value::Text(s.clone()),
+            })
+            .collect();
+        let mut cursor = stmt.query(rusqlite::params_from_iter(bound))?;
         while let Some(row) = cursor.next()? {
             let mut out = Vec::with_capacity(n);
             for i in 0..n {

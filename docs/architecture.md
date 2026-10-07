@@ -10,7 +10,7 @@ Three crates in one Cargo workspace, split by dependency rather than by size.
 
 **`agent-top-store`** is the SQLite [local store](store/index.md) that `sync` fills and `sql` reads. It is the only crate that writes a file of its own.
 
-**`agent-top`** is the ratatui front end and the command line: the live view, `--once`, `report`, `trace`, `sync` and `sql`.
+**`agent-top`** is the ratatui front end and the command line: the live view, `--once`, `report`, `trace`, `sync`, `sql`, `serve` and `ui`.
 
 ```text
 crates/agent-top-core
@@ -32,6 +32,9 @@ crates/agent-top
   ui.rs           header, table, detail pane, popups
   report.rs       the cross-harness cost report
   sql.rs          table, JSON and CSV output for `agent-top sql`
+  listen.rs       the OTLP receiver behind `serve --listen`
+  web.rs          `agent-top ui`: routes, the JSON API, the Host check
+  web/            the page, script and stylesheet compiled into the binary
   trace.rs        session lookup, Chrome trace and OTLP/JSON writers
   update.rs       the daily version check and the upgrade popup
   format.rs       tokens, bytes, age and cost formatting; the plain table

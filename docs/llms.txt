@@ -17,6 +17,7 @@ agent-top is a single Rust binary, MIT licensed, source at https://github.com/ka
 - [Local store](https://agenttop.dev/store/): a SQLite file that keeps sessions, spans and MCP calls after a harness deletes its transcripts.
 - [Sync](https://agenttop.dev/store/sync/): `agent-top sync`, filling the store from the transcripts on disk.
 - [Query](https://agenttop.dev/store/query/): `agent-top sql`, read-only SQL with views for cost, tool latency and MCP errors.
+- [Web view](https://agenttop.dev/store/ui/): `agent-top ui`, a read-only web page of the local store with cost charts, tool latency and span waterfalls.
 - [Receive telemetry](https://agenttop.dev/store/telemetry/): `agent-top serve --listen`, OpenTelemetry spans from your own agents kept in the same store.
 - [Schema](https://agenttop.dev/store/schema/): the store's tables and columns.
 - [Tool trace and export](https://agenttop.dev/trace/): `agent-top trace`, Chrome trace and OTLP/JSON export.
