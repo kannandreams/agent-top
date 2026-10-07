@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- `agent-top ui` no longer prints `null` after the totals when every token is priced. ([#PR](https://github.com/kannandreams/agent-top/pull/PR))
+
 ## [0.27.0] - 2026-10-07
 
 ### Highlights

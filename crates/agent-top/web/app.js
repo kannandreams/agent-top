@@ -129,13 +129,13 @@ function tiles(t) {
   const tile = (label, value, sub, hero) =>
     el("div", { class: "tile" + (hero ? " hero" : "") }, el("div", { class: "label", text: label }),
       el("div", { class: "value", text: value }), sub ? el("div", { class: "sub", text: sub }) : null);
-  box.replaceChildren(
+  box.replaceChildren(...[
     tile("Cost", usd(t.cost_usd) + (t.unpriced_tokens > 0 ? "+" : ""), days ? `last ${days} days` : "all time", true),
     tile("Sessions", Number(t.sessions).toLocaleString("en-US"), `${compact(t.turns)} turns`),
     tile("Tokens", compact(t.tokens), `${compact(t.tool_calls)} tool calls`),
     tile("Cache hit", hit, "of the prompt"),
     t.unpriced_tokens > 0 ? tile("Unpriced tokens", compact(t.unpriced_tokens), "no price in the table") : null,
-  );
+  ].filter(Boolean));
 }
 
 // ---- cost by day: stacked columns ----------------------------------------

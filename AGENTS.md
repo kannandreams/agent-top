@@ -40,6 +40,11 @@ a live machine: the frame would carry real project names, working directories
 and session ids into a public README. Edit the JSON to change what the demo
 shows.
 
+The same goes for the web view. `docs/screenshots/ui-*.png` come from
+`uv run --with playwright python docs/ui-demo.py`, which fills a fresh store
+with invented sessions and screenshots `agent-top ui` on it. Never screenshot
+the view against a real store; edit the script's tables instead.
+
 ## Checks
 
 ```sh

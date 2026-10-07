@@ -12,7 +12,12 @@ agent-top ui --addr 127.0.0.1:8080   # another port
 agent-top ui --db ./mine.db          # another store
 ```
 
-Open the address it prints in a browser. The page shows:
+Open the address it prints in a browser.
+
+![agent-top ui: totals, cost by day stacked by harness, cost by project and by model](../screenshots/ui-overview.png#only-light)
+![agent-top ui in dark mode: totals, cost by day stacked by harness, cost by project and by model](../screenshots/ui-overview-dark.png#only-dark)
+
+The page shows:
 
 | Section | What it shows |
 |---|---|
@@ -24,9 +29,13 @@ Open the address it prints in a browser. The page shows:
 | Sessions | the 200 most recent; select one for its detail |
 | Session detail | its facts, its turns with duration, tool calls and errors, and a waterfall of the spans in the selected turn |
 
+![A session's detail: its facts, its turns, and the waterfall of the newest finished turn](../screenshots/ui-session.png)
+
 The range (7, 30 or 90 days, or all) and the harness filter apply to every section. Each harness keeps one colour everywhere. A session's detail has its own address (`#s/<harness>/<id>`), so it can be reopened or bookmarked.
 
 Each request reads the store afresh, so reloading the page shows the latest `sync` or received telemetry. The view opens the store read-only and cannot change it.
+
+The images on this page come from a made-up store that `docs/ui-demo.py` builds; they show no real sessions.
 
 ## Who can open it
 
