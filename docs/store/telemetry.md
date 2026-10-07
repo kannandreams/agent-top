@@ -29,7 +29,26 @@ export OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf   # or http/json
 
 Instrumentation libraries that follow the GenAI semantic conventions, such as OpenLLMetry and OpenInference, set the attributes agent-top reads.
 
-**From a container:** on Docker Desktop for Mac, a container reaches a listener on the host's `127.0.0.1` at `http://host.docker.internal:4318/v1/traces`. On Linux, `host.docker.internal` needs `--add-host=host.docker.internal:host-gateway`, and the listener has to be bound to an address the container's network can reach; this has not been tested yet.
+## From a container
+
+**Docker Desktop for Mac:** a container reaches a listener on the host's `127.0.0.1` at `http://host.docker.internal:4318/v1/traces`. Nothing else is needed.
+
+**Linux:** a container on the default bridge network cannot reach the host's `127.0.0.1`. Either share the host's network:
+
+```sh
+agent-top serve --listen 127.0.0.1:4318
+docker run --network host -e OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:4318/v1/traces my-agent
+```
+
+or bind the listener to the bridge's gateway address, which containers can reach and other machines cannot:
+
+```sh
+agent-top serve --listen "$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'):4318"
+docker run --add-host=host.docker.internal:host-gateway \
+  -e OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://host.docker.internal:4318/v1/traces my-agent
+```
+
+The gateway is usually `172.17.0.1`. These three cases (host network, gateway listener, and a loopback listener that a bridged container cannot reach) are checked on every change by `scripts/container-reachability.sh` in CI on Ubuntu.
 
 ## What it accepts
 
