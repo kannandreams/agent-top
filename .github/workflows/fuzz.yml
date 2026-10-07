@@ -1,0 +1,47 @@
+name: Fuzz
+
+# `serve --listen` decodes request bodies from anything that can reach it.
+# Each night both decoders get five minutes of libFuzzer; a crash fails the
+# run and its input is uploaded as an artifact to reproduce with
+# `cargo +nightly fuzz run <target> <file>`.
+on:
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "fuzz/**"
+      - "crates/agent-top-core/src/otlp*.rs"
+      - ".github/workflows/fuzz.yml"
+
+jobs:
+  fuzz:
+    name: fuzz ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [otlp_json, otlp_protobuf]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install nightly Rust
+        run: rustup toolchain install nightly --profile minimal
+
+      - name: Install cargo-fuzz
+        run: cargo +nightly install cargo-fuzz --locked
+
+      - name: Fuzz for five minutes (one minute on a pull request)
+        working-directory: fuzz
+        run: |
+          secs=300
+          if [ "${{ github.event_name }}" = "pull_request" ]; then secs=60; fi
+          cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=$secs -rss_limit_mb=2048
+
+      - name: Keep the crashing input
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-${{ matrix.target }}
+          path: fuzz/artifacts

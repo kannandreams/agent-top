@@ -1,6 +1,8 @@
 [workspace]
 members = ["crates/agent-top-core", "crates/agent-top-store", "crates/agent-top"]
 resolver = "2"
+# Built with nightly by .github/workflows/fuzz.yml, not by the workspace.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.27.1"
@@ -34,7 +36,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 # Only for `agent-top trace --endpoint`, which posts one file where the user says.
 ureq = "3.4"
 # Only for `agent-top serve --listen`: a blocking HTTP server (no async runtime)
-# and the protobuf decoder for the OTLP messages it accepts.
+# in the binary, and the protobuf decoder behind agent-top-core's `decode` feature.
 tiny_http = "0.12"
 prost = "0.14"
 

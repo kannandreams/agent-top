@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+- `agent-top-core`: the OTLP decoders behind `serve --listen` move into `otlp_decode`, behind the new off-by-default `decode` feature. ([#81](https://github.com/kannandreams/agent-top/pull/81))
+
 ## [0.27.1] - 2026-10-07
 
 ### Fixed
