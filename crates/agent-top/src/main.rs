@@ -10,6 +10,7 @@ mod theme;
 mod trace;
 mod ui;
 mod update;
+mod web;
 
 use agent_top_core::{Collector, CollectorOptions, Snapshot};
 use anyhow::{Context, Result};
@@ -170,6 +171,16 @@ enum Command {
         #[arg(long, value_name = "ADDR")]
         listen: Option<String>,
     },
+    /// Open a read-only web view of the local store: cost over time, by
+    /// project and model, tool latency, MCP servers, and each session's spans.
+    Ui {
+        /// Where to serve it. Loopback by default, so only this machine can open it.
+        #[arg(long, default_value = web::DEFAULT_ADDR, value_name = "ADDR")]
+        addr: String,
+        /// The store file; the same default as `sync`.
+        #[arg(long, value_name = "FILE")]
+        db: Option<PathBuf>,
+    },
     /// Query the local store `sync` fills, read-only. Tables: sessions,
     /// spans, mcp_calls, sources. Views: cost_by_day, cost_by_harness,
     /// cost_by_model, cost_by_project, tool_latency, mcp_errors.
@@ -211,7 +222,12 @@ impl Command {
             Command::Fails => Some(app::Panel::FailedTools),
             Command::Advice => Some(app::Panel::Advice),
             Command::Mcp => Some(app::Panel::Mcp),
-            Command::Trace { .. } | Command::Report { .. } | Command::Sync { .. } | Command::Sql { .. } | Command::Serve { .. } => None,
+            Command::Trace { .. }
+            | Command::Report { .. }
+            | Command::Sync { .. }
+            | Command::Sql { .. }
+            | Command::Serve { .. }
+            | Command::Ui { .. } => None,
         }
     }
 }
@@ -402,6 +418,9 @@ fn main() -> Result<()> {
             print!("{}", sql::to_table(&result));
         }
         return Ok(());
+    }
+    if let Some(Command::Ui { addr, db }) = &cli.command {
+        return web::run(addr, store_path(db.as_deref())?);
     }
     if let Some(Command::Serve { interval, db, listen }) = &cli.command {
         for w in &agent_top_core::pricing::table().warnings {

@@ -138,6 +138,7 @@ nav:
       - Overview: store/index.md
       - Sync: store/sync.md
       - Query: store/query.md
+      - Web view: store/ui.md
       - Receive telemetry: store/telemetry.md
       - Schema: store/schema.md
   - Harnesses:
