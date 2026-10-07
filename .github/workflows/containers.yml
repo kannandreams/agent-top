@@ -1,0 +1,45 @@
+name: Containers
+
+# Which `serve --listen` address a Docker container can reach on Linux.
+# macOS (Docker Desktop) was checked by hand; GitHub's Ubuntu runners have
+# Docker, so the Linux answer is checked here instead of assumed.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "scripts/container-reachability.sh"
+      - ".github/workflows/containers.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "scripts/container-reachability.sh"
+      - ".github/workflows/containers.yml"
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+jobs:
+  reachability:
+    name: listener reachable from a container (Linux)
+    runs-on: ubuntu-latest
+    env:
+      MISE_LOCKED: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install development toolchain
+        uses: jdx/mise-action@v4.2.3
+        with:
+          version: 2026.8.2
+          cache: true
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2.9.2
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Send a span from a container to each listener address
+        run: scripts/container-reachability.sh
