@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-07
+
+### Highlights
+`agent-top ui` opens the local store in a browser on this machine: cost by day stacked by harness, the most expensive projects and models, tool latency, and each session's turns with a waterfall of its tool calls and inferences. It reads the store read-only and loads nothing from other sites.
+
 ### Added
 - `agent-top ui` serves a read-only web view of the local store on `127.0.0.1:4320`: cost by day, project and model, tool latency, MCP servers, and each session's turns with a span waterfall. ([#76](https://github.com/kannandreams/agent-top/pull/76))
 
