@@ -5,10 +5,10 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
-- `agent-top ui` serves a read-only web view of the local store on `127.0.0.1:4320`: cost by day, project and model, tool latency, MCP servers, and each session's turns with a span waterfall. ([#PR](https://github.com/kannandreams/agent-top/pull/PR))
+- `agent-top ui` serves a read-only web view of the local store on `127.0.0.1:4320`: cost by day, project and model, tool latency, MCP servers, and each session's turns with a span waterfall. ([#76](https://github.com/kannandreams/agent-top/pull/76))
 
 ### Changed
-- `agent-top-store`: `Reader::query_with` binds parameters to a read-only query. ([#PR](https://github.com/kannandreams/agent-top/pull/PR))
+- `agent-top-store`: `Reader::query_with` binds parameters to a read-only query. ([#76](https://github.com/kannandreams/agent-top/pull/76))
 
 ## [0.26.0] - 2026-10-06
 
