@@ -1,0 +1,34 @@
+[package]
+name = "agent-top-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "MIT"
+
+# Run with a nightly toolchain: `cargo +nightly fuzz run otlp_json`.
+# .github/workflows/fuzz.yml runs both targets every night.
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+agent-top-core = { path = "../crates/agent-top-core", features = ["decode"] }
+
+# Not part of the main workspace (see its `exclude`).
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "otlp_json"
+path = "fuzz_targets/otlp_json.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "otlp_protobuf"
+path = "fuzz_targets/otlp_protobuf.rs"
+test = false
+doc = false
+bench = false

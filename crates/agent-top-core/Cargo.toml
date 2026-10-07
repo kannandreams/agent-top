@@ -19,6 +19,11 @@ sysinfo.workspace = true
 thiserror.workspace = true
 toml.workspace = true
 rusqlite.workspace = true
+prost = { workspace = true, optional = true }
+
+[features]
+# The OTLP decoders behind `agent-top serve --listen`, and the fuzz targets.
+decode = ["dep:prost"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libproc = "0.14.11"

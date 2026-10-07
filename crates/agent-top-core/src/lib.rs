@@ -11,6 +11,8 @@ pub mod jsonl;
 pub mod model;
 mod openfiles;
 pub mod otlp;
+#[cfg(feature = "decode")]
+pub mod otlp_decode;
 pub mod pricing;
 pub mod process;
 
