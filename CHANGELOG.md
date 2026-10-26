@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 - `agent-top-core`: the OTLP decoders behind `serve --listen` move into `otlp_decode`, behind the new off-by-default `decode` feature. ([#81](https://github.com/kannandreams/agent-top/pull/81))
 
+### Security
+- Bump rustls to 0.23.46, rustls-webpki to 0.103.16 and webpki-roots to 1.0.11 for [RUSTSEC-2026-0346](https://rustsec.org/advisories/RUSTSEC-2026-0346), [-0347](https://rustsec.org/advisories/RUSTSEC-2026-0347), [-0348](https://rustsec.org/advisories/RUSTSEC-2026-0348), [-0349](https://rustsec.org/advisories/RUSTSEC-2026-0349), [-0381](https://rustsec.org/advisories/RUSTSEC-2026-0381) and [-0382](https://rustsec.org/advisories/RUSTSEC-2026-0382). ([#82](https://github.com/kannandreams/agent-top/pull/82))
+
 ## [0.27.1] - 2026-10-07
 
 ### Fixed
