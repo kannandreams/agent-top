@@ -1,0 +1,160 @@
+{
+  "activity": "Waiting",
+  "context": [
+    {
+      "calls": 0,
+      "cost_usd_micros": 244086,
+      "name": "other",
+      "origin": "Other",
+      "tokens": 3420
+    },
+    {
+      "calls": 1,
+      "cost_usd_micros": 31460,
+      "name": "bash",
+      "origin": "Tool",
+      "tokens": 705
+    },
+    {
+      "calls": 1,
+      "cost_usd_micros": 31460,
+      "name": "read",
+      "origin": "Tool",
+      "tokens": 705
+    },
+    {
+      "calls": 1,
+      "cost_usd_micros": 5771,
+      "name": "execute",
+      "origin": "Tool",
+      "tokens": 385
+    },
+    {
+      "calls": 1,
+      "cost_usd_micros": 5771,
+      "name": "scratch_fs",
+      "origin": "Mcp",
+      "tokens": 385
+    }
+  ],
+  "cost_breakdown_micros": {
+    "cache_read": 0,
+    "cache_write_1h": 0,
+    "cache_write_5m": 0,
+    "cache_write_unsplit": 0,
+    "input": 0,
+    "output": 0,
+    "web_search": 0
+  },
+  "cost_usd_micros": 472500,
+  "cwd": "/tmp/agent-top-oc-golden/proj",
+  "folds_child_usage": true,
+  "harness_cost": null,
+  "harness_version": "2.1.4",
+  "last_activity_ms": 1789000060000,
+  "mcp": [
+    {
+      "calls": 2,
+      "errors": 1,
+      "server": "git"
+    },
+    {
+      "calls": 1,
+      "errors": 0,
+      "server": "scratch_fs"
+    }
+  ],
+  "model": "claude-opus-5",
+  "price_source": "harness",
+  "rate_limit": null,
+  "session_id": "ses_gold",
+  "spans": {
+    "by_kind": [
+      {
+        "count": 8,
+        "kind": "tool",
+        "open": 1,
+        "total_duration_ms": 6100
+      },
+      {
+        "count": 5,
+        "kind": "inference",
+        "open": 1,
+        "total_duration_ms": 10000
+      },
+      {
+        "count": 2,
+        "kind": "turn",
+        "open": 0,
+        "total_duration_ms": 17000
+      }
+    ],
+    "count": 15,
+    "errors": 1,
+    "first": [
+      {
+        "duration_ms": 15000,
+        "error": false,
+        "kind": "turn",
+        "name": "turn",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 2000,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 500,
+        "error": false,
+        "kind": "tool",
+        "name": "read",
+        "sidechain": false
+      }
+    ],
+    "last": [
+      {
+        "duration_ms": 300,
+        "error": false,
+        "kind": "tool",
+        "name": "read",
+        "sidechain": true
+      },
+      {
+        "duration_ms": 2000,
+        "error": false,
+        "kind": "turn",
+        "name": "turn",
+        "sidechain": true
+      },
+      {
+        "duration_ms": 2000,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": true
+      }
+    ],
+    "open": 2,
+    "sidechain": 3,
+    "total_duration_ms": 33100
+  },
+  "started_at_ms": 1789000000000,
+  "subagent_turns": 1,
+  "tool_calls": 8,
+  "tool_calls_lower_bound": false,
+  "turns": 5,
+  "unpriced_tokens": 0,
+  "usage": {
+    "cache_read": 227000,
+    "cache_write_1h": 0,
+    "cache_write_5m": 1200,
+    "cache_write_unsplit": 0,
+    "input": 5100,
+    "output": 485,
+    "total": 233785
+  },
+  "web_searches": 0
+}

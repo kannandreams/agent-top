@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- OpenCode sessions created since the v2 store upgrade (OpenCode 2.x) now show up with full accounting: tokens, cost, turns, tool spans, per-server MCP calls.
+
 ## [0.27.2] - 2026-10-28
 
 ### Changed

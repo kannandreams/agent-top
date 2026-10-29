@@ -6,7 +6,9 @@
 //! tests take the real fixtures and rename fields the way an upstream release
 //! eventually will.
 
+use agent_top_core::harness::SpanRetention;
 use agent_top_core::harness::claude::ClaudeTranscript;
+use agent_top_core::harness::opencode::{ConfigRoots, OpenCodeTranscript, session_path};
 use agent_top_core::harness::{SessionTracker, codex::CodexTranscript, gemini::GeminiTranscript};
 use agent_top_core::pricing;
 use std::path::{Path, PathBuf};
@@ -122,4 +124,33 @@ fn gemini_drift_is_caught_too() {
 
 fn fixture_path(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
+}
+
+#[test]
+fn opencode_drift_is_caught_too() {
+    // The v2 usage lives in each `session_message` row's data, so the rename
+    // lands there. The session-level totals the user would see still come
+    // from the `session_v2` columns and stay put, which is why only the
+    // health flag moves.
+    let body = fixture("opencode-2.1.4.sql").replace("\"tokens\":", "\"usage\":");
+    let dir = std::env::temp_dir().join(format!("agent-top-drift-opencode-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("opencode.db");
+    rusqlite::Connection::open(&db).unwrap().execute_batch(&body).unwrap();
+
+    let mut t = OpenCodeTranscript::new(&session_path(&db, "ses_gold"), SpanRetention::All)
+        .with_config(ConfigRoots { global: Some(dir.join("no-global")), home: Some(dir.join("no-home")) });
+    t.refresh().unwrap();
+    assert!(t.summary().usage.total() > 0, "the session_v2 columns still read, so the user sees tokens");
+    assert!(t.summary().health.fields_unrecognised(), "the renamed records inside the message data");
+
+    // And the fixture itself, unaltered, is healthy.
+    let db2 = dir.join("healthy.db");
+    rusqlite::Connection::open(&db2).unwrap().execute_batch(&fixture("opencode-2.1.4.sql")).unwrap();
+    let mut t = OpenCodeTranscript::new(&session_path(&db2, "ses_gold"), SpanRetention::All)
+        .with_config(ConfigRoots { global: Some(dir.join("no-global")), home: Some(dir.join("no-home")) });
+    t.refresh().unwrap();
+    assert!(!t.summary().health.fields_unrecognised());
+    let _ = std::fs::remove_dir_all(&dir);
 }
