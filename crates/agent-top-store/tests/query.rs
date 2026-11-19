@@ -53,13 +53,13 @@ fn tool_latency_takes_nearest_rank_percentiles() {
         let c = store.connection();
         for d in 1..=100 {
             c.execute(
-                "INSERT INTO spans VALUES ('claude', 's', ?1, ?2, 'tool', 'Bash', 0, ?3, 0, ?4, NULL)",
+                "INSERT INTO spans VALUES ('claude', 's', ?1, ?2, 'tool', 'Bash', 0, ?3, 0, ?4, NULL, NULL)",
                 rusqlite::params![d, format!("t{d}"), d, (d % 10 == 0) as i64],
             )
             .unwrap();
         }
         // Still open: not a duration yet, so not counted.
-        c.execute("INSERT INTO spans VALUES ('claude', 's', 101, 'open', 'tool', 'Bash', 0, NULL, 0, 0, NULL)", []).unwrap();
+        c.execute("INSERT INTO spans VALUES ('claude', 's', 101, 'open', 'tool', 'Bash', 0, NULL, 0, 0, NULL, NULL)", []).unwrap();
     }
     let r = Reader::open(&db).unwrap();
     let row = r.query("SELECT calls, errors, p50_ms, p95_ms, max_ms FROM tool_latency WHERE name = 'Bash'").unwrap();
@@ -122,6 +122,8 @@ fn a_version_one_store_is_upgraded_by_sync_not_by_sql() {
         }
         c.execute("DROP TABLE telemetry_spans", []).unwrap();
         c.execute("ALTER TABLE sessions DROP COLUMN tool_calls_lower_bound", []).unwrap();
+        c.execute("DROP TABLE subagents", []).unwrap();
+        c.execute("ALTER TABLE spans DROP COLUMN agent", []).unwrap();
         c.pragma_update(None, "user_version", 1).unwrap();
     }
     let err = Reader::open(&db).err().unwrap().to_string();
@@ -136,7 +138,7 @@ fn describe_lists_every_table_and_view_with_columns() {
     let dir = TempDir::new();
     let r = Reader::open(&synced(&dir)).unwrap();
     let d = r.describe().unwrap();
-    assert_eq!(d.len(), 11);
+    assert_eq!(d.len(), 12);
     assert!(d.iter().all(|t| !t.columns.is_empty()));
-    assert_eq!(d.iter().filter(|t| t.kind == "table").count(), 4);
+    assert_eq!(d.iter().filter(|t| t.kind == "table").count(), 5);
 }

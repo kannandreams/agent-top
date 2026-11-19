@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// The schema this build writes, kept in `PRAGMA user_version`.
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 
 /// Recorded on every synced source, so a newer agent-top re-reads what an
 /// older one stored and a parser or price fix reaches the stored rows.
@@ -182,6 +182,32 @@ CREATE TABLE telemetry_spans (
 CREATE INDEX telemetry_spans_session ON telemetry_spans (harness, session_id);
 ";
 
+/// Which subagent issued each span, and one row per subagent run with the
+/// call that spawned it, so a session can be drawn as a trunk with branches.
+/// Emptying `synced_by_version` makes the next sync read every transcript
+/// that is still on disk again, which is what fills the new columns.
+const SCHEMA_V5: &str = "
+ALTER TABLE spans ADD COLUMN agent TEXT;
+
+CREATE TABLE subagents (
+    harness          TEXT NOT NULL,
+    session_id       TEXT NOT NULL,
+    agent_id         TEXT NOT NULL,
+    agent_type       TEXT,
+    spawned_by       TEXT,
+    model            TEXT,
+    started_at       INTEGER,
+    last_activity    INTEGER,
+    tokens           INTEGER NOT NULL,
+    cost_usd         REAL NOT NULL,
+    unpriced_tokens  INTEGER NOT NULL,
+    tool_calls       INTEGER NOT NULL,
+    PRIMARY KEY (harness, session_id, agent_id)
+);
+
+UPDATE sources SET synced_by_version = '';
+";
+
 /// Where the store lives when `--db` is not given: `AGENT_TOP_DB`, else
 /// `$XDG_DATA_HOME/agent-top/agent-top.db`, else
 /// `~/.local/share/agent-top/agent-top.db`, on every platform.
@@ -268,7 +294,7 @@ impl Store {
                 self.path.display()
             );
         }
-        for (version, sql) in [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3), (4, SCHEMA_V4)] {
+        for (version, sql) in [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3), (4, SCHEMA_V4), (5, SCHEMA_V5)] {
             if v < version {
                 let tx = self.conn.transaction()?;
                 tx.execute_batch(sql)?;
@@ -448,7 +474,7 @@ fn replace_session(
     s: &SessionSummary,
     now: i64,
 ) -> Result<()> {
-    for table in ["sessions", "spans", "mcp_calls"] {
+    for table in ["sessions", "spans", "mcp_calls", "subagents"] {
         tx.execute(&format!("DELETE FROM {table} WHERE harness = ?1 AND session_id = ?2"), params![harness, id])?;
     }
     let u = &s.usage;
@@ -494,8 +520,8 @@ fn replace_session(
 
     let spans: Vec<&ToolSpan> = s.spans.iter().collect();
     let mut insert = tx.prepare(
-        "INSERT INTO spans (harness, session_id, seq, span_id, kind, name, started_at, duration_ms, sidechain, error, parent_seq)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO spans (harness, session_id, seq, span_id, kind, name, started_at, duration_ms, sidechain, error, parent_seq, agent)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
     )?;
     for (i, sp) in spans.iter().enumerate() {
         let parent = parent_turn(&spans, i).and_then(|p| spans.iter().position(|q| std::ptr::eq(*q, p)));
@@ -511,6 +537,29 @@ fn replace_session(
             sp.sidechain,
             sp.error,
             parent.map(|p| p as i64),
+            sp.agent,
+        ])?;
+    }
+
+    let mut insert = tx.prepare(
+        "INSERT INTO subagents (harness, session_id, agent_id, agent_type, spawned_by, model, started_at, last_activity,
+            tokens, cost_usd, unpriced_tokens, tool_calls)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+    )?;
+    for a in &s.subagents {
+        insert.execute(params![
+            harness,
+            id,
+            a.id,
+            a.agent_type,
+            a.spawned_by,
+            a.model,
+            a.started_at.map(ms),
+            a.last_activity.map(ms),
+            a.tokens as i64,
+            a.cost_usd,
+            a.unpriced_tokens as i64,
+            a.tool_calls as i64,
         ])?;
     }
 

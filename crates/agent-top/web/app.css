@@ -135,6 +135,29 @@ tbody tr.click:hover, tbody tr.click:focus { background: var(--wash); outline: n
 .waterfall svg { display: block; }
 .empty { color: var(--muted); padding: 12px 0; }
 
+/* Run graph: a neutral trunk for the main agent, the accent for subagents. */
+.run:not(:empty) { margin-bottom: 20px; }
+.run h2 { margin: 0 0 8px; }
+.graph svg { overflow: visible; }
+.graph text { fill: var(--ink); font: 12px var(--sans); pointer-events: none; }
+.graph .dim { fill: var(--muted); }
+.graph .name { font-weight: 600; }
+.graph .id { fill: var(--muted); font: 11px var(--mono); }
+.graph .bad { fill: var(--critical); font-weight: 600; }
+.graph .lines { fill: none; pointer-events: none; }
+.graph .trunk { stroke: var(--ink-2); stroke-width: 1.5; }
+.graph .branch { stroke: var(--accent); stroke-width: 1.5; }
+.graph .loose { stroke-dasharray: 3 3; }
+.graph circle, .graph rect.turn { pointer-events: none; }
+.graph .turn { fill: var(--card); stroke: var(--ink-2); stroke-width: 1.5; }
+.graph .agent, .graph .join { fill: var(--accent); stroke: var(--card); stroke-width: 1.5; }
+.graph circle.bad { fill: var(--critical); }
+.graph .hit { fill: transparent; cursor: pointer; }
+.graph .hit:hover, .graph .hit:focus, .graph .hit.on { fill: var(--wash); outline: none; }
+.legend .k-turn { border-radius: 50%; border: 1.5px solid var(--ink-2); background: var(--card); }
+.legend .k-agent { border-radius: 50%; background: var(--accent); }
+.legend .k-loose { height: 0; border-radius: 0; border-top: 2px dashed var(--accent); }
+
 .tip { position: fixed; z-index: 10; pointer-events: none; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); max-width: 280px; }
 .tip .tv { font-weight: 600; font-size: 13px; }
 .tip .tr { display: flex; gap: 8px; align-items: center; color: var(--ink-2); }

@@ -15,6 +15,13 @@
 //!   and the spawning `toolUseId`. The parent transcript no longer carries any
 //!   sidechain lines itself. Claude Code's own cost display includes those
 //!   files, so `ClaudeTranscript` tails and folds them in.
+//! * Subagent identity (verified on Claude Code 2.1.304 to 2.1.325,
+//!   2026-11-19): `agentId` on a line equals the `<id>` in its file name, and
+//!   the meta file's `toolUseId` is the `id` of the `Agent` tool_use block
+//!   that started the run, found in the session's transcripts for 43 of 45
+//!   real runs. Each span is tagged with its `agentId` and each run is listed
+//!   in `SessionSummary::subagents` with `agentType` and `toolUseId`. The meta
+//!   file's `description` is text the model wrote and is not kept.
 //! * A `tool_use` block in an assistant message and the `tool_result` block
 //!   that answers it carry the same id in `id` / `tool_use_id`, and their
 //!   lines carry the timestamps that bracket the call. That pairing is the
@@ -51,7 +58,9 @@ use super::{
     SpanRetention, mcp_server_of, parse_rfc3339_utc,
 };
 use crate::jsonl::TailReader;
-use crate::model::{Activity, Attribution, ContextOrigin, CostBreakdown, Harness, HarnessCost, ProcNode, SpanKind, TokenUsage};
+use crate::model::{
+    Activity, Attribution, ContextOrigin, CostBreakdown, Harness, HarnessCost, ProcNode, SpanKind, SubagentRun, TokenUsage,
+};
 use crate::pricing::{self, Table};
 use crate::process::{RawProc, session_id_from_args};
 use serde::Deserialize;
@@ -320,6 +329,9 @@ struct Parser {
     /// the id, and the name is what the context ledger files it under and,
     /// for an MCP tool, what its `is_error` is charged to.
     pending_tools: HashMap<String, String>,
+    /// The first `agentId` a sidechain line named: the subagent a subagent
+    /// transcript belongs to.
+    agent_id: Option<String>,
 }
 
 /// What one API message added to the summary, so the next line of the same
@@ -347,6 +359,7 @@ impl Parser {
             inference_ended_by: None,
             turn_ended_by: None,
             pending_tools: HashMap::new(),
+            agent_id: None,
         }
     }
 
@@ -378,6 +391,11 @@ impl Parser {
             self.summary.harness_version = v.get("version").and_then(Value::as_str).map(str::to_string);
         }
         let sidechain = v.get("isSidechain").and_then(Value::as_bool).unwrap_or(false);
+        let agent = v.get("agentId").and_then(Value::as_str).filter(|_| sidechain);
+        self.summary.spans.set_agent(agent);
+        if self.agent_id.is_none() {
+            self.agent_id = agent.map(str::to_string);
+        }
         let is_meta = v.get("isMeta").and_then(Value::as_bool).unwrap_or(false);
         let ts = v.get("timestamp").and_then(Value::as_str).and_then(parse_rfc3339_utc);
         match kind {
@@ -622,6 +640,9 @@ pub struct ClaudeTranscript {
     main: Parser,
     /// Keyed by path, so a directory listing adds each subagent once.
     subagents: BTreeMap<PathBuf, Parser>,
+    /// What each subagent's meta file says, keyed like `subagents`. Read once,
+    /// when the file first parses: both fields are written at spawn.
+    meta: BTreeMap<PathBuf, SubagentMeta>,
     prices: &'static Table,
     retention: SpanRetention,
     /// The fold of `main` and `subagents`, rebuilt whenever any of them read
@@ -635,6 +656,7 @@ impl ClaudeTranscript {
         ClaudeTranscript {
             main: Parser::new(path, retention),
             subagents: BTreeMap::new(),
+            meta: BTreeMap::new(),
             prices: pricing::table(),
             retention,
             summary: SessionSummary { harness: Some(Harness::Claude), folds_child_usage: true, ..Default::default() },
@@ -679,12 +701,49 @@ impl ClaudeTranscript {
         let Ok(rd) = std::fs::read_dir(&dir) else { return };
         for e in rd.flatten() {
             let p = e.path();
-            if p.extension().and_then(|x| x.to_str()) != Some("jsonl") || self.subagents.contains_key(&p) {
+            if p.extension().and_then(|x| x.to_str()) != Some("jsonl") {
                 continue;
             }
-            let parser = Parser::new(&p, self.retention);
-            self.subagents.insert(p, parser);
+            if !self.meta.contains_key(&p)
+                && let Some(m) = SubagentMeta::read(&p)
+            {
+                self.meta.insert(p.clone(), m);
+            }
+            if !self.subagents.contains_key(&p) {
+                let parser = Parser::new(&p, self.retention);
+                self.subagents.insert(p, parser);
+            }
         }
+    }
+
+    /// One `SubagentRun` per subagent transcript, oldest first.
+    fn runs(&self) -> Vec<SubagentRun> {
+        let mut runs: Vec<SubagentRun> = self
+            .subagents
+            .iter()
+            .filter_map(|(path, c)| {
+                let t = &c.summary;
+                let id = c
+                    .agent_id
+                    .clone()
+                    .or_else(|| path.file_stem().and_then(|f| f.to_str()).and_then(|f| f.strip_prefix("agent-")).map(str::to_string))?;
+                let meta = self.meta.get(path).cloned().unwrap_or_default();
+                Some(SubagentRun {
+                    id,
+                    agent_type: meta.agent_type,
+                    spawned_by: meta.tool_use_id,
+                    model: t.model.clone(),
+                    started_at: t.started_at,
+                    last_activity: t.last_activity,
+                    tokens: t.usage.total(),
+                    cost_usd: t.cost_usd,
+                    unpriced_tokens: t.unpriced_tokens,
+                    tool_calls: t.tool_calls,
+                })
+            })
+            .collect();
+        runs.sort_by(|a, b| a.started_at.cmp(&b.started_at).then_with(|| a.id.cmp(&b.id)));
+        runs
     }
 
     fn fold(&mut self) {
@@ -718,8 +777,28 @@ impl ClaudeTranscript {
         if !self.subagents.is_empty() {
             let logs = std::iter::once(&self.main.summary.spans).chain(self.subagents.values().map(|c| &c.summary.spans));
             s.spans = SpanLog::merged(logs, self.main.summary.spans.cap());
+            s.subagents = self.runs();
         }
         self.summary = s;
+    }
+}
+
+/// The two fields kept from `agent-<id>.meta.json`. The file also holds the
+/// task description the model wrote for the subagent, which is prompt content
+/// and is dropped by the parse.
+#[derive(Debug, Clone, Default, Deserialize)]
+struct SubagentMeta {
+    #[serde(rename = "agentType", default)]
+    agent_type: Option<String>,
+    #[serde(rename = "toolUseId", default)]
+    tool_use_id: Option<String>,
+}
+
+impl SubagentMeta {
+    /// The meta file beside a subagent transcript, if it is there and parses.
+    fn read(transcript: &Path) -> Option<SubagentMeta> {
+        let text = std::fs::read_to_string(transcript.with_extension("meta.json")).ok()?;
+        serde_json::from_str(&text).ok()
     }
 }
 
@@ -1045,7 +1124,11 @@ mod tests {
         let sub = subagents_dir(&path).unwrap();
         std::fs::create_dir_all(&sub).unwrap();
         let mut g = std::fs::File::create(sub.join("agent-a1.jsonl")).unwrap();
-        std::fs::write(sub.join("agent-a1.meta.json"), r#"{"agentType":"Explore"}"#).unwrap();
+        std::fs::write(
+            sub.join("agent-a1.meta.json"),
+            r#"{"agentType":"Explore","toolUseId":"toolu_agent","description":"never kept","spawnDepth":1}"#,
+        )
+        .unwrap();
         writeln!(g, r#"{{"type":"assistant","timestamp":"2026-09-03T07:00:01.000Z","sessionId":"abc","isSidechain":true,"agentId":"a1","message":{{"id":"s1","model":"claude-opus-5","stop_reason":"tool_use","content":[{{"type":"tool_use","id":"toolu_sub","name":"Grep"}}],"usage":{{"input_tokens":1000,"output_tokens":100}}}}}}"#).unwrap();
         writeln!(g, r#"{{"type":"user","timestamp":"2026-09-03T07:00:03.000Z","sessionId":"abc","isSidechain":true,"agentId":"a1","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"toolu_sub"}}]}}}}"#).unwrap();
         t.refresh().unwrap();
@@ -1068,6 +1151,16 @@ mod tests {
         assert_eq!(spans[1].name, "Grep");
         assert!(spans[1].sidechain);
         assert_eq!(spans[1].duration_ms, Some(2_000));
+        // Each span names the subagent that issued it, and the run names the
+        // call that spawned it: the span with that id, in the parent.
+        assert_eq!(spans[0].agent, None);
+        assert_eq!(spans[1].agent.as_deref(), Some("a1"));
+        assert_eq!(s.subagents.len(), 1);
+        let run = &s.subagents[0];
+        assert_eq!((run.id.as_str(), run.agent_type.as_deref(), run.spawned_by.as_deref()), ("a1", Some("Explore"), Some("toolu_agent")));
+        assert_eq!(run.spawned_by.as_deref(), Some(spans[0].id.as_str()));
+        assert_eq!((run.tokens, run.tool_calls, run.model.as_deref()), (1100, 1, Some("claude-opus-5")));
+        assert!((run.cost_usd - 0.0075).abs() < 1e-9, "{}", run.cost_usd);
         // The subagent's prompt-less transcript still yields an inference span
         // (its tool result was submitted at 07:00:03 and nothing came back yet).
         let inf: Vec<_> = s.spans.iter().filter(|sp| sp.kind == SpanKind::Inference).collect();

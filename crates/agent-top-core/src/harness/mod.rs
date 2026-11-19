@@ -79,6 +79,9 @@ pub struct SessionSummary {
     /// See `Agent::web_searches`.
     pub web_searches: u64,
     pub spans: SpanLog,
+    /// The subagent runs folded into this summary, oldest first. Empty for a
+    /// harness that gives each child a session of its own.
+    pub subagents: Vec<crate::model::SubagentRun>,
     /// Calls to each MCP server, by the server's name.
     pub mcp: BTreeMap<String, McpUsage>,
     /// What each tool's results added to the prompt, and what carrying it
@@ -352,11 +355,13 @@ pub const MAX_SPANS: usize = 256;
 pub struct SpanLog {
     spans: VecDeque<ToolSpan>,
     cap: usize,
+    /// Stamped on every span opened while it is set. See `set_agent`.
+    agent: Option<String>,
 }
 
 impl Default for SpanLog {
     fn default() -> Self {
-        SpanLog { spans: VecDeque::new(), cap: MAX_SPANS }
+        SpanLog { spans: VecDeque::new(), cap: MAX_SPANS, agent: None }
     }
 }
 
@@ -365,7 +370,17 @@ impl SpanLog {
     /// transcript, never for the live tracker, where the memory and the clone
     /// per refresh would grow with the session.
     pub fn unbounded() -> Self {
-        SpanLog { spans: VecDeque::new(), cap: usize::MAX }
+        SpanLog { spans: VecDeque::new(), cap: usize::MAX, agent: None }
+    }
+
+    /// Name the subagent whose line is being read, or `None` for the main
+    /// agent. Every span opened until the next call carries it in
+    /// `ToolSpan::agent`. A parser calls this once per line, so a transcript
+    /// that interleaves several subagents tags each span with its own.
+    pub fn set_agent(&mut self, agent: Option<&str>) {
+        if self.agent.as_deref() != agent {
+            self.agent = agent.map(str::to_string);
+        }
     }
 
     /// Record the start of a tool call. Ignored when that id is already open,
@@ -382,7 +397,8 @@ impl SpanLog {
         if self.spans.len() >= self.cap {
             self.spans.pop_front();
         }
-        self.spans.push_back(ToolSpan { id, name, started_at: at, duration_ms: None, sidechain, error: false, kind });
+        let agent = self.agent.clone();
+        self.spans.push_back(ToolSpan { id, name, started_at: at, duration_ms: None, sidechain, error: false, kind, agent });
     }
 
     /// Move the end of the newest span with this id to `at`, open or not. An
@@ -442,7 +458,7 @@ impl SpanLog {
         if spans.len() > cap {
             spans.drain(..spans.len() - cap);
         }
-        SpanLog { spans: spans.into(), cap }
+        SpanLog { spans: spans.into(), cap, agent: None }
     }
 
     pub fn cap(&self) -> usize {

@@ -206,6 +206,12 @@ pub struct ToolSpan {
     /// Absent in snapshots written before 0.3.1, which held tool calls only.
     #[serde(default)]
     pub kind: SpanKind,
+    /// The subagent that issued the span, by the harness's own id for it
+    /// (Claude's `agentId`), so two subagents running at once can be told
+    /// apart. `None` for the main agent, and for a harness or a version that
+    /// marks a subagent's lines without naming it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
 }
 
 impl ToolSpan {
@@ -435,6 +441,33 @@ pub struct SubagentInfo {
     pub nickname: Option<String>,
     #[serde(default)]
     pub role: Option<String>,
+}
+
+/// One subagent's run inside a session whose row folds the subagent's work
+/// in. `SubagentInfo` is the other arrangement: a child session with a row of
+/// its own, pointing at its parent.
+///
+/// Every field is what the harness wrote. `spawned_by` is the id of the tool
+/// span that started the run, so the join to that call is exact, never a
+/// match on time.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubagentRun {
+    /// The id spans carry in `ToolSpan::agent`.
+    pub id: String,
+    /// The kind of agent the harness says it started (`Explore`, `Plan`, ...).
+    #[serde(default)]
+    pub agent_type: Option<String>,
+    /// `ToolSpan::id` of the call that spawned it, when the harness records it.
+    #[serde(default)]
+    pub spawned_by: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+    pub started_at: Option<SystemTime>,
+    pub last_activity: Option<SystemTime>,
+    pub tokens: u64,
+    pub cost_usd: f64,
+    pub unpriced_tokens: u64,
+    pub tool_calls: u64,
 }
 
 /// A single row in the agent table.

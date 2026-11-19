@@ -332,11 +332,176 @@ async function openSession(r) {
     fact("turns / tools", `${s.turns} / ${s.tool_calls}`), fact("started", when(s.started_at)), fact("last activity", when(s.last_activity)),
     fact("source", s.attribution), s.harness_cost_usd != null ? fact("harness's own figure", usd(s.harness_cost_usd)) : null,
     s.parent_session_id ? fact("parent session", s.parent_session_id) : null, fact("cwd", s.cwd));
-  const parts = [facts, turnsView(d.spans)];
+  const parts = [facts, runGraph(d.graph, { harness: s.harness, id: s.session_id }), turnsView(d.spans)];
   if (d.mcp.length) parts.push(el("h2", { text: "MCP servers" }), table([
     { key: "server", label: "Server", cls: "mono" }, { key: "calls", label: "Calls", num: true }, { key: "errors", label: "Errors", num: true },
     { key: "last_call_at", label: "Last call", render: (m) => when(m.last_call_at) }], d.mcp));
   body.replaceChildren(...parts);
+}
+
+// ---- session detail: run graph -------------------------------------------------
+
+const shortId = (id) => (id.length > 9 ? id.slice(0, 8) : id);
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+// Claude names an MCP tool mcp__<server>__<tool>; the server is all but the last part.
+const mcpServer = (name) => {
+  if (!name.startsWith("mcp__")) return null;
+  const rest = name.slice(5), cut = rest.lastIndexOf("__");
+  return cut > 0 ? rest.slice(0, cut) : rest;
+};
+
+// The session as a trunk with branches, laid out like a commit graph: the main
+// agent's turns run down the first lane, and a subagent forks off at the call
+// that spawned it and merges back where it ended. Rows are in time order and
+// evenly spaced, since a session can sit idle for days between two turns.
+// Drawn only for a session that has subagents; without them it is one line.
+function runGraph(g, key) {
+  const wrap = el("div", { class: "run" });
+  if (!g || !g.agents.length) return wrap;
+  const turnNo = new Map(g.turns.map((t, i) => [t.seq, i + 1]));
+  const agents = g.agents.map((a) => {
+    const linked = a.spawn_seq != null;
+    const fork = linked ? a.spawn_started_at : a.started_at;
+    const returned = linked && a.spawn_duration_ms != null;
+    // A background run outlives the call that started it, so the branch ends
+    // at whichever is later: the call's return or the run's last span.
+    const end = Math.max(a.ended_at, returned ? a.spawn_started_at + a.spawn_duration_ms : 0, fork + 1);
+    return { ...a, linked, fork, end, open: linked && !returned };
+  });
+
+  const events = g.turns.map((t, i) => ({ at: t.started_at, rank: 1, type: "turn", turn: t, n: i + 1 }));
+  for (const a of agents) {
+    events.push({ at: a.fork, rank: 2, type: "fork", a });
+    if (!a.open) events.push({ at: a.end, rank: 0, type: "merge", a });
+  }
+  events.sort((x, y) => x.at - y.at || x.rank - y.rank);
+
+  // Turns with nothing forking between them fold into one row. The last of a
+  // run stays on its own when a fork follows, since that is the turn it left.
+  const rows = [];
+  for (let i = 0; i < events.length;) {
+    if (events[i].type !== "turn") { rows.push(events[i++]); continue; }
+    let j = i;
+    while (j < events.length && events[j].type === "turn") j++;
+    const run = events.slice(i, j), keep = j < events.length && events[j].type === "fork" ? 1 : 0;
+    const fold = run.slice(0, run.length - keep);
+    if (fold.length > 2) {
+      rows.push({
+        type: "turns", from: fold[0].n, to: fold[fold.length - 1].n,
+        tools: fold.reduce((n, e) => n + e.turn.tools, 0), errors: fold.reduce((n, e) => n + e.turn.errors, 0),
+      });
+      rows.push(...run.slice(run.length - keep));
+    } else rows.push(...run);
+    i = j;
+  }
+  const shown = rows.slice(0, 400);
+
+  // Lanes: the trunk is lane 0; a fork takes the first free lane and gives it
+  // back at its merge. A subagent spawned by a subagent forks from that lane.
+  const busy = [true], laneOf = new Map();
+  shown.forEach((r, i) => {
+    if (r.type === "fork") {
+      let k = busy.indexOf(false);
+      if (k < 0) k = busy.length;
+      busy[k] = true;
+      r.a.lane = k;
+      r.a.parentLane = r.a.spawn_agent != null && laneOf.has(r.a.spawn_agent) ? laneOf.get(r.a.spawn_agent) : 0;
+      r.a.row = i;
+      laneOf.set(r.a.agent_id, k);
+    } else if (r.type === "merge" && r.a.row != null) {
+      busy[r.a.lane] = false;
+      r.a.endRow = i;
+    }
+  });
+
+  const ROW = 28, T = 6, X0 = 16, LANE = 20;
+  const W = Math.max(560, document.getElementById("detail-body").clientWidth || 900), H = T + shown.length * ROW + 6;
+  const lx = (k) => X0 + k * LANE, cy = (i) => T + i * ROW + ROW / 2, textX = lx(busy.length - 1) + 20;
+  const root = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Run graph: the main agent's turns and the subagents that forked from them" });
+  const hits = svg("g", {}), lines = svg("g", { class: "lines" }), nodes = svg("g", {}), labels = svg("g", {});
+  root.append(hits, lines, nodes, labels);
+
+  const text = (i, parts) => {
+    const t = svg("text", { x: textX, y: cy(i) + 4 });
+    parts.filter(Boolean).forEach(([cls, str], n) => {
+      const span = svg("tspan", Object.assign(cls ? { class: cls } : {}, n ? { dx: 9 } : {}));
+      span.textContent = str;
+      t.append(span);
+    });
+    labels.append(t);
+  };
+  const errs = (n) => (n > 0 ? ["bad", plural(n, "error")] : null);
+
+  lines.append(svg("line", { class: "trunk", x1: lx(0), x2: lx(0), y1: cy(0), y2: cy(shown.length - 1) }));
+  const chart = el("div", { class: "waterfall" });
+  let selected = null;
+  const pick = async (a, hit) => {
+    if (selected) selected.classList.remove("on");
+    selected = hit;
+    hit.classList.add("on");
+    chart.replaceChildren(el("div", { class: "empty", text: "Loading..." }));
+    try {
+      const spans = await api("spans", { harness: key.harness, id: key.id, agent: a.agent_id });
+      chart.replaceChildren(el("h2", { text: `${a.agent_type || "subagent"} ${shortId(a.agent_id)}, ${when(a.started_at)}` }), waterfall(null, spans));
+    } catch (e) {
+      chart.replaceChildren(el("div", { class: "empty", text: String(e.message || e) }));
+    }
+  };
+
+  shown.forEach((r, i) => {
+    const y = cy(i);
+    if (r.type === "turn") {
+      nodes.append(svg("circle", { class: "turn", cx: lx(0), cy: y, r: 5 }));
+      text(i, [[null, `turn ${r.n}`], ["dim", dur(r.turn.duration_ms)], ["dim", plural(r.turn.tools, "tool call")], errs(r.turn.errors)]);
+    } else if (r.type === "turns") {
+      nodes.append(svg("rect", { class: "turn", x: lx(0) - 5, y: y - 8, width: 10, height: 16, rx: 5 }));
+      text(i, [["dim", `turns ${r.from} to ${r.to}`], ["dim", plural(r.tools, "tool call")], errs(r.errors)]);
+    } else if (r.type === "fork") {
+      const a = r.a, xp = lx(a.parentLane), xl = lx(a.lane);
+      const cls = a.linked ? "branch" : "branch loose";
+      lines.append(svg("path", { class: cls, d: `M${xp} ${y - ROW / 2} C${xp} ${y - 2} ${xl} ${y - ROW / 2 + 2} ${xl} ${y}` }));
+      lines.append(svg("line", { class: cls, x1: xl, x2: xl, y1: y, y2: a.endRow != null ? cy(a.endRow) - ROW / 2 : H - 2 }));
+      nodes.append(svg("circle", { class: a.errors > 0 ? "agent bad" : "agent", cx: xl, cy: y, r: 5.5 }));
+      text(i, [
+        ["name", a.agent_type || "subagent"], ["id", shortId(a.agent_id)],
+        ["dim", a.open ? "has not returned" : dur(a.end - a.fork)], ["dim", plural(a.calls, "tool call")], errs(a.errors),
+        a.tokens != null ? ["dim", `${compact(a.tokens)} tokens`] : null,
+        a.tokens != null ? ["dim", usd(a.cost_usd) + (a.unpriced_tokens > 0 ? "+" : "")] : null,
+      ]);
+      const mine = g.tools.filter((t) => t.agent === a.agent_id);
+      const servers = new Map();
+      for (const t of mine) { const sv = mcpServer(t.name); if (sv) servers.set(sv, (servers.get(sv) || 0) + t.calls); }
+      const tipRows = [
+        ["var(--accent)", a.linked ? `spawned by ${a.spawn_name}${turnNo.has(a.spawn_turn_seq) ? " in turn " + turnNo.get(a.spawn_turn_seq) : ""}` : "the harness did not record the spawning call"],
+        a.model ? [null, a.model] : null,
+        mine.length ? [null, mine.filter((t) => !mcpServer(t.name)).slice(0, 5).map((t) => `${t.name} ${t.calls}`).join(", ")] : null,
+        servers.size ? [null, "MCP: " + [...servers].map(([n, c]) => `${n} ${c}`).join(", ")] : null,
+      ].filter((x) => x && x[1]);
+      const hit = svg("rect", { class: "hit", x: 0, y: y - ROW / 2, width: W, height: ROW, rx: 4, role: "button", "aria-label": `Show the spans of ${a.agent_type || "subagent"} ${shortId(a.agent_id)}` });
+      hover(hit, `${a.agent_type || "subagent"} ${shortId(a.agent_id)}`, tipRows);
+      hit.addEventListener("click", () => pick(a, hit));
+      hit.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(a, hit); } });
+      hits.append(hit);
+    } else if (r.a.row != null) {
+      const a = r.a, xp = lx(a.parentLane), xl = lx(a.lane);
+      lines.append(svg("path", { class: a.linked ? "branch" : "branch loose", d: `M${xl} ${y - ROW / 2} C${xl} ${y - 2} ${xp} ${y - ROW / 2 + 2} ${xp} ${y}` }));
+      nodes.append(svg("circle", { class: a.spawn_error ? "join bad" : "join", cx: xp, cy: y, r: 3 }));
+      text(i, [["dim", `${a.agent_type || "subagent"} ${shortId(a.agent_id)} ${a.linked ? "returned" : "ended"}`], a.spawn_error ? ["bad", "with an error"] : null]);
+    }
+  });
+
+  const loose = agents.filter((a) => !a.linked).length;
+  const key2 = (cls, label) => { const i = el("i", { class: cls }); return el("span", {}, i, label); };
+  wrap.append(...[
+    el("h2", { text: `Run graph (${plural(agents.length, "subagent")})` }),
+    el("div", { class: "legend" }, key2("k-turn", "main agent turn"), key2("k-agent", "subagent, from the call that spawned it to its return"),
+      loose ? key2("k-loose", "spawning call not recorded") : null),
+    rows.length > shown.length ? el("div", { class: "note", text: `showing the first ${shown.length} of ${rows.length} rows` }) : null,
+    el("div", { class: "waterfall graph" }, root),
+    el("div", { class: "note", text: "Select a subagent for its spans." }),
+    chart,
+  ].filter(Boolean));
+  return wrap;
 }
 
 // A session can run for days, so one waterfall over all of it squashes every
