@@ -47,7 +47,7 @@
     "web_search": 0
   },
   "cost_usd_micros": 472500,
-  "cwd": "/tmp/agent-top-oc-golden/proj",
+  "cwd": "/tmp/v2proj",
   "folds_child_usage": true,
   "harness_cost": null,
   "harness_version": "2.1.4",
@@ -116,6 +116,7 @@
     ],
     "last": [
       {
+        "agent": "ses_gold_sub",
         "duration_ms": 300,
         "error": false,
         "kind": "tool",
@@ -123,6 +124,7 @@
         "sidechain": true
       },
       {
+        "agent": "ses_gold_sub",
         "duration_ms": 2000,
         "error": false,
         "kind": "turn",
@@ -130,6 +132,7 @@
         "sidechain": true
       },
       {
+        "agent": "ses_gold_sub",
         "duration_ms": 2000,
         "error": false,
         "kind": "inference",
@@ -137,11 +140,28 @@
         "sidechain": true
       }
     ],
+    "named_agent": 3,
     "open": 2,
     "sidechain": 3,
     "total_duration_ms": 33100
   },
   "started_at_ms": 1789000000000,
+  "subagent_runs": [
+    {
+      "agent_type": "explore",
+      "cost_usd_micros": 51200,
+      "id": "ses_gold_sub",
+      "last_activity_ms": 1789000050000,
+      "model": "claude-opus-5",
+      "spans": 3,
+      "spawned_by": null,
+      "spawned_by_span": null,
+      "started_at_ms": 1789000020000,
+      "tokens": 42965,
+      "tool_calls": 1,
+      "unpriced_tokens": 0
+    }
+  ],
   "subagent_turns": 1,
   "tool_calls": 8,
   "tool_calls_lower_bound": false,

@@ -247,6 +247,7 @@ mod tests {
             tool_calls_lower_bound: false,
             web_searches: 0,
             spans: Vec::new(),
+            subagent_runs: Vec::new(),
             age_secs: 3600,
             idle_secs: None,
             cpu_percent: 0.0,

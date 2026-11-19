@@ -17,9 +17,9 @@
 --     item, and two `git.*` calls nested in the `execute` item's
 --     `state.metadata.toolCalls`.
 --
--- `directory` is a placeholder; the golden test repoints it at a temporary
--- project whose `opencode.json` names the MCP servers (`scratch_fs`,
--- `git`), so the parse never depends on whose machine runs the suite.
+-- `directory` is a placeholder. The golden test names the MCP servers
+-- (`scratch_fs`, `git`) in a global config of its own, so the parse never
+-- depends on whose machine runs the suite.
 --
 -- Time base 1789000000000 epoch ms.
 

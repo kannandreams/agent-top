@@ -10,7 +10,7 @@ description: "Install agent-top with Homebrew or cargo, start it in a terminal, 
 |---|---|---|
 | Homebrew | `brew install kannandreams/tap/agent-top` | macOS and Linux, prebuilt; installs shell completions |
 | Cargo, prebuilt | `cargo binstall agent-top` | downloads the release binary, no compiler needed |
-| Cargo, from source | `cargo install --locked agent-top` | builds from crates.io; needs Rust 1.85 or newer |
+| Cargo, from source | `cargo install --locked agent-top` | builds from crates.io; needs Rust 1.89 or newer |
 | By hand | [the releases page](https://github.com/kannandreams/agent-top/releases) | tarballs and `sha256` for macOS and Linux, x86_64 and arm64 |
 
 Every route ends at the same single binary: no Python, no Node, no daemon. Without Homebrew, `agent-top --completions zsh` (or `bash`, `fish`) prints a completion script to source from your shell's startup file.

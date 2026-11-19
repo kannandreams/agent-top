@@ -85,11 +85,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-14, target: aarch64-apple-darwin, arch: arm64, native: true }
-          # Cross-compiled from the arm64 runner rather than built on macos-13:
-          # the Apple SDK carries both slices so no extra linker is needed, and
-          # the Intel runner image is on GitHub's retirement path.
-          - { os: macos-14, target: x86_64-apple-darwin, arch: x86_64, native: false }
+          # A pinned macOS label is retired about two years after it appears,
+          # and a job on a retired label is cancelled at once (macos-14 went on
+          # 2026-11-02). The runner does not set the oldest macOS the binary
+          # runs on; rustc's deployment target does.
+          - { os: macos-15, target: aarch64-apple-darwin, arch: arm64, native: true }
+          # Cross-compiled from the arm64 runner rather than built on an Intel
+          # one: the Apple SDK carries both slices so no extra linker is
+          # needed, and the Intel runner images are on GitHub's retirement path.
+          - { os: macos-15, target: x86_64-apple-darwin, arch: x86_64, native: false }
           # Built on 22.04 on purpose: the binary links the runner's glibc, so
           # building on the newest image would refuse to start on any older
           # distribution. 22.04 gives a glibc 2.35 floor.

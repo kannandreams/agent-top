@@ -1529,6 +1529,7 @@ mod tests {
             sidechain,
             error,
             kind: SpanKind::Tool,
+            agent: None,
         }
     }
 
@@ -1558,6 +1559,7 @@ mod tests {
             tool_calls_lower_bound: false,
             web_searches: 0,
             spans,
+            subagent_runs: Vec::new(),
             age_secs: 1080,
             idle_secs: Some(3),
             cpu_percent: 6.6,
@@ -2358,6 +2360,7 @@ mod tests {
             sidechain: false,
             error: err,
             kind: SpanKind::Tool,
+            agent: None,
         };
         let mut a = agent("worker", vec![sp("Bash", 20_000, false), sp("Bash", 5_000, true), sp("Read", 100, false)]);
         a.spans.push(sp("Read", 120, false));

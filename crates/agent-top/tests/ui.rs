@@ -28,6 +28,11 @@ fn bin() -> &'static str {
 
 /// A store holding one Claude fixture session, and `ui` serving it.
 fn start(tag: &str) -> Ui {
+    start_with(tag, |_| {})
+}
+
+/// `start`, after `more` has added transcripts to the Claude project directory.
+fn start_with(tag: &str, more: impl FnOnce(&Path)) -> Ui {
     let dir = std::env::temp_dir().join(format!("agent-top-ui-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let home = dir.join("home");
@@ -35,6 +40,7 @@ fn start(tag: &str) -> Ui {
     std::fs::create_dir_all(&projects).unwrap();
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../agent-top-core/tests/fixtures/claude-2.1.278.jsonl");
     std::fs::copy(&fixture, projects.join("00000000-1111-2222-3333-555555555555.jsonl")).unwrap();
+    more(&projects);
     let db = dir.join("agent-top.db");
     let run = |args: &[&str]| {
         let mut c = Command::new(bin());
@@ -112,6 +118,61 @@ fn the_page_and_its_api_answer_with_the_store_s_numbers() {
     assert!(get_json(&ui, "/api/tools?since=0").as_array().is_some());
     assert_eq!(get_json(&ui, "/api/sessions?since=0&harness=codex").as_array().unwrap().len(), 0);
     assert_eq!(get_json(&ui, "/api/meta")["counts"]["sessions"], 1);
+}
+
+#[test]
+fn a_session_with_a_subagent_is_served_as_a_trunk_and_a_branch() {
+    let ui = start_with("graph", |projects| {
+        std::fs::write(
+            projects.join("abc.jsonl"),
+            concat!(
+                r#"{"type":"user","timestamp":"2026-09-03T07:00:00.000Z","sessionId":"abc","message":{"role":"user","content":[{"type":"text","text":"go"}]}}"#,
+                "\n",
+                r#"{"type":"assistant","timestamp":"2026-09-03T07:00:01.000Z","sessionId":"abc","message":{"id":"m1","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{"type":"tool_use","id":"toolu_agent","name":"Agent"}],"usage":{"input_tokens":100,"output_tokens":10}}}"#,
+                "\n",
+                r#"{"type":"user","timestamp":"2026-09-03T07:00:09.000Z","sessionId":"abc","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_agent"}]}}"#,
+                "\n",
+            ),
+        )
+        .unwrap();
+        let subs = projects.join("abc/subagents");
+        std::fs::create_dir_all(&subs).unwrap();
+        std::fs::write(subs.join("agent-a1.meta.json"), r#"{"agentType":"Explore","toolUseId":"toolu_agent","description":"not kept"}"#)
+            .unwrap();
+        std::fs::write(
+            subs.join("agent-a1.jsonl"),
+            concat!(
+                r#"{"type":"assistant","timestamp":"2026-09-03T07:00:02.000Z","sessionId":"abc","isSidechain":true,"agentId":"a1","message":{"id":"s1","model":"claude-opus-5","stop_reason":"tool_use","content":[{"type":"tool_use","id":"toolu_sub","name":"Grep"}],"usage":{"input_tokens":1000,"output_tokens":100}}}"#,
+                "\n",
+                r#"{"type":"user","timestamp":"2026-09-03T07:00:04.000Z","sessionId":"abc","isSidechain":true,"agentId":"a1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_sub","is_error":true}]}}"#,
+                "\n",
+            ),
+        )
+        .unwrap();
+    });
+    let detail = get_json(&ui, "/api/session?harness=claude&id=abc");
+    let graph = &detail["graph"];
+    assert_eq!(graph["turns"].as_array().unwrap().len(), 1, "the main agent's one turn; the subagent has none of its own");
+    assert_eq!(graph["turns"][0]["tools"], 1);
+    let agents = graph["agents"].as_array().unwrap();
+    assert_eq!(agents.len(), 1);
+    let a = &agents[0];
+    assert_eq!((a["agent_id"].as_str(), a["agent_type"].as_str(), a["spawn_name"].as_str()), (Some("a1"), Some("Explore"), Some("Agent")));
+    assert_eq!((a["calls"].as_i64(), a["errors"].as_i64(), a["tokens"].as_i64()), (Some(1), Some(1), Some(1100)));
+    // The branch hangs off the call that spawned it, in the turn that call ran in.
+    assert_eq!(a["spawn_turn_seq"], graph["turns"][0]["seq"]);
+    assert_eq!(a["spawn_duration_ms"], 8_000);
+    assert_eq!(graph["tools"][0]["name"], "Grep");
+
+    let spans = get_json(&ui, "/api/spans?harness=claude&id=abc&agent=a1");
+    let names: Vec<&str> = spans.as_array().unwrap().iter().map(|s| s["name"].as_str().unwrap()).collect();
+    assert_eq!(names, ["Grep", "inference"], "its call, and the inference its result started");
+    assert_eq!(get_json(&ui, "/api/spans?harness=claude&id=abc&agent=nobody").as_array().unwrap().len(), 0);
+
+    // A session without subagents has a trunk and nothing on it.
+    let plain = get_json(&ui, "/api/session?harness=claude&id=00000000-1111-2222-3333-555555555555");
+    assert!(plain["graph"]["agents"].as_array().unwrap().is_empty());
+    assert!(!plain["graph"]["turns"].as_array().unwrap().is_empty());
 }
 
 #[test]

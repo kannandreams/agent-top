@@ -5,7 +5,29 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
-- OpenCode sessions created since the v2 store upgrade (OpenCode 2.x) now show up with full accounting: tokens, cost, turns, tool spans, per-server MCP calls.
+- OpenCode 2.x: sessions in the v2 store (`session_v2`, `session_message`) show tokens, cost, turns, tool spans, MCP calls per server and subagent runs. Sessions from before the upgrade still read from the v1 tables. ([#83](https://github.com/kannandreams/agent-top/pull/83))
+
+## [0.28.0] - 2026-11-19
+
+### Highlights
+`agent-top ui` draws a session that used subagents as a run graph: the main agent's turns run down a trunk, and each subagent is a branch from the call that spawned it. Two branches side by side are two subagents running at once. Each branch shows its type, duration and cost, and selecting one shows only that subagent's spans. Claude Code and OpenCode.
+
+### Added
+- `agent-top ui`: a session that used subagents gets a run graph, with the main agent's turns as a trunk and each subagent as a branch from the call that spawned it. Claude Code and OpenCode. ([#85](https://github.com/kannandreams/agent-top/pull/85), [#88](https://github.com/kannandreams/agent-top/pull/88))
+- The store gains a `subagents` table and a `spans.agent` column, filled for Claude Code and OpenCode. The next `sync` re-reads every transcript still on disk. ([#85](https://github.com/kannandreams/agent-top/pull/85), [#88](https://github.com/kannandreams/agent-top/pull/88))
+- `--json`: an agent lists its `subagent_runs` for Claude Code and OpenCode, each with its type, tokens, cost and the span that spawned it. ([#87](https://github.com/kannandreams/agent-top/pull/87), [#88](https://github.com/kannandreams/agent-top/pull/88))
+
+### Changed
+- `agent-top-core`: `ToolSpan` gains `agent`, and `SessionSummary` and `Agent` gain `subagent_runs`; in `--json`, a span issued by a Claude Code or OpenCode subagent carries `agent`. ([#85](https://github.com/kannandreams/agent-top/pull/85), [#87](https://github.com/kannandreams/agent-top/pull/87), [#88](https://github.com/kannandreams/agent-top/pull/88))
+- Building from source with `cargo install` needs Rust 1.89 or newer. ([#86](https://github.com/kannandreams/agent-top/pull/86))
+
+### Fixed
+- Claude Code: a forked subagent's transcript repeats the parent's reply that forked it, and that reply's tokens, cost and tool call were counted twice. ([#87](https://github.com/kannandreams/agent-top/pull/87))
+- A span from one of two Claude Code subagents running at once could be filed under the other's turn, in the store and in `agent-top trace`. ([#87](https://github.com/kannandreams/agent-top/pull/87))
+- `agent-top trace --format otlp`: a subagent's turns and inferences shared span ids with the main agent's. They now have their own, and an `agent_top.agent` attribute. ([#87](https://github.com/kannandreams/agent-top/pull/87))
+
+### Security
+- Bump rusqlite to 0.41, which bundles SQLite 3.54.1, for [RUSTSEC-2026-0459](https://rustsec.org/advisories/RUSTSEC-2026-0459), and rustix to 1.1.6 for [RUSTSEC-2026-0486](https://rustsec.org/advisories/RUSTSEC-2026-0486). ([#86](https://github.com/kannandreams/agent-top/pull/86))
 
 ## [0.27.2] - 2026-10-28
 

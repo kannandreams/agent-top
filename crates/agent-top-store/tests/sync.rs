@@ -156,6 +156,76 @@ fn prompt_text_never_reaches_the_file() {
     }
 }
 
+#[test]
+fn a_subagent_run_is_stored_with_the_call_that_spawned_it() {
+    const DESCRIPTION: &str = "SECRET-TASK-4c1d07";
+    let dir = TempDir::new();
+    let db = dir.0.join("agent-top.db");
+    let path = dir.0.join("abc.jsonl");
+    std::fs::write(
+        &path,
+        concat!(
+            r#"{"type":"user","timestamp":"2026-09-03T07:00:00.000Z","sessionId":"abc","message":{"role":"user","content":[{"type":"text","text":"go"}]}}"#,
+            "\n",
+            r#"{"type":"assistant","timestamp":"2026-09-03T07:00:01.000Z","sessionId":"abc","message":{"id":"m1","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{"type":"tool_use","id":"toolu_agent","name":"Agent"}],"usage":{"input_tokens":100,"output_tokens":10}}}"#,
+            "\n",
+        ),
+    )
+    .unwrap();
+    let subs = dir.0.join("abc/subagents");
+    std::fs::create_dir_all(&subs).unwrap();
+    std::fs::write(
+        subs.join("agent-a1.meta.json"),
+        format!(r#"{{"agentType":"Explore","toolUseId":"toolu_agent","description":"{DESCRIPTION}"}}"#),
+    )
+    .unwrap();
+    std::fs::write(
+        subs.join("agent-a1.jsonl"),
+        concat!(
+            r#"{"type":"assistant","timestamp":"2026-09-03T07:00:02.000Z","sessionId":"abc","isSidechain":true,"agentId":"a1","message":{"id":"s1","model":"claude-opus-5","stop_reason":"tool_use","content":[{"type":"tool_use","id":"toolu_sub","name":"Grep"}],"usage":{"input_tokens":1000,"output_tokens":100}}}"#,
+            "\n",
+            r#"{"type":"user","timestamp":"2026-09-03T07:00:04.000Z","sessionId":"abc","isSidechain":true,"agentId":"a1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_sub"}]}}"#,
+            "\n",
+        ),
+    )
+    .unwrap();
+    {
+        let mut store = Store::open(&db).unwrap();
+        assert_eq!(store.sync_sources(&[source(Harness::Claude, &path)], None).unwrap().stored, 1);
+        let c = store.connection();
+        let run: (String, String, String, i64, i64) = c
+            .query_row("SELECT agent_id, agent_type, spawned_by, tokens, tool_calls FROM subagents WHERE session_id = 'abc'", [], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+            })
+            .unwrap();
+        assert_eq!(run, ("a1".into(), "Explore".into(), "toolu_agent".into(), 1100, 1));
+        // The run joins to its spawning call by id, and its spans carry its id.
+        let spawn: String = c
+            .query_row(
+                "SELECT p.name FROM subagents a JOIN spans p ON p.harness = a.harness AND p.session_id = a.session_id AND p.span_id = a.spawned_by",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(spawn, "Agent");
+        let tagged: Vec<(String, Option<String>)> = c
+            .prepare("SELECT name, agent FROM spans WHERE kind = 'tool' ORDER BY seq")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(tagged, vec![("Agent".into(), None), ("Grep".into(), Some("a1".into()))]);
+    }
+    for f in std::fs::read_dir(&dir.0).unwrap().flatten() {
+        let name = f.file_name().to_string_lossy().into_owned();
+        if name.starts_with("agent-top.db") {
+            let bytes = std::fs::read(f.path()).unwrap();
+            assert!(!bytes.windows(DESCRIPTION.len()).any(|w| w == DESCRIPTION.as_bytes()), "{name} holds the task description");
+        }
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn the_file_is_private_to_its_owner() {
