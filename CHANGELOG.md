@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- `agent-top ui`: a session that used subagents gets a run graph, with the main agent's turns as a trunk and each Claude Code subagent as a branch from the call that spawned it. ([#85](https://github.com/kannandreams/agent-top/pull/85))
+- The store gains a `subagents` table and a `spans.agent` column, filled for Claude Code. The next `sync` re-reads every transcript still on disk. ([#85](https://github.com/kannandreams/agent-top/pull/85))
+
+### Changed
+- `agent-top-core`: `ToolSpan` gains `agent` and `SessionSummary` gains `subagents`; in `--json`, a span issued by a Claude Code subagent carries `agent`. ([#85](https://github.com/kannandreams/agent-top/pull/85))
+
 ## [0.27.2] - 2026-10-28
 
 ### Changed
