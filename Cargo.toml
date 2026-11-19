@@ -5,7 +5,7 @@ resolver = "2"
 exclude = ["fuzz"]
 
 [workspace.package]
-version = "0.28.0"
+version = "0.29.0"
 edition = "2024"
 license = "MIT"
 authors = ["Kannan Kalidasan"]
@@ -16,8 +16,8 @@ description = "htop for local coding agents: processes, subagents, MCP servers, 
 readme = "README.md"
 
 [workspace.dependencies]
-agent-top-core = { path = "crates/agent-top-core", version = "0.28.0" }
-agent-top-store = { path = "crates/agent-top-store", version = "0.28.0" }
+agent-top-core = { path = "crates/agent-top-core", version = "0.29.0" }
+agent-top-store = { path = "crates/agent-top-store", version = "0.29.0" }
 anyhow = "1.0"
 clap = { version = "4.6", features = ["derive"] }
 clap_complete = "4.6"
