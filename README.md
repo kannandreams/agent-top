@@ -23,6 +23,7 @@ Coding agents have become long-running processes, and you tend to keep several a
 - **[Every harness in one view](https://agenttop.dev/live-view/).** Claude Code, Codex, Gemini CLI, OpenCode and Kodelet sessions in a single table, live or recently stopped, so you never tab between tools to see what is running.
 - **[Real tokens and cost](https://agenttop.dev/accounting/).** Counted from the harness's own transcript, never estimated, and priced from a table you can read and edit (Anthropic, OpenAI and Google list prices), or from OpenCode's and Kodelet's recorded costs. Codex and Kodelet child sessions are grouped by their recorded parent, with usage kept separate.
 - **[`agent-top report`](#what-it-all-costs-agent-top-report).** What all of it has cost, across every harness, from the transcripts on disk, grouped by harness, model, project or day. The one place that adds your agent spend up together.
+- **[Local store and web view](#the-local-store-and-web-view).** `agent-top sync` keeps every session's numbers in a SQLite file on your machine after the harness deletes its transcripts. `agent-top sql` queries it, and `agent-top ui` charts it in a browser, with a [run graph](#the-run-graph) of each session's subagents.
 - **MCP leak detection.** One row per MCP server with its call count, and orphaned servers, a memory leak agent-top watches for on every tick, flagged in red with the agent they were orphaned from.
 - **[Context by source](https://agenttop.dev/accounting/#context-by-source).** Which tool's results are filling the prompt, and what re-reading them on every response since has cost: a `Read` that returned 40k tokens is billed again on every turn for the rest of the session, and no harness shows that. Computed from the usage records. The one thing taken from a tool result is its length, for Codex code mode, and no output text is kept.
 - **[Tool trace, and OpenTelemetry export](https://agenttop.dev/trace/).** A waterfall of every tool call, inference and turn, reconstructed from the transcript with no telemetry to switch on. Export it as a Chrome trace for Perfetto, or as OTLP JSON, and `trace --endpoint <url>` posts it straight to Jaeger, Tempo or any OpenTelemetry collector.
@@ -56,6 +57,7 @@ agent-top --once             # print the table once and exit
 agent-top --json             # one snapshot as JSON, for scripts and bug reports
 agent-top trace --session 662cda1f -o trace.json   # one session as a trace file for Perfetto
 agent-top report --since 7d  # what every harness cost this week, in one place
+agent-top sync && agent-top ui   # keep the numbers in a local store and chart them in a browser
 agent-top --prices           # the price table in use, and where each row came from
 agent-top --whats-new        # recent changelog for this build; the TUI asks before upgrading
 AGENT_TOP_NO_UPDATE_CHECK=1   # env var: disable the daily update check entirely
@@ -348,6 +350,51 @@ timeline. A model with no price in the table shows its tokens under `UNPRICED`
 and the cost carries a `+`, so an incomplete total is never read as a cheap
 one.
 
+## The local store and web view
+
+Harnesses delete their own transcripts. Claude Code removes sessions older
+than `cleanupPeriodDays`, 30 by default, and every number computed from them
+goes too. `agent-top sync` copies those numbers into a SQLite file on your
+machine, and three commands read it.
+
+```sh
+agent-top sync                # keep what is on disk now
+agent-top serve               # the same, every 60 seconds until stopped
+agent-top sql "select * from cost_by_day order by day desc limit 7"
+agent-top ui                  # http://127.0.0.1:4320/
+agent-top report --since all  # counts stored sessions whose transcripts are gone
+```
+
+`agent-top ui` serves a page on `127.0.0.1`: cost by day, project and model,
+tool latency, MCP servers, and each session's turns with a waterfall of the
+spans in the selected turn. It opens the store read-only and loads nothing
+from another address.
+
+The store holds what `--json` shows, which includes working-directory paths
+and project names. Only `sync` and `serve` write it. See
+[Local store](https://agenttop.dev/store/) for the schema, the saved views and
+`serve --listen`, which accepts OpenTelemetry spans from your own agents.
+
+### The run graph
+
+In `agent-top ui`, a session that used subagents gets a run graph. The main
+agent's turns run down a trunk, and each subagent is a branch from the call
+that spawned it to its return. Two branches side by side ran at the same time.
+Each branch shows the subagent's type, how long it ran, its tool calls and
+errors, and its tokens and cost. Selecting a branch shows that subagent's
+spans as a waterfall.
+
+![A run graph: two Explore subagents fork from turn 5 and run side by side, a Plan subagent follows, and a general-purpose subagent after turn 8 reports two errors](https://raw.githubusercontent.com/kannandreams/agent-top/main/docs/screenshots/ui-run-graph.png)
+
+<sub>Drawn from a made-up store that `docs/ui-demo.py` builds. It shows no real sessions.</sub>
+
+The graph reads top to bottom in time order. Rows are evenly spaced, and turns
+with no subagent between them fold into one row. The join between a subagent
+and the call that spawned it is the harness's own record; a subagent without
+one is drawn with a dashed line. Claude Code and OpenCode sessions have a run
+graph today. `--json` lists the same runs per agent as `subagent_runs`. More
+in [Web view](https://agenttop.dev/store/ui/).
+
 ## Prices
 
 Prices are data, not code. The table shipped in the binary lives in
@@ -460,6 +507,10 @@ agent-top --replay snap.json     # render a saved --json snapshot, keys and all,
 agent-top slow | fails | advice | mcp   # start on that panel alone, for a second pane or window
 agent-top trace --session <id|prefix|path> [--format chrome|otlp] [-o FILE] [--endpoint URL]
 agent-top report [--since 7d|all|YYYY-MM-DD] [--by harness|model|project|day] [--json]
+agent-top sync [--since 7d|all|YYYY-MM-DD] [--db FILE] [--json]
+agent-top serve [--interval SECONDS] [--listen ADDR] [--db FILE]
+agent-top sql [QUERY] [--schema] [--json|--csv] [--db FILE]
+agent-top ui [--addr 127.0.0.1:4320] [--db FILE]
 ```
 
 `report` is a feature in its own right; see [what it all costs](#what-it-all-costs-agent-top-report) below.
