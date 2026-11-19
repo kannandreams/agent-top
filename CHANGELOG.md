@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-19
+
+### Highlights
+`agent-top ui` draws a session that used subagents as a run graph: the main agent's turns run down a trunk, and each subagent is a branch from the call that spawned it. Two branches side by side are two subagents running at once. Each branch shows its type, duration and cost, and selecting one shows only that subagent's spans. Claude Code and OpenCode.
+
 ### Added
 - `agent-top ui`: a session that used subagents gets a run graph, with the main agent's turns as a trunk and each subagent as a branch from the call that spawned it. Claude Code and OpenCode. ([#85](https://github.com/kannandreams/agent-top/pull/85), [#88](https://github.com/kannandreams/agent-top/pull/88))
 - The store gains a `subagents` table and a `spans.agent` column, filled for Claude Code and OpenCode. The next `sync` re-reads every transcript still on disk. ([#85](https://github.com/kannandreams/agent-top/pull/85), [#88](https://github.com/kannandreams/agent-top/pull/88))
