@@ -32,7 +32,7 @@ toml = { version = "0.9", default-features = false, features = ["parse", "serde"
 # OpenCode stores its sessions in a SQLite database, not a JSONL log. `bundled`
 # compiles SQLite into the binary so the single-static-binary promise holds and
 # there is no system libsqlite dependency.
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled", "fallible_uint"] }
 # Only for `agent-top trace --endpoint`, which posts one file where the user says.
 ureq = "3.4"
 # Only for `agent-top serve --listen`: a blocking HTTP server (no async runtime)

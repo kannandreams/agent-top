@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+- Building from source with `cargo install` needs Rust 1.89 or newer. ([#86](https://github.com/kannandreams/agent-top/pull/86))
+
+### Security
+- Bump rusqlite to 0.41, which bundles SQLite 3.54.1, for [RUSTSEC-2026-0459](https://rustsec.org/advisories/RUSTSEC-2026-0459), and rustix to 1.1.6 for [RUSTSEC-2026-0486](https://rustsec.org/advisories/RUSTSEC-2026-0486). ([#86](https://github.com/kannandreams/agent-top/pull/86))
+
 ## [0.27.2] - 2026-10-28
 
 ### Changed

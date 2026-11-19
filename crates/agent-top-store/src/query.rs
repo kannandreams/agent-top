@@ -122,7 +122,7 @@ impl Reader {
         if !stmt.readonly() {
             bail!("agent-top sql runs read-only statements; this one would change something");
         }
-        let columns: Vec<String> = stmt.column_names().into_iter().map(str::to_string).collect();
+        let columns: Vec<String> = stmt.column_names().map(str::to_string).collect();
         let n = columns.len();
         let mut rows = Vec::new();
         let bound: Vec<rusqlite::types::Value> = params
