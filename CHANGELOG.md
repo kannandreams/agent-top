@@ -5,12 +5,12 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
-- `agent-top ui`: a session that used subagents gets a run graph, with the main agent's turns as a trunk and each Claude Code subagent as a branch from the call that spawned it. ([#85](https://github.com/kannandreams/agent-top/pull/85))
-- The store gains a `subagents` table and a `spans.agent` column, filled for Claude Code. The next `sync` re-reads every transcript still on disk. ([#85](https://github.com/kannandreams/agent-top/pull/85))
-- `--json`: an agent lists its `subagent_runs` for Claude Code, each with its type, tokens, cost and the span that spawned it. ([#87](https://github.com/kannandreams/agent-top/pull/87))
+- `agent-top ui`: a session that used subagents gets a run graph, with the main agent's turns as a trunk and each subagent as a branch from the call that spawned it. Claude Code and OpenCode. ([#85](https://github.com/kannandreams/agent-top/pull/85), [#88](https://github.com/kannandreams/agent-top/pull/88))
+- The store gains a `subagents` table and a `spans.agent` column, filled for Claude Code and OpenCode. The next `sync` re-reads every transcript still on disk. ([#85](https://github.com/kannandreams/agent-top/pull/85), [#88](https://github.com/kannandreams/agent-top/pull/88))
+- `--json`: an agent lists its `subagent_runs` for Claude Code and OpenCode, each with its type, tokens, cost and the span that spawned it. ([#87](https://github.com/kannandreams/agent-top/pull/87), [#88](https://github.com/kannandreams/agent-top/pull/88))
 
 ### Changed
-- `agent-top-core`: `ToolSpan` gains `agent`, and `SessionSummary` and `Agent` gain `subagent_runs`; in `--json`, a span issued by a Claude Code subagent carries `agent`. ([#85](https://github.com/kannandreams/agent-top/pull/85), [#87](https://github.com/kannandreams/agent-top/pull/87))
+- `agent-top-core`: `ToolSpan` gains `agent`, and `SessionSummary` and `Agent` gain `subagent_runs`; in `--json`, a span issued by a Claude Code or OpenCode subagent carries `agent`. ([#85](https://github.com/kannandreams/agent-top/pull/85), [#87](https://github.com/kannandreams/agent-top/pull/87), [#88](https://github.com/kannandreams/agent-top/pull/88))
 - Building from source with `cargo install` needs Rust 1.89 or newer. ([#86](https://github.com/kannandreams/agent-top/pull/86))
 
 ### Fixed

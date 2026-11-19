@@ -341,7 +341,14 @@ async function openSession(r) {
 
 // ---- session detail: run graph -------------------------------------------------
 
-const shortId = (id) => (id.length > 9 ? id.slice(0, 8) : id);
+// Ids are shown by their first eight characters. Some harnesses start an id
+// with its creation time, so siblings share a head; then the tail is shown.
+let shortId = (id) => (id.length > 9 ? id.slice(0, 8) : id);
+function shortIdsFor(ids) {
+  const head = (id) => (id.length > 9 ? id.slice(0, 8) : id);
+  const unique = new Set(ids.map(head)).size === new Set(ids).size;
+  return unique ? head : (id) => (id.length > 9 ? "…" + id.slice(-8) : id);
+}
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 // Claude names an MCP tool mcp__<server>__<tool>; the server is all but the last part.
 const mcpServer = (name) => {
@@ -359,6 +366,7 @@ function runGraph(g, key) {
   const wrap = el("div", { class: "run" });
   if (!g || !g.agents.length) return wrap;
   const turnNo = new Map(g.turns.map((t, i) => [t.seq, i + 1]));
+  shortId = shortIdsFor(g.agents.map((a) => a.agent_id));
   const agents = g.agents.map((a) => {
     const linked = a.spawn_seq != null;
     const fork = linked ? a.spawn_started_at : a.started_at;
