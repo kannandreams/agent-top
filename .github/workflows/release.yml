@@ -92,7 +92,7 @@ jobs:
           - { os: macos-15, target: aarch64-apple-darwin, arch: arm64, native: true }
           # Cross-compiled from the arm64 runner rather than built on an Intel
           # one: the Apple SDK carries both slices so no extra linker is
-          # needed, and GitHub has retired its Intel runner images.
+          # needed, and the Intel runner images are on GitHub's retirement path.
           - { os: macos-15, target: x86_64-apple-darwin, arch: x86_64, native: false }
           # Built on 22.04 on purpose: the binary links the runner's glibc, so
           # building on the newest image would refuse to start on any older
