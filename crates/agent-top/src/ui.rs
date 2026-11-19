@@ -1559,6 +1559,7 @@ mod tests {
             tool_calls_lower_bound: false,
             web_searches: 0,
             spans,
+            subagent_runs: Vec::new(),
             age_secs: 1080,
             idle_secs: Some(3),
             cpu_percent: 6.6,

@@ -124,7 +124,15 @@ pub fn render(src: &Source, summary: &SessionSummary, format: Format) -> Value {
 fn otlp(src: &Source, s: &SessionSummary) -> Value {
     let session = s.session_id.clone().unwrap_or_else(|| stem(&src.path));
     let trace_id = hex(&fnv1a(session.as_bytes(), 0xcbf2_9ce4_8422_2325), &fnv1a(session.as_bytes(), 0x84222325_cbf29ce4));
-    let span_id = |sp: &ToolSpan| hex_one(&fnv1a(format!("{session}:{}:{}", sp.kind.label(), sp.id).as_bytes(), 0xcbf2_9ce4_8422_2325));
+    // Each subagent numbers its own turns and inferences from one, so its id
+    // is part of the name. The main agent's span ids are what they always were.
+    let span_id = |sp: &ToolSpan| {
+        let name = match &sp.agent {
+            Some(agent) => format!("{session}:{agent}:{}:{}", sp.kind.label(), sp.id),
+            None => format!("{session}:{}:{}", sp.kind.label(), sp.id),
+        };
+        hex_one(&fnv1a(name.as_bytes(), 0xcbf2_9ce4_8422_2325))
+    };
     let spans: Vec<&ToolSpan> = s.spans.iter().collect();
     let out: Vec<Value> = spans
         .iter()
@@ -138,6 +146,9 @@ fn otlp(src: &Source, s: &SessionSummary) -> Value {
                 attr("agent_top.call_id", json!({"stringValue": sp.id})),
                 attr("agent_top.sidechain", json!({"boolValue": sp.sidechain})),
             ];
+            if let Some(agent) = &sp.agent {
+                attrs.push(attr("agent_top.agent", json!({"stringValue": agent})));
+            }
             if sp.is_open() {
                 attrs.push(attr("agent_top.open", json!({"boolValue": true})));
             }
@@ -370,6 +381,39 @@ mod tests {
         // The timestamp part of a file name is not an id.
         assert!(candidates("2026-05", &known).is_empty());
         assert!(candidates("zzz", &known).is_empty());
+    }
+
+    #[test]
+    fn two_subagents_first_turns_get_different_otlp_ids() {
+        // Every transcript numbers its own turns from one, so the main agent
+        // and each subagent all have a `turn:1`.
+        let at = |s: u64| UNIX_EPOCH + Duration::from_secs(1_700_000_000 + s);
+        // One log per transcript, merged by start time, as the adapter does.
+        let logs: Vec<_> = [(None, 0), (Some("a"), 1), (Some("b"), 2)]
+            .into_iter()
+            .map(|(agent, start)| {
+                let mut log = agent_top_core::harness::SpanLog::unbounded();
+                log.set_agent(agent);
+                log.open_kind("turn:1".into(), "turn".into(), at(start), agent.is_some(), SpanKind::Turn);
+                log.open(format!("call-{start}"), "Read".into(), at(start + 3), agent.is_some());
+                log
+            })
+            .collect();
+        let spans = agent_top_core::harness::SpanLog::merged(&logs, usize::MAX);
+        let summary = SessionSummary { session_id: Some("abc".into()), spans, ..Default::default() };
+        let doc = otlp(&Source { path: PathBuf::from("/x/abc.jsonl"), harness: Harness::Claude }, &summary);
+        let out = doc["resourceSpans"][0]["scopeSpans"][0]["spans"].as_array().unwrap();
+        let ids: std::collections::HashSet<&str> = out.iter().map(|s| s["spanId"].as_str().unwrap()).collect();
+        assert_eq!(ids.len(), 6, "three turns named turn:1 and three calls");
+        let agent_of = |s: &Value| {
+            s["attributes"].as_array().unwrap().iter().find(|a| a["key"] == "agent_top.agent").map(|a| a["value"]["stringValue"].clone())
+        };
+        let turn = |agent: Option<&str>| out.iter().find(|s| s["name"] == "turn" && agent_of(s) == agent.map(|a| json!(a))).unwrap();
+        // Each call hangs under its own agent's turn.
+        for (agent, call) in [(None, 3), (Some("a"), 4), (Some("b"), 5)] {
+            assert_eq!(out[call]["name"], "Read");
+            assert_eq!(out[call]["parentSpanId"], turn(agent)["spanId"], "{agent:?}");
+        }
     }
 
     #[test]

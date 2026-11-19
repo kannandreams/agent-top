@@ -249,7 +249,8 @@ pub fn project_name(p: &std::path::Path) -> String {
 /// The turn a span belongs to: the newest turn that started at or before it
 /// and had not ended when it started. Subagent spans prefer the subagent's
 /// own turn, which their transcript carries, and fall back to the main
-/// agent's. A turn has no parent.
+/// agent's. "Own" is the same `agent` where the harness names its subagents,
+/// so two running at once keep their spans apart. A turn has no parent.
 pub fn parent_turn<'a>(spans: &[&'a ToolSpan], i: usize) -> Option<&'a ToolSpan> {
     let sp = spans[i];
     if sp.kind == SpanKind::Turn {
@@ -260,7 +261,7 @@ pub fn parent_turn<'a>(spans: &[&'a ToolSpan], i: usize) -> Option<&'a ToolSpan>
             && t.started_at <= sp.started_at
             && t.duration_ms.map(|ms| t.started_at + std::time::Duration::from_millis(ms) >= sp.started_at).unwrap_or(true)
     };
-    let own = spans[..i].iter().rev().find(|t| t.sidechain == sp.sidechain && contains(t));
+    let own = spans[..i].iter().rev().find(|t| t.sidechain == sp.sidechain && t.agent == sp.agent && contains(t));
     own.or_else(|| spans[..i].iter().rev().find(|t| !t.sidechain && contains(t))).copied()
 }
 
@@ -521,6 +522,12 @@ pub struct Agent {
     /// The most recent spans, oldest first: tool calls, inferences and turns.
     /// Bounded; see `harness::MAX_SPANS`.
     pub spans: Vec<ToolSpan>,
+    /// The subagent runs folded into this row, oldest first, each with its
+    /// own tokens and cost and the call that spawned it. Those figures are
+    /// inside this row's totals already. Empty for a harness that gives each
+    /// child a row of its own (see `subagent`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub subagent_runs: Vec<SubagentRun>,
     /// Seconds since the process started (live) or since the last transcript write (stopped).
     pub age_secs: u64,
     /// Seconds since the transcript was last written.
@@ -858,6 +865,39 @@ mod usage_tests {
 mod tests {
     use super::*;
     use std::path::Path;
+
+    #[test]
+    fn a_subagent_span_belongs_to_its_own_turn_not_to_a_sibling_s() {
+        use std::time::{Duration, UNIX_EPOCH};
+        let mk = |id: &str, kind: SpanKind, start: u64, agent: Option<&str>| ToolSpan {
+            id: id.into(),
+            name: kind.label().into(),
+            started_at: UNIX_EPOCH + Duration::from_secs(start),
+            duration_ms: Some(60_000),
+            sidechain: agent.is_some(),
+            error: false,
+            kind,
+            agent: agent.map(str::to_string),
+        };
+        // Two subagents run at once inside the main agent's turn. Each has a
+        // turn of its own, both named `turn:1` by their own transcripts; a
+        // third has none and falls back to the main agent's.
+        let spans = [
+            mk("turn:1", SpanKind::Turn, 0, None),
+            mk("turn:1", SpanKind::Turn, 1, Some("a")),
+            mk("turn:1", SpanKind::Turn, 2, Some("b")),
+            mk("from-a", SpanKind::Tool, 3, Some("a")),
+            mk("from-b", SpanKind::Tool, 4, Some("b")),
+            mk("from-c", SpanKind::Tool, 5, Some("c")),
+            mk("from-main", SpanKind::Tool, 6, None),
+        ];
+        let refs: Vec<&ToolSpan> = spans.iter().collect();
+        let owner = |i: usize| parent_turn(&refs, i).unwrap().agent.clone();
+        assert_eq!(owner(3).as_deref(), Some("a"), "the newest subagent turn is b's, and it is not a's");
+        assert_eq!(owner(4).as_deref(), Some("b"));
+        assert_eq!(owner(5), None);
+        assert_eq!(owner(6), None);
+    }
 
     #[test]
     fn project_name_keeps_two_components() {

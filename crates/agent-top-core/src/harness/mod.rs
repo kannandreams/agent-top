@@ -81,7 +81,7 @@ pub struct SessionSummary {
     pub spans: SpanLog,
     /// The subagent runs folded into this summary, oldest first. Empty for a
     /// harness that gives each child a session of its own.
-    pub subagents: Vec<crate::model::SubagentRun>,
+    pub subagent_runs: Vec<crate::model::SubagentRun>,
     /// Calls to each MCP server, by the server's name.
     pub mcp: BTreeMap<String, McpUsage>,
     /// What each tool's results added to the prompt, and what carrying it
