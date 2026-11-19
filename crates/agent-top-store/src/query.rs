@@ -68,7 +68,8 @@ pub struct Column {
 /// What each table and view holds, in the order `--schema` prints them.
 const ABOUT: &[(&str, &str)] = &[
     ("sessions", "one row per session, with its tokens and cost"),
-    ("spans", "one row per tool call, inference or turn; parent_seq is the turn it ran in"),
+    ("spans", "one row per tool call, inference or turn; parent_seq is the turn it ran in, agent the subagent that issued it"),
+    ("subagents", "one row per subagent run folded into a session; spawned_by is the span_id of the call that started it"),
     ("mcp_calls", "calls and errors per MCP server per session"),
     ("sources", "the transcripts synced, with the size and time last read"),
     ("counted_sessions", "sessions with tokens or turns, plus a tokens column; what report counts"),

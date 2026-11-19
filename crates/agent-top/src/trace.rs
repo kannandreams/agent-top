@@ -383,6 +383,7 @@ mod tests {
             sidechain: side,
             error: false,
             kind,
+            agent: None,
         };
         // Turn 1 (0..10 s) holds an inference and a tool call; a subagent
         // call at 5 s has no subagent turn and falls back to the main one.
@@ -458,6 +459,7 @@ mod tests {
             sidechain,
             error,
             kind,
+            agent: None,
         };
         let closed = span("a", "Bash", Some(2_500), false, true, SpanKind::Tool);
         let open = span("b", "Grep", None, true, false, SpanKind::Tool);

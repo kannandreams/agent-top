@@ -270,11 +270,73 @@ fn api(route: &str, p: &Params, db: &Path) -> Result<Option<Json>> {
                     "SELECT server, calls, errors, last_call_at FROM mcp_calls WHERE harness = ?1 AND session_id = ?2 ORDER BY calls DESC",
                     &key,
                 )?),
+                "graph": graph(&r, &key)?,
             })
+        }
+        // One subagent's spans, for the waterfall under the run graph.
+        "spans" => {
+            let key =
+                [Value::Text(p.get("harness").to_string()), Value::Text(p.get("id").to_string()), Value::Text(p.get("agent").to_string())];
+            rows(r.query_with(
+                "SELECT seq, kind, name, started_at, duration_ms, error, sidechain, parent_seq
+                 FROM spans WHERE harness = ?1 AND session_id = ?2 AND agent = ?3 ORDER BY seq LIMIT 2000",
+                &key,
+            )?)
         }
         _ => return Ok(None),
     };
     Ok(Some(v))
+}
+
+/// A session as a trunk and its branches: the main agent's turns, each
+/// subagent with the call that spawned it, and the tools each of them used.
+///
+/// A subagent is whatever the spans name in `agent`; its type, tokens and
+/// spawning call come from the `subagents` row when the harness wrote one.
+/// The spawning call is joined by its id, never by time, so a run the harness
+/// did not link has no `spawn_seq` and the page draws it unattached. A forked
+/// subagent starts from its parent's conversation, and its transcript repeats
+/// the call that forked it under its own `agent`; that copy is not the spawn.
+fn graph(r: &Reader, key: &[Value; 2]) -> Result<Json> {
+    Ok(json!({
+        "turns": rows(r.query_with(
+            "WITH c AS (
+                 SELECT parent_seq, sum(kind = 'tool') AS tools, sum(kind = 'tool' AND error) AS errors
+                 FROM spans WHERE harness = ?1 AND session_id = ?2 AND sidechain = 0 GROUP BY parent_seq
+             )
+             SELECT t.seq, t.started_at, t.duration_ms, coalesce(c.tools, 0) AS tools, coalesce(c.errors, 0) AS errors
+             FROM spans t LEFT JOIN c ON c.parent_seq = t.seq
+             WHERE t.harness = ?1 AND t.session_id = ?2 AND t.kind = 'turn' AND t.sidechain = 0 ORDER BY t.seq",
+            key,
+        )?),
+        "agents": rows(r.query_with(
+            "WITH a AS (
+                 SELECT agent, min(started_at) AS started_at, max(started_at + coalesce(duration_ms, 0)) AS ended_at,
+                        sum(kind = 'tool') AS calls, sum(kind = 'tool' AND error) AS errors,
+                        sum(kind = 'tool' AND duration_ms IS NULL) AS open_calls
+                 FROM spans WHERE harness = ?1 AND session_id = ?2 AND agent IS NOT NULL GROUP BY agent
+             )
+             SELECT a.agent AS agent_id, m.agent_type, m.model, m.tokens, m.cost_usd, m.unpriced_tokens,
+                    a.started_at, a.ended_at, a.calls, a.errors, a.open_calls,
+                    p.seq AS spawn_seq, p.started_at AS spawn_started_at, p.duration_ms AS spawn_duration_ms,
+                    p.parent_seq AS spawn_turn_seq, p.agent AS spawn_agent, p.name AS spawn_name, p.error AS spawn_error
+             FROM a
+             LEFT JOIN subagents m ON m.harness = ?1 AND m.session_id = ?2 AND m.agent_id = a.agent
+             LEFT JOIN spans p ON p.harness = ?1 AND p.session_id = ?2 AND p.seq = (
+                 SELECT min(q.seq) FROM spans q
+                 WHERE q.harness = ?1 AND q.session_id = ?2 AND q.kind = 'tool' AND q.span_id = m.spawned_by
+                   AND q.agent IS NOT a.agent
+             )
+             ORDER BY a.started_at, a.agent",
+            key,
+        )?),
+        "tools": rows(r.query_with(
+            "SELECT agent, name, count(*) AS calls, sum(error) AS errors
+             FROM spans WHERE harness = ?1 AND session_id = ?2 AND kind = 'tool' AND agent IS NOT NULL
+             GROUP BY agent, name ORDER BY agent, calls DESC, name",
+            key,
+        )?),
+    }))
 }
 
 #[cfg(test)]
