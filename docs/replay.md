@@ -43,7 +43,7 @@ Before you share one, know what it carries. It is metadata only: no prompt text,
 | `advice[]` | the sentences behind the `a` popup, with their numbers |
 | `totals` | what the header shows |
 
-`subagent_runs` lists the subagents a Claude Code session spawned: each one's `id`, `agent_type`, `model`, `tokens`, `cost_usd`, `tool_calls` and `spawned_by`, the `id` of the span that started it. A span the subagent issued carries that `id` as `agent`. A run's tokens and cost are already inside the agent's own totals, so do not add them.
+`subagent_runs` lists the subagents a Claude Code or OpenCode session spawned: each one's `id`, `agent_type`, `model`, `tokens`, `cost_usd`, `tool_calls` and `spawned_by`, the `id` of the span that started it. A span the subagent issued carries that `id` as `agent`. A run's tokens and cost are already inside the agent's own totals, so do not add them.
 
 Fields added in later versions are optional on the way back in, so an old snapshot still replays on a new agent-top.
 

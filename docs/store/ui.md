@@ -34,7 +34,7 @@ The page shows:
 
 ![A run graph: two Explore subagents fork from turn 5 and run side by side, a Plan subagent follows, and one subagent in turn 8 reports errors](../screenshots/ui-run-graph.png)
 
-The run graph reads top to bottom in time order. Rows are evenly spaced, so a session idle for a day takes no more room than a busy one, and turns with no subagent between them fold into one row. Two branches side by side ran at the same time. Each branch shows the subagent's type, how long it ran, its tool calls and errors, and its tokens and cost; selecting it shows its spans as a waterfall. The join between a subagent and the call that spawned it is the harness's own record, and a subagent without one is drawn with a dashed line. Claude Code sessions have this today.
+The run graph reads top to bottom in time order. Rows are evenly spaced, so a session idle for a day takes no more room than a busy one, and turns with no subagent between them fold into one row. Two branches side by side ran at the same time. Each branch shows the subagent's type, how long it ran, its tool calls and errors, and its tokens and cost; selecting it shows its spans as a waterfall. The join between a subagent and the call that spawned it is the harness's own record, and a subagent without one is drawn with a dashed line. Claude Code and OpenCode sessions have this today.
 
 The range (7, 30 or 90 days, or all) and the harness filter apply to every section. Each harness keeps one colour everywhere. A session's detail has its own address (`#s/<harness>/<id>`), so it can be reopened or bookmarked.
 

@@ -24,7 +24,7 @@ The default. Open the file in [Perfetto](https://ui.perfetto.dev) or `chrome://t
 
 `--format otlp` writes the body of an OTLP/HTTP traces request, with deterministic trace and span ids so the same session always produces the same trace. Any collector that speaks OTLP/JSON accepts it: Jaeger, Tempo, the OpenTelemetry Collector.
 
-A span a Claude Code subagent issued carries the subagent's id in the `agent_top.agent` attribute, and its parent is that subagent's own turn.
+A span a Claude Code or OpenCode subagent issued carries the subagent's id in the `agent_top.agent` attribute, and its parent is that subagent's own turn.
 
 ```sh
 agent-top trace --session 9f2c1a4e --format otlp --endpoint http://localhost:4318/v1/traces

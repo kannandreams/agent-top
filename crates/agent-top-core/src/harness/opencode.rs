@@ -63,13 +63,21 @@
 //!   scaled so the classes add up to OpenCode's figure; a model the table does
 //!   not price gets tokens and no cost, which the UI shows as `-`. Subagent
 //!   ledgers are folded into the parent's.
+//! * Subagent runs (verified on OpenCode 1.17.9 to 1.18.15, 2026-11-19, 32 of
+//!   32 children in the live database): the parent's `task` tool part that
+//!   started a child session carries the child's id in
+//!   `state.metadata.sessionId`. That is the spawn link, read as that one
+//!   key; `state.input` beside it holds the prompt and is never read. A
+//!   child's spans carry its session id as `ToolSpan::agent`, and each child
+//!   is a `SubagentRun` with its `agent` type, OpenCode's own `cost` and the
+//!   `callID` of the part that started it.
 //!
 //! A session has no file of its own, so a tracker is addressed by a virtual
 //! path `<db>/<session id>`: unique, stable, and with the session id as its
 //! file stem, which is all the collector and the trace resolver need.
 
 use super::{AttributeContext, ContextLedger, HarnessAdapter, RegistryHints, SessionSummary, SessionTracker, SpanRetention};
-use crate::model::{Activity, Attribution, ContextOrigin, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage};
+use crate::model::{Activity, Attribution, ContextOrigin, CostBreakdown, Harness, ProcNode, SpanKind, SubagentRun, TokenUsage};
 use crate::process::RawProc;
 use rusqlite::{Connection, OpenFlags};
 use std::collections::HashSet;
@@ -495,7 +503,20 @@ impl OpenCodeTranscript {
                 summary.usage.add(&usage);
                 summary.cost_usd += r.get::<_, f64>(4)?;
 
-                if !is_sub {
+                if is_sub {
+                    summary.subagent_runs.push(SubagentRun {
+                        id: row_id.clone(),
+                        agent_type: r.get::<_, Option<String>>(2)?,
+                        spawned_by: None,
+                        model: r.get::<_, Option<String>>(3)?.as_deref().and_then(model_id),
+                        started_at: from_ms(r.get::<_, i64>(10)?),
+                        last_activity: from_ms(r.get::<_, i64>(11)?),
+                        tokens: usage.total(),
+                        cost_usd: r.get::<_, f64>(4)?,
+                        unpriced_tokens: 0,
+                        tool_calls: 0,
+                    });
+                } else {
                     summary.session_id = Some(row_id.clone());
                     summary.cwd = Some(PathBuf::from(r.get::<_, String>(1)?));
                     summary.model = r.get::<_, Option<String>>(3)?.as_deref().and_then(model_id);
@@ -533,10 +554,30 @@ impl OpenCodeTranscript {
         // message times. For the live view only the newest `MAX_SPANS` matter,
         // so the queries are bounded; an export keeps everything.
         for (sid, _is_sub) in &ids {
-            summary.tool_calls +=
+            let calls =
                 conn.query_row("SELECT count(*) FROM part WHERE session_id = ?1 AND json_extract(data,'$.type') = 'tool'", [sid], |r| {
                     r.get::<_, i64>(0)
                 })? as u64;
+            summary.tool_calls += calls;
+            if let Some(run) = summary.subagent_runs.iter_mut().find(|a| a.id == *sid) {
+                run.tool_calls = calls;
+            }
+        }
+        // Which call started each child: the parent's tool part that names the
+        // child's session id. Only that key and the call id are read.
+        if !summary.subagent_runs.is_empty() {
+            let mut stmt = conn.prepare(
+                "SELECT json_extract(data,'$.state.metadata.sessionId'), json_extract(data,'$.callID') FROM part \
+                 WHERE session_id = ?1 AND json_extract(data,'$.type') = 'tool' \
+                 AND json_extract(data,'$.state.metadata.sessionId') IS NOT NULL",
+            )?;
+            let mut rows = stmt.query([&id])?;
+            while let Some(r) = rows.next()? {
+                let (Some(child), Some(call)) = (r.get::<_, Option<String>>(0)?, r.get::<_, Option<String>>(1)?) else { continue };
+                if let Some(run) = summary.subagent_runs.iter_mut().find(|a| a.id == child && a.spawned_by.is_none()) {
+                    run.spawned_by = Some(call).filter(|c| !c.is_empty());
+                }
+            }
         }
         let limit = match retention {
             SpanRetention::All => -1,
@@ -595,6 +636,8 @@ impl OpenCodeTranscript {
             /// whose message has not completed, a turn whose reply is not done.
             end: Option<SystemTime>,
             sidechain: bool,
+            /// The child session that issued it, for a subagent's span.
+            agent: Option<String>,
             error: bool,
         }
         let mut pending: Vec<Pending> = Vec::new();
@@ -630,6 +673,7 @@ impl OpenCodeTranscript {
                     start,
                     end: Some(end.unwrap_or(start).max(start)),
                     sidechain: sub_ids.contains(sid.as_str()),
+                    agent: sub_ids.contains(sid.as_str()).then(|| sid.clone()),
                     error: status.as_deref() == Some("error"),
                 });
             }
@@ -677,12 +721,14 @@ impl OpenCodeTranscript {
             let sessions: Vec<String> = ids.iter().map(|(i, _)| i.clone()).collect();
             for sess in &sessions {
                 let sidechain = sub_ids.contains(sess.as_str());
+                let agent = sidechain.then(|| sess.clone());
                 let mut turn_idx = 0u64;
                 let mut turn: Option<(String, SystemTime, Option<SystemTime>)> = None; // id, start, end
                 let mut inf_idx = 0u64;
                 let flush = |turn: &mut Option<(String, SystemTime, Option<SystemTime>)>, pending: &mut Vec<Pending>| {
                     if let Some((id, start, end)) = turn.take() {
-                        pending.push(Pending { id, name: "turn".into(), kind: SpanKind::Turn, start, end, sidechain, error: false });
+                        let agent = agent.clone();
+                        pending.push(Pending { id, name: "turn".into(), kind: SpanKind::Turn, start, end, sidechain, agent, error: false });
                     }
                 };
                 for m in msgs.iter().filter(|m| &m.sid == sess) {
@@ -699,6 +745,7 @@ impl OpenCodeTranscript {
                             start: m.created,
                             end: m.completed,
                             sidechain,
+                            agent: agent.clone(),
                             error: false,
                         });
                         // Open a turn if the window began mid-reply, and move
@@ -721,6 +768,7 @@ impl OpenCodeTranscript {
         // newest by time no matter which kind it is.
         pending.sort_by_key(|p| p.start);
         for p in pending {
+            summary.spans.set_agent(p.agent.as_deref());
             summary.spans.open_kind(p.id.clone(), p.name, p.start, p.sidechain, p.kind);
             if let Some(end) = p.end {
                 if p.error {
@@ -906,6 +954,49 @@ mod tests {
                 .unwrap();
         }
         db
+    }
+
+    #[test]
+    fn a_child_session_is_a_run_joined_to_the_task_call_that_started_it() {
+        let dir = std::env::temp_dir().join(format!("agent-top-oc-run-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = make_db(&dir);
+        // The parent's `task` call that started the child, as OpenCode writes
+        // it: the child's id in `state.metadata`, the prompt in `state.input`.
+        Connection::open(&db)
+            .unwrap()
+            .execute(
+                "INSERT INTO part VALUES ('p9', 'm', 'ses_parent', 1009, ?1)",
+                [r#"{"type":"tool","tool":"task","callID":"c9","state":{"status":"completed","time":{"start":1450,"end":1700},
+                    "input":{"description":"never read","prompt":"never read","subagent_type":"explore"},
+                    "metadata":{"sessionId":"ses_child","parentSessionId":"ses_parent"}}}"#],
+            )
+            .unwrap();
+        let mut t = OpenCodeTranscript::new(&session_path(&db, "ses_parent"), SpanRetention::All);
+        t.refresh().unwrap();
+        let s = t.summary();
+        assert_eq!(s.subagent_runs.len(), 1);
+        let run = &s.subagent_runs[0];
+        assert_eq!((run.id.as_str(), run.agent_type.as_deref(), run.spawned_by.as_deref()), ("ses_child", Some("explore"), Some("c9")));
+        // The child's own row: 300 in, 40 + 10 out, 1000 cache read, and OpenCode's cost for it.
+        assert_eq!((run.tokens, run.tool_calls, run.unpriced_tokens), (1350, 1, 0));
+        assert!((run.cost_usd - 0.05).abs() < 1e-9, "{}", run.cost_usd);
+        assert_eq!(run.model.as_deref(), Some("deepseek-v4-pro"));
+        // The run joins to the parent's span by id, and the child's spans name it.
+        let spawn = s.spans.iter().find(|sp| Some(sp.id.as_str()) == run.spawned_by.as_deref()).unwrap();
+        assert_eq!((spawn.name.as_str(), spawn.agent.as_deref(), spawn.duration_ms), ("task", None, Some(250)));
+        let by_agent = |agent: Option<&str>| s.spans.iter().filter(|sp| sp.agent.as_deref() == agent).count();
+        assert_eq!(by_agent(Some("ses_child")), 3, "the child's turn, inference and grep");
+        assert_eq!(by_agent(None), s.spans.len() - 3);
+        assert!(s.spans.iter().all(|sp| sp.sidechain == sp.agent.is_some()));
+        // A child no call names is still a run, with no spawn to hang it on.
+        std::fs::create_dir_all(dir.join("plain")).unwrap();
+        let plain = make_db(&dir.join("plain"));
+        let mut t = OpenCodeTranscript::new(&session_path(&plain, "ses_parent"), SpanRetention::All);
+        t.refresh().unwrap();
+        assert_eq!(t.summary().subagent_runs[0].spawned_by, None);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
