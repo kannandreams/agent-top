@@ -4,8 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-19
+
+### Highlights
+OpenCode 2.x keeps its sessions in a new store, so a session started after upgrading OpenCode had no row in agent-top. Those sessions now get tokens, cost, tool spans, MCP calls and a run graph, and sessions from before the upgrade read as before.
+
 ### Added
-- OpenCode 2.x: sessions in the v2 store (`session_v2`, `session_message`) show tokens, cost, turns, tool spans, MCP calls per server and subagent runs. Sessions from before the upgrade still read from the v1 tables. ([#83](https://github.com/kannandreams/agent-top/pull/83))
+- OpenCode 2.x: sessions in the v2 store show tokens, cost, turns, tool spans, MCP calls per server and subagent runs. ([#83](https://github.com/kannandreams/agent-top/pull/83))
 
 ## [0.28.0] - 2026-11-19
 
