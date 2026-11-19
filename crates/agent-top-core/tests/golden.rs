@@ -94,6 +94,22 @@ fn describe(s: &SessionSummary) -> Value {
             "tokens": c.tokens,
             "cost_usd_micros": (c.cost_usd * 1_000_000.0).round() as i64,
         })).collect::<Vec<_>>(),
+        // The subagent runs folded into the figures above, each with the call
+        // that spawned it. A run's tokens and cost are inside the totals.
+        "subagent_runs": s.subagent_runs.iter().map(|a| json!({
+            "id": a.id,
+            "agent_type": a.agent_type,
+            "spawned_by": a.spawned_by,
+            "spawned_by_span": a.spawned_by.as_ref().and_then(|id| s.spans.iter().find(|sp| sp.id == *id && sp.agent.is_none())).map(|sp| sp.name.clone()),
+            "model": a.model,
+            "tokens": a.tokens,
+            "cost_usd_micros": (a.cost_usd * 1_000_000.0).round() as i64,
+            "unpriced_tokens": a.unpriced_tokens,
+            "tool_calls": a.tool_calls,
+            "spans": s.spans.iter().filter(|sp| sp.agent.as_deref() == Some(a.id.as_str())).count(),
+            "started_at_ms": millis(a.started_at),
+            "last_activity_ms": millis(a.last_activity),
+        })).collect::<Vec<_>>(),
         "activity": format!("{:?}", s.activity),
         "started_at_ms": millis(s.started_at),
         "last_activity_ms": millis(s.last_activity),
@@ -108,6 +124,7 @@ fn describe(s: &SessionSummary) -> Value {
             "open": s.spans.iter().filter(|sp| sp.is_open()).count(),
             "errors": s.spans.iter().filter(|sp| sp.error).count(),
             "sidechain": s.spans.iter().filter(|sp| sp.sidechain).count(),
+            "named_agent": s.spans.iter().filter(|sp| sp.agent.is_some()).count(),
             "total_duration_ms": s.spans.iter().filter_map(|sp| sp.duration_ms).sum::<u64>(),
             // The first and last few in full, so a pairing bug that keeps the
             // count right cannot slip through.
@@ -118,7 +135,11 @@ fn describe(s: &SessionSummary) -> Value {
 }
 
 fn span_json(s: &agent_top_core::ToolSpan) -> Value {
-    json!({"kind": s.kind.label(), "name": s.name, "duration_ms": s.duration_ms, "error": s.error, "sidechain": s.sidechain})
+    let mut v = json!({"kind": s.kind.label(), "name": s.name, "duration_ms": s.duration_ms, "error": s.error, "sidechain": s.sidechain});
+    if let Some(agent) = &s.agent {
+        v["agent"] = json!(agent);
+    }
+    v
 }
 
 fn check(fixture: &str, mut tracker: Box<dyn SessionTracker>) {
@@ -169,6 +190,17 @@ fn claude_2_1_226() {
 fn claude_2_1_278() {
     let p = fixtures().join("claude-2.1.278.jsonl");
     check("claude-2.1.278", Box::new(ClaudeTranscript::new(p).with_prices(pricing::builtin_table())));
+}
+
+/// A window of a real 2.1.304 session: the turn that forked a subagent, and
+/// the fork's whole transcript under `claude-fork-2.1.304/subagents/`. The
+/// fork's file opens with the parent's forking message, usage included, which
+/// must be counted once, and its meta file names the `Agent` call that
+/// spawned it, which is how the run is joined to that span.
+#[test]
+fn claude_fork_2_1_304() {
+    let p = fixtures().join("claude-fork-2.1.304.jsonl");
+    check("claude-fork-2.1.304", Box::new(ClaudeTranscript::new(p).with_prices(pricing::builtin_table())));
 }
 
 #[test]

@@ -546,7 +546,7 @@ fn replace_session(
             tokens, cost_usd, unpriced_tokens, tool_calls)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
     )?;
-    for a in &s.subagents {
+    for a in &s.subagent_runs {
         insert.execute(params![
             harness,
             id,

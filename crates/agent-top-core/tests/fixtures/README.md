@@ -23,6 +23,14 @@ path, so there is nothing to sanitise. Rerun the script against a newer
 `@google/gemini-cli-core` to see whether the layout moved; replace the fixture
 with a reduced real transcript when one exists.
 
+`claude-fork-2.1.304.jsonl` is a window of a real session, not the whole of
+it: the 52 lines of the turn that forked a subagent, with the fork's complete
+transcript and its meta file under `claude-fork-2.1.304/subagents/`. The meta
+file is reduced to `agentType` and `toolUseId`; its `description` is prompt
+text and was dropped. The agent id is made up, and so is the file name that
+carries it. Its totals are the window's, so they say nothing about what the
+session cost.
+
 Each `.expected.json` next to a fixture is the parse the current code produces
 from it. `tests/golden.rs` asserts the two match.
 

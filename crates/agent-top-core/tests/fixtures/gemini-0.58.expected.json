@@ -133,11 +133,13 @@
         "sidechain": false
       }
     ],
+    "named_agent": 0,
     "open": 0,
     "sidechain": 4,
     "total_duration_ms": 125400
   },
   "started_at_ms": 1788598800000,
+  "subagent_runs": [],
   "subagent_turns": 2,
   "tool_calls": 5,
   "tool_calls_lower_bound": false,

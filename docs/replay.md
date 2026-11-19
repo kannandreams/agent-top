@@ -37,11 +37,13 @@ Before you share one, know what it carries. It is metadata only: no prompt text,
 | Field | What it is |
 |---|---|
 | `host` | hostname, CPU count, CPU and memory use |
-| `agents[]` | one per row: identity, state, model, usage, `cost_breakdown`, `spans`, `mcp_servers`, `context`, `tree`, `attribution`, `rate_limit` |
+| `agents[]` | one per row: identity, state, model, usage, `cost_breakdown`, `spans`, `subagent_runs`, `mcp_servers`, `context`, `tree`, `attribution`, `rate_limit` |
 | `orphans[]` | MCP processes with no live agent ancestor |
 | `orphan_origins[]` | which agent each orphan was under, and when it lost it |
 | `advice[]` | the sentences behind the `a` popup, with their numbers |
 | `totals` | what the header shows |
+
+`subagent_runs` lists the subagents a Claude Code session spawned: each one's `id`, `agent_type`, `model`, `tokens`, `cost_usd`, `tool_calls` and `spawned_by`, the `id` of the span that started it. A span the subagent issued carries that `id` as `agent`. A run's tokens and cost are already inside the agent's own totals, so do not add them.
 
 Fields added in later versions are optional on the way back in, so an old snapshot still replays on a new agent-top.
 

@@ -7,10 +7,16 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 - `agent-top ui`: a session that used subagents gets a run graph, with the main agent's turns as a trunk and each Claude Code subagent as a branch from the call that spawned it. ([#85](https://github.com/kannandreams/agent-top/pull/85))
 - The store gains a `subagents` table and a `spans.agent` column, filled for Claude Code. The next `sync` re-reads every transcript still on disk. ([#85](https://github.com/kannandreams/agent-top/pull/85))
+- `--json`: an agent lists its `subagent_runs` for Claude Code, each with its type, tokens, cost and the span that spawned it. ([#87](https://github.com/kannandreams/agent-top/pull/87))
 
 ### Changed
-- `agent-top-core`: `ToolSpan` gains `agent` and `SessionSummary` gains `subagents`; in `--json`, a span issued by a Claude Code subagent carries `agent`. ([#85](https://github.com/kannandreams/agent-top/pull/85))
+- `agent-top-core`: `ToolSpan` gains `agent`, and `SessionSummary` and `Agent` gain `subagent_runs`; in `--json`, a span issued by a Claude Code subagent carries `agent`. ([#85](https://github.com/kannandreams/agent-top/pull/85), [#87](https://github.com/kannandreams/agent-top/pull/87))
 - Building from source with `cargo install` needs Rust 1.89 or newer. ([#86](https://github.com/kannandreams/agent-top/pull/86))
+
+### Fixed
+- Claude Code: a forked subagent's transcript repeats the parent's reply that forked it, and that reply's tokens, cost and tool call were counted twice. ([#87](https://github.com/kannandreams/agent-top/pull/87))
+- A span from one of two Claude Code subagents running at once could be filed under the other's turn, in the store and in `agent-top trace`. ([#87](https://github.com/kannandreams/agent-top/pull/87))
+- `agent-top trace --format otlp`: a subagent's turns and inferences shared span ids with the main agent's. They now have their own, and an `agent_top.agent` attribute. ([#87](https://github.com/kannandreams/agent-top/pull/87))
 
 ### Security
 - Bump rusqlite to 0.41, which bundles SQLite 3.54.1, for [RUSTSEC-2026-0459](https://rustsec.org/advisories/RUSTSEC-2026-0459), and rustix to 1.1.6 for [RUSTSEC-2026-0486](https://rustsec.org/advisories/RUSTSEC-2026-0486). ([#86](https://github.com/kannandreams/agent-top/pull/86))

@@ -20,8 +20,17 @@
 //!   the meta file's `toolUseId` is the `id` of the `Agent` tool_use block
 //!   that started the run, found in the session's transcripts for 43 of 45
 //!   real runs. Each span is tagged with its `agentId` and each run is listed
-//!   in `SessionSummary::subagents` with `agentType` and `toolUseId`. The meta
+//!   in `SessionSummary::subagent_runs` with `agentType` and `toolUseId`. The meta
 //!   file's `description` is text the model wrote and is not kept.
+//! * Forked subagents (`agentType: "fork"`, same versions, 5 of 5 real runs):
+//!   the transcript opens with a `fork-context-ref` line, then repeats the
+//!   parent's `assistant` message that holds the forking `Agent` tool_use,
+//!   with the parent's `message.id` and its `usage`, then a `user` line whose
+//!   `tool_result` answers that call and whose text is the fork's task. The
+//!   repeated message is the parent's response, billed once and already in
+//!   the parent's transcript, so a subagent parser skips any `assistant` line
+//!   holding its own spawning call, and reads the answering line as the
+//!   fork's prompt.
 //! * A `tool_use` block in an assistant message and the `tool_result` block
 //!   that answers it carry the same id in `id` / `tool_use_id`, and their
 //!   lines carry the timestamps that bracket the call. That pairing is the
@@ -332,6 +341,9 @@ struct Parser {
     /// The first `agentId` a sidechain line named: the subagent a subagent
     /// transcript belongs to.
     agent_id: Option<String>,
+    /// For a subagent transcript, the id of the call that spawned it, from
+    /// its meta file. A line holding that call is the parent's, repeated.
+    spawned_by: Option<String>,
 }
 
 /// What one API message added to the summary, so the next line of the same
@@ -360,6 +372,7 @@ impl Parser {
             turn_ended_by: None,
             pending_tools: HashMap::new(),
             agent_id: None,
+            spawned_by: None,
         }
     }
 
@@ -502,8 +515,14 @@ impl Parser {
             if b.get("type").and_then(Value::as_str) != Some("tool_result") {
                 continue;
             }
+            let id = b.get("tool_use_id").and_then(Value::as_str);
+            // The answer to the call that forked this subagent carries the
+            // fork's task: a prompt, not a tool result.
+            if id.is_some() && id == self.spawned_by.as_deref() {
+                continue;
+            }
             answered = true;
-            let Some(id) = b.get("tool_use_id").and_then(Value::as_str) else { continue };
+            let Some(id) = id else { continue };
             let error = b.get("is_error").and_then(Value::as_bool).unwrap_or(false);
             self.summary.spans.close(id, ts, error);
             let name = self.pending_tools.remove(id).unwrap_or_else(|| "tool".into());
@@ -522,6 +541,17 @@ impl Parser {
 
     fn ingest_assistant(&mut self, v: &Value, sidechain: bool, ts: Option<SystemTime>, prices: &Table) {
         let Some(msg) = v.get("message") else { return };
+        // A fork's transcript repeats the parent's message that forked it.
+        // The parent's transcript has it, with its usage and its call.
+        if let Some(spawn) = self.spawned_by.as_deref()
+            && msg.get("content").and_then(Value::as_array).is_some_and(|c| {
+                c.iter().any(|b| {
+                    b.get("type").and_then(Value::as_str) == Some("tool_use") && b.get("id").and_then(Value::as_str) == Some(spawn)
+                })
+            })
+        {
+            return;
+        }
         let id = msg.get("id").and_then(Value::as_str).map(str::to_string);
         let model = msg.get("model").and_then(Value::as_str).unwrap_or("");
         if !model.is_empty() && model != "<synthetic>" {
@@ -710,7 +740,8 @@ impl ClaudeTranscript {
                 self.meta.insert(p.clone(), m);
             }
             if !self.subagents.contains_key(&p) {
-                let parser = Parser::new(&p, self.retention);
+                let mut parser = Parser::new(&p, self.retention);
+                parser.spawned_by = self.meta.get(&p).and_then(|m| m.tool_use_id.clone());
                 self.subagents.insert(p, parser);
             }
         }
@@ -777,7 +808,7 @@ impl ClaudeTranscript {
         if !self.subagents.is_empty() {
             let logs = std::iter::once(&self.main.summary.spans).chain(self.subagents.values().map(|c| &c.summary.spans));
             s.spans = SpanLog::merged(logs, self.main.summary.spans.cap());
-            s.subagents = self.runs();
+            s.subagent_runs = self.runs();
         }
         self.summary = s;
     }
@@ -1105,6 +1136,57 @@ mod tests {
     }
 
     #[test]
+    fn a_fork_s_copy_of_the_message_that_forked_it_is_counted_once() {
+        let dir = std::env::temp_dir().join(format!("agent-top-claude-fork-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("abc.jsonl");
+        // The parent's reply m1 forks a subagent. Its usage: 100 in, 10 out.
+        let forking = |side: &str| {
+            format!(
+                r#"{{"type":"assistant","timestamp":"2026-10-23T17:07:54.000Z","sessionId":"abc"{side},"message":{{"id":"m1","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{{"type":"tool_use","id":"toolu_fork","name":"Agent"}}],"usage":{{"input_tokens":100,"output_tokens":10}}}}}}"#
+            )
+        };
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-10-23T17:07:50.000Z","sessionId":"abc","message":{{"role":"user","content":[{{"type":"text"}}]}}}}"#).unwrap();
+        writeln!(f, "{}", forking("")).unwrap();
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-10-23T17:07:55.000Z","sessionId":"abc","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"toolu_fork"}}]}}}}"#).unwrap();
+
+        // The fork's transcript opens with the same message, usage and all,
+        // then the answer to the forking call with the fork's task beside it.
+        let sub = subagents_dir(&path).unwrap();
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("agent-f1.meta.json"), r#"{"agentType":"fork","toolUseId":"toolu_fork"}"#).unwrap();
+        let mut g = std::fs::File::create(sub.join("agent-f1.jsonl")).unwrap();
+        writeln!(g, r#"{{"type":"fork-context-ref"}}"#).unwrap();
+        writeln!(g, "{}", forking(r#","isSidechain":true,"agentId":"f1""#)).unwrap();
+        writeln!(g, r#"{{"type":"user","timestamp":"2026-10-23T17:07:55.200Z","sessionId":"abc","isSidechain":true,"agentId":"f1","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"toolu_fork"}},{{"type":"text"}}]}}}}"#).unwrap();
+        writeln!(g, r#"{{"type":"assistant","timestamp":"2026-10-23T17:08:01.000Z","sessionId":"abc","isSidechain":true,"agentId":"f1","message":{{"id":"s1","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{{"type":"tool_use","id":"toolu_sub","name":"Grep"}}],"usage":{{"input_tokens":1000,"output_tokens":100}}}}}}"#).unwrap();
+        writeln!(g, r#"{{"type":"user","timestamp":"2026-10-23T17:08:02.000Z","sessionId":"abc","isSidechain":true,"agentId":"f1","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"toolu_sub"}}]}}}}"#).unwrap();
+
+        let mut t = ClaudeTranscript::new(&path).with_prices(pricing::builtin_table());
+        t.refresh().unwrap();
+        let s = t.summary();
+        assert_eq!(s.usage.total(), 110 + 1100, "m1 once, from the parent; s1 from the fork");
+        assert_eq!(s.tool_calls, 2, "Agent and Grep; the fork did not call Agent");
+        let tools: Vec<_> =
+            s.spans.iter().filter(|sp| sp.kind == SpanKind::Tool).map(|sp| (sp.name.as_str(), sp.agent.as_deref())).collect();
+        assert_eq!(tools, [("Agent", None), ("Grep", Some("f1"))]);
+        let run = &s.subagent_runs[0];
+        assert_eq!((run.agent_type.as_deref(), run.tokens, run.tool_calls), (Some("fork"), 1100, 1));
+        // The answering line is the fork's prompt: it starts the fork's own
+        // turn, which its spans then belong to.
+        let turns: Vec<_> = s.spans.iter().filter(|sp| sp.kind == SpanKind::Turn).map(|sp| sp.agent.as_deref()).collect();
+        assert_eq!(turns, [None, Some("f1")]);
+        // Without the meta file there is no record of which call forked it,
+        // and the copy is counted.
+        std::fs::remove_file(sub.join("agent-f1.meta.json")).unwrap();
+        let mut blind = ClaudeTranscript::new(&path).with_prices(pricing::builtin_table());
+        blind.refresh().unwrap();
+        assert_eq!(blind.summary().usage.total(), 110 + 110 + 1100);
+    }
+
+    #[test]
     fn folds_subagent_transcripts_into_the_parent() {
         let dir = std::env::temp_dir().join(format!("agent-top-claude-sub-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -1155,8 +1237,8 @@ mod tests {
         // call that spawned it: the span with that id, in the parent.
         assert_eq!(spans[0].agent, None);
         assert_eq!(spans[1].agent.as_deref(), Some("a1"));
-        assert_eq!(s.subagents.len(), 1);
-        let run = &s.subagents[0];
+        assert_eq!(s.subagent_runs.len(), 1);
+        let run = &s.subagent_runs[0];
         assert_eq!((run.id.as_str(), run.agent_type.as_deref(), run.spawned_by.as_deref()), ("a1", Some("Explore"), Some("toolu_agent")));
         assert_eq!(run.spawned_by.as_deref(), Some(spans[0].id.as_str()));
         assert_eq!((run.tokens, run.tool_calls, run.model.as_deref()), (1100, 1, Some("claude-opus-5")));
