@@ -242,3 +242,29 @@ fn codex_code_mode_0_154() {
     let p = fixtures().join("codex-code-mode-0.154.jsonl");
     check("codex-code-mode-0.154", Box::new(CodexTranscript::new(p).with_prices(pricing::builtin_table())));
 }
+
+/// An OpenCode 2.1.4 session store (see the SQL fixture's header): a
+/// hand-built `opencode.db` with a parent and a subagent in `session_v2`,
+/// the conversation in `session_message`, a first-class compaction row, a
+/// still-running tool call, an in-flight reply, and MCP calls in both v2
+/// forms. The MCP server names come from a global config in a temporary
+/// directory; the session's own directory stays the fixture's placeholder, so
+/// the recorded `cwd` is the same on every machine.
+#[test]
+fn opencode_2_1_4() {
+    use agent_top_core::harness::SpanRetention;
+    use agent_top_core::harness::opencode::{self, ConfigRoots, OpenCodeTranscript};
+    use rusqlite::Connection;
+
+    let tmp = std::env::temp_dir().join(format!("agent-top-oc-golden-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("global")).unwrap();
+    std::fs::write(tmp.join("global/opencode.json"), r#"{"mcp":{"servers":{"scratch_fs":{},"git":{}}}}"#).unwrap();
+    let db = tmp.join("opencode.db");
+    Connection::open(&db).unwrap().execute_batch(include_str!("fixtures/opencode-2.1.4.sql")).unwrap();
+
+    let t = OpenCodeTranscript::new(&opencode::session_path(&db, "ses_gold"), SpanRetention::All)
+        .with_config(ConfigRoots { global: Some(tmp.join("global")), home: Some(tmp.join("no-home")) });
+    check("opencode-2.1.4", Box::new(t));
+    let _ = std::fs::remove_dir_all(&tmp);
+}

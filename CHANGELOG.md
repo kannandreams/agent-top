@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- OpenCode 2.x: sessions in the v2 store (`session_v2`, `session_message`) show tokens, cost, turns, tool spans, MCP calls per server and subagent runs. Sessions from before the upgrade still read from the v1 tables. ([#83](https://github.com/kannandreams/agent-top/pull/83))
+
 ## [0.28.0] - 2026-11-19
 
 ### Highlights
