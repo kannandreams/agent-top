@@ -174,9 +174,9 @@ RUN_GRAPH_AGENTS = [
 def seed_run_graph(con, rnd, now):
     """One Claude session whose fifth and eighth turns fan out to subagents."""
     harness, sid, model = "claude", RUN_GRAPH_ID, "claude-opus-5-5"
-    # Older than the 30 days the overview shows, so the other images keep
-    # their sessions; this one is opened by its link.
-    t = now - 31 * 86_400_000
+    # Yesterday, so it is in the default 30-day range and near the top of the
+    # demo's session list.
+    t = now - 86_400_000 - 3 * 3_600_000
     spans, runs = [], []
 
     def add(kind, name, at, ms, parent=None, agent=None, error=0, span_id=None):
@@ -323,6 +323,10 @@ def export(port):
     html = html.replace('href="/app.css"', 'href="app.css"').replace(
         '<script src="/app.js" defer></script>', '<script src="demo.js"></script>\n<script src="app.js" defer></script>')
     html = html.replace("<title>agent-top</title>", "<title>agent-top ui demo</title>")
+    html = html.replace(
+        "</nav>",
+        f'  <a class="toggle" style="text-decoration:none" href="#s/claude/{RUN_GRAPH_ID}" onclick="setTimeout(() => location.reload())">'
+        "Open a session with a run graph</a>\n</nav>", 1)
     html = re.sub(r'<footer class="foot" id="foot">.*?</footer>',
                   '<footer class="foot" id="foot">A demo of <code>agent-top ui</code> on invented sessions. '
                   'Run <code>agent-top sync &amp;&amp; agent-top ui</code> to see your own. '
