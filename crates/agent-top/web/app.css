@@ -124,6 +124,7 @@ tbody tr.click:hover, tbody tr.click:focus { background: var(--wash); outline: n
 .lat.p95 { background: var(--h2); }
 .badge { font: 11px var(--mono); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--ink-2); white-space: nowrap; }
 .err { color: var(--critical); font-weight: 600; }
+.badge.sub { margin-left: 8px; color: var(--accent); border-color: var(--accent); }
 
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 16px; margin-bottom: 16px; font-size: 13px; }
 .facts div { min-width: 0; }
@@ -147,6 +148,7 @@ tbody tr[aria-current="true"] { background: var(--wash); box-shadow: inset 3px 0
 
 /* Run graph: a neutral trunk for the main agent, the accent for subagents. */
 .run:not(:empty) { margin-bottom: 20px; }
+.run > .note:only-child { padding: 4px 0; }
 .run h2 { margin: 0 0 8px; }
 .graph svg { overflow: visible; }
 .graph text { fill: var(--ink); font: 12px var(--sans); pointer-events: none; }

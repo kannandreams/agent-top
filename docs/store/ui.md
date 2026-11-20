@@ -28,7 +28,7 @@ The page shows:
 | Cost by project, cost by model | the ten most expensive |
 | Tool latency | calls, errors, p50, p95 and the longest call for each tool |
 | MCP servers | calls and errors per server, when any session used one |
-| Sessions | the 200 most recent; select one for its detail |
+| Sessions | the 200 most recent, with a count on those that ran subagents; select one for its detail |
 | Session detail | in a panel on the right: its facts, its turns with duration, tool calls and errors, and a waterfall of the spans in the selected turn |
 | Run graph | in a session that used subagents: the main agent's turns as a trunk, and each subagent as a branch from the call that spawned it to its return |
 
