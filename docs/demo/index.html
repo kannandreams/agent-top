@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>agent-top ui demo</title>
 <link rel="stylesheet" href="app.css">
-<script src="demo.js"></script>
+<script src="demo.js" data-open="#s/claude/0000beef-demo-4000-8000-00000000cafe"></script>
 <script src="app.js" defer></script>
 </head>
 <body>
@@ -25,7 +25,6 @@
   <label class="select">Harness
     <select id="harness"><option value="">All</option></select>
   </label>
-  <a class="toggle" style="text-decoration:none" href="#s/claude/0000beef-demo-4000-8000-00000000cafe" onclick="setTimeout(() => location.reload())">Open a session with a run graph</a>
 </nav>
 
 <main id="main">
@@ -67,7 +66,7 @@
     <div id="sessions"></div>
   </section>
 
-  <section class="card" id="detail" hidden aria-labelledby="h-detail">
+  <section class="card drawer" id="detail" hidden aria-labelledby="h-detail">
     <div class="card-head"><h2 id="h-detail">Session</h2><button type="button" class="toggle" id="close-detail">Close</button></div>
     <div id="detail-body"></div>
   </section>

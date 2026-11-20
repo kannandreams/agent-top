@@ -260,16 +260,16 @@ def shoot(port):
             suffix = "" if scheme == "light" else "-dark"
             page.screenshot(path=str(OUT / f"ui-overview{suffix}.png"), clip={"x": 0, "y": 0, "width": 1280, "height": 900})
             if scheme == "light":
-                # The session with the most turns, opened through its link.
+                # The detail opens in a side panel that scrolls on its own, so
+                # the panel's contents are shot in a window tall enough to hold them.
+                page.set_viewport_size({"width": 1280, "height": 2400})
                 page.click("#sessions tbody tr:nth-child(3)")
                 page.wait_for_selector("#detail-body svg")
                 page.wait_for_timeout(300)
-                page.locator("#detail").screenshot(path=str(OUT / "ui-session.png"))
-                # The session with subagents, and one of them selected.
+                page.locator("#detail-body").screenshot(path=str(OUT / "ui-session.png"))
+                # The session with subagents; the first is selected when it opens.
                 page.goto(f"http://127.0.0.1:{port}/#s/claude/{RUN_GRAPH_ID}")
                 page.reload()
-                page.wait_for_selector("#detail-body .graph svg")
-                page.click("#detail-body .graph .hit >> nth=0")
                 page.wait_for_selector("#detail-body .run .waterfall svg[aria-label^='Span waterfall']")
                 page.wait_for_timeout(300)
                 page.mouse.move(0, 0)
@@ -320,13 +320,11 @@ def export(port):
             put(f"spans/{key(s['harness'])}/{key(s['session_id'])}/{key(a['agent_id'])}", spans)
     # The page itself, with relative links so it works under /demo/ and the shim ahead of app.js.
     html = (WEB / "index.html").read_text()
+    # data-open: the session the demo opens with, the one with a run graph.
     html = html.replace('href="/app.css"', 'href="app.css"').replace(
-        '<script src="/app.js" defer></script>', '<script src="demo.js"></script>\n<script src="app.js" defer></script>')
+        '<script src="/app.js" defer></script>',
+        f'<script src="demo.js" data-open="#s/claude/{RUN_GRAPH_ID}"></script>\n<script src="app.js" defer></script>')
     html = html.replace("<title>agent-top</title>", "<title>agent-top ui demo</title>")
-    html = html.replace(
-        "</nav>",
-        f'  <a class="toggle" style="text-decoration:none" href="#s/claude/{RUN_GRAPH_ID}" onclick="setTimeout(() => location.reload())">'
-        "Open a session with a run graph</a>\n</nav>", 1)
     html = re.sub(r'<footer class="foot" id="foot">.*?</footer>',
                   '<footer class="foot" id="foot">A demo of <code>agent-top ui</code> on invented sessions. '
                   'Run <code>agent-top sync &amp;&amp; agent-top ui</code> to see your own. '
@@ -360,25 +358,31 @@ def record(port):
         page.wait_for_timeout(1300)
         page.select_option("#harness", "")
         page.wait_for_timeout(800)
-        # Whole-screen steps, not a smooth scroll: every scrolled frame is a new GIF frame.
-        for _ in range(2):
-            page.mouse.wheel(0, 640)
-            page.wait_for_timeout(1500)
-        # The run graph: open the session with subagents and walk its agents.
-        page.evaluate(f"location.hash = '#s/claude/{RUN_GRAPH_ID}'")
-        page.reload()
-        page.wait_for_selector("#detail-body .graph svg")
+        # A jump, not a smooth scroll: every scrolled frame is a new GIF frame.
+        page.evaluate("document.getElementById('h-sessions').scrollIntoView({block: 'start'})")
         page.wait_for_timeout(1500)
+        # The run graph: open the session with subagents from its row; the
+        # side panel opens on its first subagent. Then walk the others.
+        page.click(f"#sessions tr[data-key='claude/{RUN_GRAPH_ID}']")
+        page.wait_for_selector("#detail-body .run .waterfall svg[aria-label^='Span waterfall']")
+        page.wait_for_timeout(2200)
         hits = page.locator("#detail-body .graph .hit")
-        for i in range(hits.count()):
+        for i in range(1, hits.count()):
             hits.nth(i).hover()
             page.wait_for_timeout(500)
             hits.nth(i).click()
             page.wait_for_selector("#detail-body .run .waterfall svg[aria-label^='Span waterfall']")
-            page.locator("#detail-body .run").scroll_into_view_if_needed()
             page.wait_for_timeout(1600)
-        page.click("#theme")
+        # The table stays beside the panel: pick another session, then close.
+        page.mouse.move(100, 300)
+        # The panel covers the right of the row, so click its left end.
+        page.locator("#sessions tr[data-key^='codex/']").first.click(position={"x": 60, "y": 10})
+        page.wait_for_selector("#detail-body svg")
         page.wait_for_timeout(2000)
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(800)
+        page.click("#theme")
+        page.wait_for_timeout(1800)
         video = page.video.path()
         ctx.close()
         browser.close()
