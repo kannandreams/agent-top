@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Changed
-- `agent-top ui`: a session's detail opens in a panel beside the sessions table, which marks the open row, and a run graph opens on its first subagent's spans. `Esc` closes it.
+- `agent-top ui`: a session's detail opens in a panel beside the sessions table, which marks the open row, and a run graph opens on its first subagent's spans. `Esc` closes it. ([#95](https://github.com/kannandreams/agent-top/pull/95))
 
 ## [0.29.0] - 2026-11-19
 
