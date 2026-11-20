@@ -243,8 +243,10 @@ fn api(route: &str, p: &Params, db: &Path) -> Result<Option<Json>> {
         "sessions" => rows(r.query_with(
             &format!(
                 "SELECT harness, session_id, project, model, started_at, last_activity, tokens, cost_usd, unpriced_tokens,
-                        turns, tool_calls, attribution
-                 FROM counted_sessions WHERE {FILTER} ORDER BY last_activity DESC LIMIT 200"
+                        turns, tool_calls, attribution,
+                        (SELECT count(*) FROM subagents m
+                         WHERE m.harness = s.harness AND m.session_id = s.session_id) AS subagents
+                 FROM counted_sessions s WHERE {FILTER} ORDER BY last_activity DESC LIMIT 200"
             ),
             &f,
         )?),

@@ -151,32 +151,56 @@ def seed(db):
                        'builtin', ?, 'demo', 0)""",
             (f"triage-bot/run-{d}", t, t + 9_000, inp, cr, out, cost("claude-sonnet-5", inp, out, cr, 0), now),
         )
-    seed_run_graph(con, rnd, now)
+    for g in RUN_GRAPHS:
+        seed_run_graph(con, rnd, now, g)
     con.commit()
     con.close()
     return n + 1
 
 
-# The session behind ui-run-graph.png: which turn spawns which subagents, when
-# (ms after the turn starts, so two can overlap), and what each one does.
+# Sessions with subagents, for the run graph. The first is behind
+# ui-run-graph.png and is where the hosted demo opens. Each lists which turn
+# spawns which subagent, when (ms after the turn starts, so two can overlap),
+# and what it does.
 RUN_GRAPH_ID = "0000beef-demo-4000-8000-00000000cafe"
-RUN_GRAPH_TURNS = 9
-RUN_GRAPH_AGENTS = [
-    # turn, agent id, type, model, starts at, tools, errors
-    (5, "a41c09e7d2b85f13", "Explore", "claude-sonnet-5", 4_000, ["Grep", "Read", "Read", "Grep", "Read", "Bash"], 0),
-    (5, "a7730d1be46c2a98", "Explore", "claude-sonnet-5", 4_300, ["Grep", "Grep", "Read", "mcp__docs__search", "Read"], 0),
-    (5, "a02e5f8c91d47b60", "Plan", "claude-opus-5-5", 52_000, ["Read", "Read", "Grep", "Read"], 0),
-    (8, "a9d4c6e0173fb285", "general-purpose", "claude-opus-5-5", 6_000,
-     ["Read", "Edit", "Bash", "Edit", "Bash", "Edit", "Bash", "mcp__github__get_issue", "Bash"], 2),
+RUN_GRAPHS = [
+    {"harness": "claude", "id": RUN_GRAPH_ID, "model": "claude-opus-5-5", "project": "acme/api", "days_ago": 1,
+     "turns": 9, "spawn": "Agent", "main_tools": ["Read", "Grep", "Bash", "Edit"], "mcp": ("docs", "github"),
+     "agents": [
+         # turn, agent id, type, model, starts at, tools, errors
+         (5, "a41c09e7d2b85f13", "Explore", "claude-sonnet-5", 4_000, ["Grep", "Read", "Read", "Grep", "Read", "Bash"], 0),
+         (5, "a7730d1be46c2a98", "Explore", "claude-sonnet-5", 4_300, ["Grep", "Grep", "Read", "mcp__docs__search", "Read"], 0),
+         (5, "a02e5f8c91d47b60", "Plan", "claude-opus-5-5", 52_000, ["Read", "Read", "Grep", "Read"], 0),
+         (8, "a9d4c6e0173fb285", "general-purpose", "claude-opus-5-5", 6_000,
+          ["Read", "Edit", "Bash", "Edit", "Bash", "Edit", "Bash", "mcp__github__get_issue", "Bash"], 2),
+     ]},
+    {"harness": "claude", "id": "0000beef-demo-4000-8000-0000000d0c50", "model": "claude-sonnet-5", "project": "acme/web",
+     "days_ago": 4, "turns": 6, "spawn": "Agent", "main_tools": ["Read", "Edit", "Bash"], "mcp": (),
+     "agents": [
+         (2, "a5b1e8d07c3f9a24", "Explore", "claude-sonnet-5", 3_000, ["Grep", "Read", "Grep", "Read"], 0),
+         (4, "a6c3f1a92e7d4b08", "general-purpose", "claude-sonnet-5", 5_000, ["Read", "Edit", "Bash", "Edit", "Bash"], 0),
+     ]},
+    {"harness": "opencode", "id": "ses_0beefdemo4fan7out2cafe", "model": "deepseek-v4-flash", "project": "tools/cli",
+     "days_ago": 2, "turns": 5, "spawn": "task", "main_tools": ["read", "edit", "bash", "grep"], "mcp": (),
+     "agents": [
+         (2, "ses_0beefdemo4child01explr", "explore", "deepseek-v4-flash", 2_500, ["grep", "read", "grep", "read"], 0),
+         (2, "ses_0beefdemo4child02explr", "explore", "deepseek-v4-flash", 2_900, ["grep", "read", "read"], 0),
+         (4, "ses_0beefdemo4child03gener", "general", "deepseek-v4-flash", 4_000, ["read", "edit", "bash", "bash"], 1),
+     ]},
+    {"harness": "claude", "id": "0000beef-demo-4000-8000-00000000e7a1", "model": "claude-opus-5-5", "project": "lab/evals",
+     "days_ago": 9, "turns": 7, "spawn": "Agent", "main_tools": ["Read", "Bash", "Edit"], "mcp": (),
+     "agents": [
+         (3, "a1f0c4b7e9d2a365", "Plan", "claude-opus-5-5", 3_500, ["Read", "Grep", "Read"], 0),
+         (6, "a8e2d5c1b4f7a093", "general-purpose", "claude-opus-5-5", 4_500, ["Bash", "Read", "Bash", "Edit", "Bash"], 0),
+         (6, "a3d7b9e0c2f5a816", "general-purpose", "claude-opus-5-5", 5_200, ["Bash", "Bash", "Read"], 1),
+     ]},
 ]
 
 
-def seed_run_graph(con, rnd, now):
-    """One Claude session whose fifth and eighth turns fan out to subagents."""
-    harness, sid, model = "claude", RUN_GRAPH_ID, "claude-opus-5-5"
-    # Yesterday, so it is in the default 30-day range and near the top of the
-    # demo's session list.
-    t = now - 86_400_000 - 3 * 3_600_000
+def seed_run_graph(con, rnd, now, g):
+    """One session whose turns fan out to subagents, as RUN_GRAPHS describes it."""
+    harness, sid, model = g["harness"], g["id"], g["model"]
+    t = now - g["days_ago"] * 86_400_000 - 3 * 3_600_000
     spans, runs = [], []
 
     def add(kind, name, at, ms, parent=None, agent=None, error=0, span_id=None):
@@ -199,14 +223,14 @@ def seed_run_graph(con, rnd, now):
         add("inference", "inference", at, inf, parent, agent)
         return at + inf
 
-    for n in range(1, RUN_GRAPH_TURNS + 1):
+    for n in range(1, g["turns"] + 1):
         turn = add("turn", "turn", t, 0)
-        end = work(t, rnd.choices(["Read", "Grep", "Bash", "Edit"], k=rnd.randint(2, 5)), turn)
-        for (at_turn, agent, kind, agent_model, offset, tools, errors) in RUN_GRAPH_AGENTS:
+        end = work(t, rnd.choices(g["main_tools"], k=rnd.randint(2, 5)), turn)
+        for (at_turn, agent, kind, agent_model, offset, tools, errors) in g["agents"]:
             if at_turn != n:
                 continue
             start = max(t + offset, end if offset > 30_000 else t + offset)
-            call = add("tool", "Agent", start, 0, turn, span_id=f"toolu_demo_{agent[:6]}")
+            call = add("tool", g["spawn"], start, 0, turn, span_id=f"toolu_demo_{agent[-6:]}")
             own = add("turn", "turn", start + 200, 0, agent=agent)
             done = work(start + 200, tools, own, agent, errors)
             own["ms"] = done - own["at"]
@@ -215,7 +239,7 @@ def seed_run_graph(con, rnd, now):
             tokens = len(tools) * rnd.randint(40_000, 90_000)
             runs.append((harness, sid, agent, kind, call["id"], agent_model, own["at"], done, tokens,
                          cost(agent_model, tokens // 50, tokens // 40, tokens - tokens // 50 - tokens // 40, 0), 0, len(tools)))
-        end = work(end, ["Edit", "Bash"], turn)
+        end = work(end, g["main_tools"][-2:], turn)
         turn["ms"] = end - t
         t = end + rnd.randint(60_000, 900_000)
 
@@ -228,23 +252,24 @@ def seed_run_graph(con, rnd, now):
     )
     con.executemany("INSERT INTO subagents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", runs)
     tools = [sp for sp in spans if sp["kind"] == "tool"]
-    inp, cr, cw, out = 21_000, 6_400_000, 310_000, 48_000
+    k = g["turns"] / 9
+    inp, cr, cw, out = int(21_000 * k), int(6_400_000 * k), int(310_000 * k), int(48_000 * k)
     con.execute(
         """INSERT INTO sessions (harness, session_id, source_path, cwd, project, model, harness_version, attribution,
              started_at, last_activity, turns, subagent_turns, tool_calls, web_searches, input, cache_write_5m,
              cache_write_1h, cache_write_unsplit, cache_read, output, cost_usd, unpriced_tokens, price_source,
              synced_at, synced_by_version, tool_calls_lower_bound)
-           VALUES (?, ?, ?, '/home/dev/acme/api', 'acme/api', ?, ?, 'transcript', ?, ?, ?, ?, ?, 0, ?, ?, 0, 0, ?, ?, ?, 0,
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'transcript', ?, ?, ?, ?, ?, 0, ?, ?, 0, 0, ?, ?, ?, 0,
                    'builtin', ?, 'demo', 0)""",
-        (harness, sid, f"/home/dev/.claude/{sid}.jsonl", model, HARNESSES[harness]["version"], spans[0]["at"],
-         max(sp["at"] + sp["ms"] for sp in spans), RUN_GRAPH_TURNS + len(runs), len(runs), len(tools), inp, cw, cr, out,
-         cost(model, inp, out, cr, cw) + sum(r[9] for r in runs), now),
+        (harness, sid, f"/home/dev/.{harness}/{sid}.jsonl", f"/home/dev/{g['project']}", g["project"], model,
+         HARNESSES[harness]["version"], spans[0]["at"], max(sp["at"] + sp["ms"] for sp in spans), g["turns"] + len(runs),
+         len(runs), len(tools), inp, cw, cr, out, cost(model, inp, out, cr, cw) + sum(r[9] for r in runs), now),
     )
-    for server in ("docs", "github"):
+    for server in g["mcp"]:
         calls = [sp for sp in tools if sp["name"].startswith(f"mcp__{server}__")]
         con.execute("INSERT INTO mcp_calls VALUES (?, ?, ?, ?, ?, ?)",
                     (harness, sid, server, len(calls), sum(sp["error"] for sp in calls), max(sp["at"] for sp in calls)))
-    con.execute("INSERT INTO sources VALUES (?, ?, ?, 0, 0, ?, 'demo')", (f"/home/dev/.claude/{sid}.jsonl", harness, sid, now))
+    con.execute("INSERT INTO sources VALUES (?, ?, ?, 0, 0, ?, 'demo')", (f"/home/dev/.{harness}/{sid}.jsonl", harness, sid, now))
 
 
 def shoot(port):

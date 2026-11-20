@@ -300,7 +300,12 @@ function sessions(rows) {
   if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: "No sessions in this range." })); return; }
   box.replaceChildren(table([
     { key: "last_activity", label: "Last activity", render: (r) => when(r.last_activity) },
-    { key: "harness", label: "Harness", render: (r) => { const k = el("span", { class: "key" }); k.style.background = slot(r.harness); return el("span", {}, k, " " + r.harness); } },
+    // The subagent count marks the sessions with a run graph. It sits in this
+    // column, not its own, so it stays in view beside the open side panel.
+    { key: "harness", label: "Harness", render: (r) => {
+      const k = el("span", { class: "key" }); k.style.background = slot(r.harness);
+      return el("span", {}, k, " " + r.harness, r.subagents > 0 ? el("span", { class: "badge sub", text: plural(r.subagents, "subagent") }) : "");
+    } },
     { key: "project", label: "Project", cls: "mono trunc" },
     { key: "model", label: "Model", cls: "mono trunc" },
     { key: "turns", label: "Turns", num: true },
@@ -391,7 +396,10 @@ const mcpServer = (name) => {
 // Drawn only for a session that has subagents; without them it is one line.
 function runGraph(g, key) {
   const wrap = el("div", { class: "run" });
-  if (!g || !g.agents.length) return wrap;
+  if (!g || !g.agents.length) {
+    wrap.append(el("div", { class: "note", text: "No subagents in this session, so it has no run graph." }));
+    return wrap;
+  }
   const turnNo = new Map(g.turns.map((t, i) => [t.seq, i + 1]));
   shortId = shortIdsFor(g.agents.map((a) => a.agent_id));
   const agents = g.agents.map((a) => {
