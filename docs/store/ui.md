@@ -12,7 +12,9 @@ agent-top ui --addr 127.0.0.1:8080   # another port
 agent-top ui --db ./mine.db          # another store
 ```
 
-Open the address it prints in a browser.
+Open the address it prints in a browser. To try the page without installing anything, open the [demo](../demo/index.html): the same page, on a made-up store.
+
+![A walk through agent-top ui: switching the range and harness, then opening a session's run graph and each subagent's spans](../ui-demo.gif)
 
 ![agent-top ui: totals, cost by day stacked by harness, cost by project and by model](../screenshots/ui-overview.png#only-light)
 ![agent-top ui in dark mode: totals, cost by day stacked by harness, cost by project and by model](../screenshots/ui-overview-dark.png#only-dark)
@@ -40,7 +42,7 @@ The range (7, 30 or 90 days, or all) and the harness filter apply to every secti
 
 Each request reads the store afresh, so reloading the page shows the latest `sync` or received telemetry. The view opens the store read-only and cannot change it.
 
-The images on this page come from a made-up store that `docs/ui-demo.py` builds; they show no real sessions.
+The images, the recording and the demo come from a made-up store that `docs/ui-demo.py` builds; they show no real sessions.
 
 ## Who can open it
 
