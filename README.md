@@ -368,7 +368,10 @@ agent-top report --since all  # counts stored sessions whose transcripts are gon
 `agent-top ui` serves a page on `127.0.0.1`: cost by day, project and model,
 tool latency, MCP servers, and each session's turns with a waterfall of the
 spans in the selected turn. It opens the store read-only and loads nothing
-from another address.
+from another address. The [demo](https://agenttop.dev/demo/) is the same page
+on a made-up store, to try in a browser without installing anything.
+
+![A walk through agent-top ui: switching the range and harness, then opening a session's run graph and each subagent's spans](https://raw.githubusercontent.com/kannandreams/agent-top/main/docs/ui-demo.gif)
 
 The store holds what `--json` shows, which includes working-directory paths
 and project names. Only `sync` and `serve` write it. See

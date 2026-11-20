@@ -5,6 +5,10 @@ names, working directories and session ids. This script builds a store from
 nothing, with invented projects and sessions dated over the last 30 days,
 starts `agent-top ui` on it and saves the images under docs/screenshots/.
 
+It also writes the hosted demo, docs/demo/ (the page plus one JSON file per
+API request, answered by docs/demo/demo.js), and docs/ui-demo.gif, a walk
+through the page that needs ffmpeg.
+
     cargo build --release
     uv run --with playwright python docs/ui-demo.py
 
@@ -12,8 +16,10 @@ Change what the images show by editing the tables below. The random numbers
 come from a fixed seed, so a rerun differs only in the dates.
 """
 
+import json
 import os
 import random
+import re
 import shutil
 import socket
 import sqlite3
@@ -21,6 +27,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -270,6 +278,118 @@ def shoot(port):
         browser.close()
 
 
+DEMO = ROOT / "docs/demo"
+GIF = ROOT / "docs/ui-demo.gif"
+WEB = ROOT / "crates/agent-top/web"
+DAY_MS = 86_400_000
+
+
+def key(s):
+    """The file-name form of a value, the same as `key` in docs/demo/demo.js."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", s or "") or "_"
+
+
+def export(port):
+    """Answer every request the page can make, as files under docs/demo/api/."""
+    def get(path, **params):
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/{path}?{urllib.parse.urlencode(params)}") as r:
+            return json.load(r)
+
+    def put(name, value):
+        f = DEMO / "api" / f"{name}.json"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps(value, separators=(",", ":")))
+
+    shutil.rmtree(DEMO / "api", ignore_errors=True)
+    meta = get("meta")
+    meta["store"] = "demo store, invented sessions"
+    put("meta", meta)
+    now = int(time.time() * 1000)
+    for days in (7, 30, 90, 0):
+        for harness in [""] + [h["harness"] for h in meta["harnesses"]]:
+            since = now - days * DAY_MS if days else 0
+            for path in ("overview", "tools", "mcp", "sessions"):
+                put(f"{path}-{days}-{key(harness)}", get(path, since=since, harness=harness))
+    files = 0
+    for s in get("sessions", since=0, harness=""):
+        d = get("session", harness=s["harness"], id=s["session_id"])
+        put(f"session/{key(s['harness'])}/{key(s['session_id'])}", d)
+        files += 1
+        for a in (d.get("graph") or {}).get("agents", []):
+            spans = get("spans", harness=s["harness"], id=s["session_id"], agent=a["agent_id"])
+            put(f"spans/{key(s['harness'])}/{key(s['session_id'])}/{key(a['agent_id'])}", spans)
+    # The page itself, with relative links so it works under /demo/ and the shim ahead of app.js.
+    html = (WEB / "index.html").read_text()
+    html = html.replace('href="/app.css"', 'href="app.css"').replace(
+        '<script src="/app.js" defer></script>', '<script src="demo.js"></script>\n<script src="app.js" defer></script>')
+    html = html.replace("<title>agent-top</title>", "<title>agent-top ui demo</title>")
+    html = re.sub(r'<footer class="foot" id="foot">.*?</footer>',
+                  '<footer class="foot" id="foot">A demo of <code>agent-top ui</code> on invented sessions. '
+                  'Run <code>agent-top sync &amp;&amp; agent-top ui</code> to see your own. '
+                  '<a href="../store/">About the local store</a></footer>', html, flags=re.S)
+    (DEMO / "index.html").write_text(html)
+    shutil.copy(WEB / "app.js", DEMO / "app.js")
+    shutil.copy(WEB / "app.css", DEMO / "app.css")
+    print(f"exported the demo to {DEMO} ({files} sessions)")
+
+
+def record(port):
+    """A walk through the page, recorded as video and turned into docs/ui-demo.gif."""
+    from playwright.sync_api import sync_playwright
+
+    if not shutil.which("ffmpeg"):
+        print("ffmpeg not found; skipping", GIF.name)
+        return
+    vid = Path(tempfile.mkdtemp())
+    size = {"width": 1280, "height": 800}
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        ctx = browser.new_context(viewport=size, record_video_dir=str(vid), record_video_size=size, color_scheme="light")
+        page = ctx.new_page()
+        page.goto(f"http://127.0.0.1:{port}/")
+        page.wait_for_selector("#sessions table")
+        page.wait_for_timeout(1800)
+        for r in ("7", "90", "30"):
+            page.click(f"#range button[data-range='{r}']")
+            page.wait_for_timeout(1300)
+        page.select_option("#harness", "claude")
+        page.wait_for_timeout(1300)
+        page.select_option("#harness", "")
+        page.wait_for_timeout(800)
+        # Whole-screen steps, not a smooth scroll: every scrolled frame is a new GIF frame.
+        for _ in range(2):
+            page.mouse.wheel(0, 640)
+            page.wait_for_timeout(1500)
+        # The run graph: open the session with subagents and walk its agents.
+        page.evaluate(f"location.hash = '#s/claude/{RUN_GRAPH_ID}'")
+        page.reload()
+        page.wait_for_selector("#detail-body .graph svg")
+        page.wait_for_timeout(1500)
+        hits = page.locator("#detail-body .graph .hit")
+        for i in range(hits.count()):
+            hits.nth(i).hover()
+            page.wait_for_timeout(500)
+            hits.nth(i).click()
+            page.wait_for_selector("#detail-body .run .waterfall svg[aria-label^='Span waterfall']")
+            page.locator("#detail-body .run").scroll_into_view_if_needed()
+            page.wait_for_timeout(1600)
+        page.click("#theme")
+        page.wait_for_timeout(2000)
+        video = page.video.path()
+        ctx.close()
+        browser.close()
+    ff = ["ffmpeg", "-y", "-loglevel", "error", "-i", video]
+    subprocess.run(ff + ["-vf", "fps=8,scale=880:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];"
+                         "[b][p]paletteuse=dither=none:diff_mode=rectangle", str(GIF)], check=True)
+    # The same walk as MP4, for posts: smaller and sharper than the GIF.
+    mp4 = GIF.with_suffix(".mp4")
+    subprocess.run(ff + ["-vf", "fps=30,scale=1280:-2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "24",
+                         "-movflags", "+faststart", "-an", str(mp4)], check=True)
+    shutil.rmtree(vid, ignore_errors=True)
+    for f in (GIF, mp4):
+        print(f"wrote {f} ({f.stat().st_size // 1024} KB)")
+
+
 def main():
     if not Path(BIN).exists():
         sys.exit(f"{BIN} not found; run `cargo build --release` first or set AGENT_TOP_BIN")
@@ -291,6 +411,8 @@ def main():
             except OSError:
                 time.sleep(0.1)
         shoot(port)
+        export(port)
+        record(port)
     finally:
         ui.terminate()
         ui.wait()

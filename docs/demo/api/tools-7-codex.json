@@ -1,0 +1,1 @@
+[{"calls":83,"errors":4,"max_ms":8191,"name":"exec_command","p50_ms":1748,"p95_ms":4903},{"calls":50,"errors":4,"max_ms":319,"name":"apply_patch","p50_ms":86,"p95_ms":260},{"calls":30,"errors":1,"max_ms":28069,"name":"web_search","p50_ms":6272,"p95_ms":27679}]
