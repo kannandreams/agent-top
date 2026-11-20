@@ -3,6 +3,10 @@
 // docs/ui-demo.py exported from the invented store. Written by hand; the
 // export writes everything else in this folder.
 (() => {
+  // With no session in the address, open the one named by data-open, so the
+  // demo starts on a run graph. app.js reads the hash once the page loads.
+  const open = document.currentScript && document.currentScript.dataset.open;
+  if (open && !location.hash) history.replaceState(null, "", open);
   const DAY = 86_400_000;
   const key = (s) => String(s || "").replace(/[^A-Za-z0-9._-]/g, "_") || "_";
   const real = window.fetch.bind(window);

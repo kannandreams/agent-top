@@ -6,7 +6,8 @@ const DAY = 86400000;
 // Fixed colour slot per harness, so a colour always means the same harness.
 // A harness not listed shares the last slot under "other".
 const HARNESS_SLOTS = ["claude", "codex", "opencode", "gemini", "kodelet", "otel"];
-const state = { range: "30", harness: "" };
+// open: the session shown in the side panel, as "<harness>/<id>", or null.
+const state = { range: "30", harness: "", open: null };
 
 // ---- small helpers -------------------------------------------------------
 
@@ -100,7 +101,8 @@ function hover(node, value, rows) {
 
 // ---- tables --------------------------------------------------------------
 
-function table(cols, rows, onRow) {
+// keyOf, when given, names each row in data-key so the open one can be marked.
+function table(cols, rows, onRow, keyOf) {
   const head = el("tr", {}, ...cols.map((c) => el("th", { class: c.num ? "num" : "", text: c.label })));
   const body = rows.map((r) => {
     const tr = el("tr", {}, ...cols.map((c) => {
@@ -114,6 +116,10 @@ function table(cols, rows, onRow) {
       tr.tabIndex = 0;
       tr.addEventListener("click", () => onRow(r));
       tr.addEventListener("keydown", (e) => { if (e.key === "Enter") onRow(r); });
+    }
+    if (keyOf) {
+      tr.dataset.key = keyOf(r);
+      if (tr.dataset.key === state.open) tr.setAttribute("aria-current", "true");
     }
     return tr;
   });
@@ -301,28 +307,49 @@ function sessions(rows) {
     { key: "tokens", label: "Tokens", num: true, render: (r) => compact(r.tokens) },
     { key: "cost_usd", label: "Cost", num: true, render: (r) => usd(r.cost_usd) + (r.unpriced_tokens > 0 ? "+" : "") },
     { key: "attribution", label: "Source", render: (r) => el("span", { class: "badge", text: r.attribution }) },
-  ], rows, openSession));
+  ], rows, openSession, sessionKey));
 }
 
 // ---- session detail: facts and span waterfall --------------------------------
 
 const KIND = { turn: "var(--turn)", inference: "var(--h1)", tool: "var(--h2)" };
 
+const sessionKey = (r) => `${r.harness}/${r.session_id}`;
+
+// Marks the open session's row in the sessions table, or none.
+function markOpen(key) {
+  state.open = key;
+  for (const tr of document.querySelectorAll("#sessions tr[data-key]")) {
+    if (tr.dataset.key === key) tr.setAttribute("aria-current", "true"); else tr.removeAttribute("aria-current");
+  }
+}
+
+function closeSession() {
+  document.getElementById("detail").hidden = true;
+  document.body.classList.remove("drawer-open");
+  markOpen(null);
+  history.replaceState(null, "", location.pathname + location.search);
+}
+
+// The detail opens in a panel on the right, over the page, so the sessions
+// table stays in view and another row can be picked without scrolling back.
 async function openSession(r) {
   const link = `#s/${encodeURIComponent(r.harness)}/${encodeURIComponent(r.session_id)}`;
   if (location.hash !== link) history.replaceState(null, "", link);
   const card = document.getElementById("detail");
   const body = document.getElementById("detail-body");
   card.hidden = false;
+  document.body.classList.add("drawer-open");
+  markOpen(sessionKey(r));
   body.replaceChildren(el("div", { class: "empty", text: "Loading..." }));
-  card.scrollIntoView({ behavior: "smooth", block: "start" });
+  card.scrollTop = 0;
   let d;
   try { d = await api("session", { harness: r.harness, id: r.session_id }); } catch (e) {
     body.replaceChildren(el("div", { class: "empty", text: String(e.message || e) }));
     return;
   }
   const s = d.session;
-  document.getElementById("h-detail").textContent = "Session";
+  document.getElementById("h-detail").textContent = `Session · ${s.harness}${s.project ? " · " + s.project : ""}`;
   const fact = (k, v) => el("div", {}, el("div", { class: "k", text: k }), el("div", { class: "v", text: v == null || v === "" ? "-" : String(v) }));
   const facts = el("div", { class: "facts" },
     fact("session id", s.session_id),
@@ -442,7 +469,7 @@ function runGraph(g, key) {
 
   lines.append(svg("line", { class: "trunk", x1: lx(0), x2: lx(0), y1: cy(0), y2: cy(shown.length - 1) }));
   const chart = el("div", { class: "waterfall" });
-  let selected = null;
+  let selected = null, firstHit = null;
   const pick = async (a, hit) => {
     if (selected) selected.classList.remove("on");
     selected = hit;
@@ -490,6 +517,7 @@ function runGraph(g, key) {
       hit.addEventListener("click", () => pick(a, hit));
       hit.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(a, hit); } });
       hits.append(hit);
+      if (!firstHit) firstHit = [a, hit];
     } else if (r.a.row != null) {
       const a = r.a, xp = lx(a.parentLane), xl = lx(a.lane);
       lines.append(svg("path", { class: a.linked ? "branch" : "branch loose", d: `M${xl} ${y - ROW / 2} C${xl} ${y - 2} ${xp} ${y - ROW / 2 + 2} ${xp} ${y}` }));
@@ -509,6 +537,8 @@ function runGraph(g, key) {
     el("div", { class: "note", text: "Select a subagent for its spans." }),
     chart,
   ].filter(Boolean));
+  // Start on the first subagent, so its spans show without a click.
+  if (firstHit) pick(...firstHit);
   return wrap;
 }
 
@@ -669,9 +699,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       document.getElementById("chart-" + b.dataset.table).hidden = on;
     });
   }
-  document.getElementById("close-detail").addEventListener("click", () => {
-    document.getElementById("detail").hidden = true;
-    history.replaceState(null, "", location.pathname);
+  document.getElementById("close-detail").addEventListener("click", closeSession);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !document.getElementById("detail").hidden) closeSession();
   });
   window.addEventListener("resize", () => { clearTimeout(window.__rt); window.__rt = setTimeout(load, 200); });
   try { await meta(); } catch (e) { document.getElementById("meta").textContent = String(e.message || e); }

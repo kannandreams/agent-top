@@ -135,6 +135,16 @@ tbody tr.click:hover, tbody tr.click:focus { background: var(--wash); outline: n
 .waterfall svg { display: block; }
 .empty { color: var(--muted); padding: 12px 0; }
 
+/* Session detail: a panel on the right over the page, scrolled on its own, so
+   the sessions table stays in view beside it. Full width on a narrow screen. */
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 5; width: min(960px, 70vw); overflow-y: auto; overscroll-behavior: contain;
+  border-radius: 0; border-width: 0 0 0 1px; padding: 0 20px 20px; box-shadow: -12px 0 32px rgba(0, 0, 0, 0.14); }
+.drawer > .card-head { position: sticky; top: 0; z-index: 1; background: var(--card); padding: 16px 0 12px; margin: 0 0 4px; border-bottom: 1px solid var(--line); }
+.drawer > .card-head h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.drawer-open .foot { padding-bottom: 24px; }
+@media (max-width: 900px) { .drawer { width: 100vw; border-width: 0; } }
+tbody tr[aria-current="true"] { background: var(--wash); box-shadow: inset 3px 0 0 var(--accent); }
+
 /* Run graph: a neutral trunk for the main agent, the accent for subagents. */
 .run:not(:empty) { margin-bottom: 20px; }
 .run h2 { margin: 0 0 8px; }
