@@ -176,6 +176,48 @@ fn a_session_with_a_subagent_is_served_as_a_trunk_and_a_branch() {
 }
 
 #[test]
+fn a_session_s_context_timeline_is_served_with_its_compactions() {
+    let ui = start_with("context", |projects| {
+        std::fs::write(
+            projects.join("ctx.jsonl"),
+            concat!(
+                r#"{"type":"user","timestamp":"2026-09-03T07:00:00.000Z","sessionId":"ctx","message":{"role":"user","content":"go"}}"#,
+                "\n",
+                r#"{"type":"assistant","timestamp":"2026-09-03T07:00:01.000Z","sessionId":"ctx","message":{"id":"m1","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{"type":"tool_use","id":"t1","name":"Read"}],"usage":{"input_tokens":10000,"output_tokens":10}}}"#,
+                "\n",
+                r#"{"type":"user","timestamp":"2026-09-03T07:00:02.000Z","sessionId":"ctx","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1"}]}}"#,
+                "\n",
+                r#"{"type":"assistant","timestamp":"2026-09-03T07:00:03.000Z","sessionId":"ctx","message":{"id":"m2","model":"claude-sonnet-5","stop_reason":"end_turn","content":[{"type":"text"}],"usage":{"input_tokens":50000,"output_tokens":10}}}"#,
+                "\n",
+                r#"{"type":"system","subtype":"compact_boundary","timestamp":"2026-09-03T07:01:00.000Z","compactMetadata":{"trigger":"manual","preTokens":52000,"postTokens":3000}}"#,
+                "\n",
+                r#"{"type":"user","timestamp":"2026-09-03T07:01:01.000Z","sessionId":"ctx","isCompactSummary":true,"message":{"role":"user","content":"a summary"}}"#,
+                "\n",
+                r#"{"type":"assistant","timestamp":"2026-09-03T07:01:05.000Z","sessionId":"ctx","message":{"id":"m3","model":"claude-sonnet-5","stop_reason":"end_turn","content":[{"type":"text"}],"usage":{"input_tokens":12000,"output_tokens":10}}}"#,
+                "\n",
+            ),
+        )
+        .unwrap();
+    });
+    let c = get_json(&ui, "/api/context?harness=claude&id=ctx");
+    let prompts: Vec<i64> = c["points"].as_array().unwrap().iter().map(|p| p[2].as_i64().unwrap()).collect();
+    assert_eq!(prompts, [10_000, 50_000, 12_000]);
+    let k = &c["compactions"][0];
+    assert_eq!((k["seq"].as_i64(), k["triggered_by"].as_str(), k["detected_by"].as_str()), (Some(2), Some("manual"), Some("harness")));
+    assert_eq!(
+        (k["before_tokens"].as_i64(), k["summary_tokens"].as_i64(), k["after_tokens"].as_i64()),
+        (Some(52_000), Some(3_000), Some(12_000))
+    );
+    assert!(c["sources"].as_array().unwrap().iter().any(|s| s["name"] == "Read" && s["seq"] == 2));
+    let ov = get_json(&ui, "/api/overview?since=0");
+    assert_eq!((ov["compactions"]["compactions"].as_i64(), ov["compactions"]["sessions"].as_i64()), (Some(1), Some(1)));
+    // A session that never compacted still has its line, and no rules.
+    let plain = get_json(&ui, "/api/context?harness=claude&id=00000000-1111-2222-3333-555555555555");
+    assert!(plain["points"].as_array().unwrap().len() > 1);
+    assert!(plain["compactions"].as_array().unwrap().is_empty());
+}
+
+#[test]
 fn requests_it_should_not_serve_are_refused() {
     let ui = start("refused");
     let host = format!("127.0.0.1:{}", ui.port);

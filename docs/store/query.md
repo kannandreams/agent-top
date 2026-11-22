@@ -38,6 +38,7 @@ A store written by an older agent-top needs one `agent-top sync` before `sql` or
 | `cost_by_project` | project | the same |
 | `tool_latency` | tool name | `calls`, `errors`, `p50_ms`, `p95_ms`, `max_ms` (finished calls only) |
 | `mcp_errors` | MCP server | `sessions`, `calls`, `errors`, `error_rate`, `last_call_at` |
+| `compactions_by_day` | UTC day | `day`, `compactions`, `sessions`, `inferred` (not recorded by the harness) |
 
 The cost views add up to the same totals as `agent-top report --since all` for the sessions in the store. The tables behind them are on the [schema](schema.md) page.
 

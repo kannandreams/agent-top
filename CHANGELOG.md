@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 - `c` opens the selected agent's context timeline: prompt size per response, a rule at each compaction, and a table of them; `s` splits it by source. ([#97](https://github.com/kannandreams/agent-top/pull/97))
 - `--once` lists every compaction, and `--json` agents carry `compactions` with the size before, the summary's size and the first prompt after. ([#97](https://github.com/kannandreams/agent-top/pull/97))
+- `agent-top ui`: a session's detail draws its context timeline, with each compaction and what filled the context before it; the totals count compactions. (PR_LINK)
+- The store keeps each session's context timeline in `context_points`, `compactions` and `compaction_sources`, with a `compactions_by_day` view; the next `sync` re-reads every transcript still on disk. (PR_LINK)
 
 ### Changed
 - `agent-top-core`: `Agent` gains `context_points` and `compactions`, and `ContextLedger` gains `points()`, `compactions()`, `response_at` and `compacted_at`; code that builds an `Agent` by literal adds two fields. ([#97](https://github.com/kannandreams/agent-top/pull/97))

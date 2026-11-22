@@ -138,6 +138,7 @@ def seed(db):
                     m[2] = max(m[2], s[3] + s[4])
             con.executemany("INSERT INTO mcp_calls VALUES (?, ?, ?, ?, ?, ?)",
                             [(harness, sid, k, v[0], v[1], v[2]) for k, v in mcp.items()])
+            seed_context(con, harness, sid, main_steps(spans, lambda s: s[1], lambda s: s[2], lambda s: s[3]))
             con.execute("INSERT INTO sources VALUES (?, ?, ?, 0, 0, ?, 'demo')", (f"/home/dev/.{harness}/{sid}.jsonl", harness, sid, now))
     # One agent built with an SDK, received as OpenTelemetry spans.
     for d in (12, 6, 1):
@@ -197,6 +198,63 @@ RUN_GRAPHS = [
 ]
 
 
+# Tokens a tool's result adds to the context, before the random spread.
+RESULT_TOKENS = {"Read": 7000, "read": 6000, "Bash": 3000, "bash": 2500, "exec_command": 2800, "Grep": 1500, "grep": 1400,
+                 "WebFetch": 9000, "web_search": 6000, "Edit": 600, "edit": 500, "Write": 400, "apply_patch": 700,
+                 "mcp__github__get_issue": 4000, "mcp__docs__search": 6000}
+
+
+def seed_context(con, harness, sid, steps, limit=None):
+    """The context timeline of one session: a point per main-agent inference,
+    `steps` being (time, the tool whose result it read or None), and a
+    compaction where the context passes the session's limit."""
+    # Its own generator, so the other invented data stays as it was.
+    rnd = random.Random(sid)
+    limit = limit or rnd.choice([160_000, 200_000, 240_000])
+    live, points, comps, sources = {}, [], [], []
+    def add(origin, name, n):
+        live[(origin, name)] = live.get((origin, name), 0) + n
+    add("other", "other", rnd.randint(30_000, 42_000))
+    for seq, (at, tool) in enumerate(steps):
+        prompt = sum(live.values())
+        if prompt > limit:
+            summary = rnd.randint(9_000, 22_000)
+            halved = harness == "codex"
+            comps.append((harness, sid, "", seq, at, "unknown" if halved or harness == "opencode" else "auto",
+                          "prompt-halved" if halved else "harness", prompt, None if halved else summary))
+            top = sorted(live.items(), key=lambda kv: -kv[1])[:10]
+            sources += [(harness, sid, "", seq, o, n, v) for (o, n), v in top]
+            live.clear()
+            add("other", "other", rnd.randint(34_000, 44_000) + summary)
+        if tool:
+            n = int(RESULT_TOKENS.get(tool, 2000) * rnd.lognormvariate(0, 0.6))
+            add("mcp" if tool.startswith("mcp__") else "tool", tool.split("__")[1] if tool.startswith("mcp__") else tool, n)
+        add("other", "other", rnd.randint(300, 2_500))
+        by = {"tool": 0, "mcp": 0, "other": 0}
+        for (o, _), v in live.items():
+            by[o] += v
+        points.append((harness, sid, "", seq, at, sum(by.values()), rnd.randint(200, 3_000), int(sum(by.values()) * 0.9),
+                       by["tool"], by["mcp"], by["other"]))
+    con.executemany("INSERT INTO context_points VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", points)
+    con.executemany("INSERT INTO compactions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [c + (points[c[3]][5],) for c in comps])
+    con.executemany("INSERT INTO compaction_sources VALUES (?, ?, ?, ?, ?, ?, ?)", sources)
+
+
+def main_steps(spans, kind, name, at, agent=lambda s: None):
+    """(time, tool read) for each main-agent inference, in order."""
+    steps, last = [], None
+    for s in sorted(spans, key=at):
+        if agent(s) is not None:
+            continue
+        if kind(s) == "tool":
+            last = name(s)
+        elif kind(s) == "inference":
+            steps.append((at(s), last))
+            last = None
+    return steps
+
+
 def seed_run_graph(con, rnd, now, g):
     """One session whose turns fan out to subagents, as RUN_GRAPHS describes it."""
     harness, sid, model = g["harness"], g["id"], g["model"]
@@ -251,6 +309,8 @@ def seed_run_graph(con, rnd, now, g):
           seq[id(sp["parent"])] if sp["parent"] else None, sp["agent"]) for i, sp in enumerate(spans)],
     )
     con.executemany("INSERT INTO subagents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", runs)
+    seed_context(con, harness, sid, main_steps(spans, lambda s: s["kind"], lambda s: s["name"], lambda s: s["at"], lambda s: s["agent"]),
+                 limit=90_000 if sid == RUN_GRAPH_ID else None)
     tools = [sp for sp in spans if sp["kind"] == "tool"]
     k = g["turns"] / 9
     inp, cr, cw, out = int(21_000 * k), int(6_400_000 * k), int(310_000 * k), int(48_000 * k)
@@ -299,6 +359,11 @@ def shoot(port):
                 page.wait_for_timeout(300)
                 page.mouse.move(0, 0)
                 page.locator("#detail-body .run").screenshot(path=str(OUT / "ui-run-graph.png"))
+                # Its context timeline, with the first compaction selected.
+                page.locator("#detail-body .ctx tbody tr").first.click()
+                page.wait_for_timeout(200)
+                page.mouse.move(0, 0)
+                page.locator("#detail-body .ctx").screenshot(path=str(OUT / "ui-context.png"))
             page.close()
         browser.close()
 
@@ -340,6 +405,7 @@ def export(port):
         d = get("session", harness=s["harness"], id=s["session_id"])
         put(f"session/{key(s['harness'])}/{key(s['session_id'])}", d)
         files += 1
+        put(f"context/{key(s['harness'])}/{key(s['session_id'])}", get("context", harness=s["harness"], id=s["session_id"]))
         for a in (d.get("graph") or {}).get("agents", []):
             spans = get("spans", harness=s["harness"], id=s["session_id"], agent=a["agent_id"])
             put(f"spans/{key(s['harness'])}/{key(s['session_id'])}/{key(a['agent_id'])}", spans)

@@ -117,6 +117,10 @@ fn a_version_one_store_is_upgraded_by_sync_not_by_sql() {
         // Make it the file 0.23.0 wrote: schema 1, no views.
         let store = Store::open(&db).unwrap();
         let c = store.connection();
+        c.execute("DROP VIEW compactions_by_day", []).unwrap();
+        for t in ["context_points", "compactions", "compaction_sources"] {
+            c.execute(&format!("DROP TABLE {t}"), []).unwrap();
+        }
         for v in ["mcp_errors", "tool_latency", "cost_by_project", "cost_by_model", "cost_by_harness", "cost_by_day", "counted_sessions"] {
             c.execute(&format!("DROP VIEW {v}"), []).unwrap();
         }
@@ -138,7 +142,7 @@ fn describe_lists_every_table_and_view_with_columns() {
     let dir = TempDir::new();
     let r = Reader::open(&synced(&dir)).unwrap();
     let d = r.describe().unwrap();
-    assert_eq!(d.len(), 12);
+    assert_eq!(d.len(), 16);
     assert!(d.iter().all(|t| !t.columns.is_empty()));
-    assert_eq!(d.iter().filter(|t| t.kind == "table").count(), 5);
+    assert_eq!(d.iter().filter(|t| t.kind == "table").count(), 8);
 }

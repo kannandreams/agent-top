@@ -128,7 +128,7 @@ function table(cols, rows, onRow, keyOf) {
 
 // ---- tiles ---------------------------------------------------------------
 
-function tiles(t) {
+function tiles(t, comp) {
   const box = document.getElementById("tiles");
   const hit = t.prompt > 0 ? Math.round((t.cache_read / t.prompt) * 100) + "%" : "-";
   const days = Number(state.range);
@@ -140,6 +140,7 @@ function tiles(t) {
     tile("Sessions", Number(t.sessions).toLocaleString("en-US"), `${compact(t.turns)} turns`),
     tile("Tokens", compact(t.tokens), `${compact(t.tool_calls)} tool calls`),
     tile("Cache hit", hit, "of the prompt"),
+    comp && comp.compactions > 0 ? tile("Compactions", Number(comp.compactions).toLocaleString("en-US"), `in ${plural(comp.sessions, "session")}${comp.inferred > 0 ? `, ${comp.inferred} inferred` : ""}`) : null,
     t.unpriced_tokens > 0 ? tile("Unpriced tokens", compact(t.unpriced_tokens), "no price in the table") : null,
   ].filter(Boolean));
 }
@@ -348,8 +349,13 @@ async function openSession(r) {
   markOpen(sessionKey(r));
   body.replaceChildren(el("div", { class: "empty", text: "Loading..." }));
   card.scrollTop = 0;
-  let d;
-  try { d = await api("session", { harness: r.harness, id: r.session_id }); } catch (e) {
+  let d, ctx;
+  try {
+    [d, ctx] = await Promise.all([
+      api("session", { harness: r.harness, id: r.session_id }),
+      api("context", { harness: r.harness, id: r.session_id }).catch(() => null),
+    ]);
+  } catch (e) {
     body.replaceChildren(el("div", { class: "empty", text: String(e.message || e) }));
     return;
   }
@@ -364,11 +370,152 @@ async function openSession(r) {
     fact("turns / tools", `${s.turns} / ${s.tool_calls}`), fact("started", when(s.started_at)), fact("last activity", when(s.last_activity)),
     fact("source", s.attribution), s.harness_cost_usd != null ? fact("harness's own figure", usd(s.harness_cost_usd)) : null,
     s.parent_session_id ? fact("parent session", s.parent_session_id) : null, fact("cwd", s.cwd));
-  const parts = [facts, runGraph(d.graph, { harness: s.harness, id: s.session_id }), turnsView(d.spans)];
+  const parts = [facts, contextView(ctx), runGraph(d.graph, { harness: s.harness, id: s.session_id }), turnsView(d.spans)];
   if (d.mcp.length) parts.push(el("h2", { text: "MCP servers" }), table([
     { key: "server", label: "Server", cls: "mono" }, { key: "calls", label: "Calls", num: true }, { key: "errors", label: "Errors", num: true },
     { key: "last_call_at", label: "Last call", render: (m) => when(m.last_call_at) }], d.mcp));
   body.replaceChildren(...parts);
+}
+
+// ---- session detail: context timeline -------------------------------------------
+
+// The prompt each model response read, with a rule where the harness
+// compacted the context. The x axis counts responses, not time: hours of idle
+// between two turns would otherwise take the width. The line and the
+// compactions are the harness's figures; the split by source is an estimate.
+const ORIGIN = { tool: ["var(--h1)", "tool results"], mcp: ["var(--h6)", "MCP results"], other: ["var(--other)", "prompts & replies"] };
+
+function contextView(c) {
+  const wrap = el("div", { class: "ctx" });
+  const P = c ? c.points : [];
+  if (P.length < 2) {
+    wrap.append(el("div", { class: "note", text: P.length
+      ? "One model response, so no context timeline."
+      : "No context timeline stored for this session. Sessions synced by an older agent-top get one at the next agent-top sync, if the transcript is still on disk." }));
+    return wrap;
+  }
+  const C = c.compactions;
+  const N = P.length;
+  const [SEQ, AT, PROMPT, TOOL, MCP, OTHER] = [0, 1, 2, 3, 4, 5];
+  let split = false, selected = null;
+
+  const head = el("div", { class: "card-head" });
+  const seg = el("div", { class: "seg", role: "radiogroup", "aria-label": "Context chart" });
+  const modes = [["line", "Prompt size"], ["split", "By source (estimated)"]].map(([m, label]) =>
+    el("button", { type: "button", role: "radio", "aria-checked": String(m === "line"), text: label, onclick: () => { split = m === "split"; for (const b of seg.children) b.setAttribute("aria-checked", String(b === modes[split ? 1 : 0])); draw(); } }));
+  seg.append(...modes);
+  const peak = Math.max(...P.map((p) => p[PROMPT]), ...C.map((x) => x.before_tokens));
+  head.append(el("h2", { text: `Context (${plural(N, "response")}, ${plural(C.length, "compaction")})` }), seg);
+  const chart = el("div", { class: "chart" });
+  const legend = el("div", { class: "legend" });
+  const side = el("div", { class: "ctx-sources" });
+  wrap.append(head, chart, legend);
+
+  const draw = () => {
+    const W = Math.max(560, document.getElementById("detail-body").clientWidth || 900), H = 240, L = 52, R = 10, T = 20, B = 26;
+    const stepV = niceStep(peak), ticks = Math.max(1, Math.ceil(peak / stepV)), max = stepV * ticks;
+    const x = (i) => L + (i / (N - 1)) * (W - L - R), y = (v) => T + (H - T - B) * (1 - v / max);
+    const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Prompt tokens per model response, with compactions marked" });
+    const grid = svg("g", { class: "grid" }), axis = svg("g", { class: "axis" });
+    for (let i = 0; i <= ticks; i++) {
+      const v = stepV * i;
+      if (i > 0) grid.append(svg("line", { x1: L, x2: W - R, y1: y(v), y2: y(v) }));
+      const tx = svg("text", { x: L - 8, y: y(v) + 4, "text-anchor": "end" }); tx.textContent = compact(v); axis.append(tx);
+    }
+    const xstep = Math.max(1, Math.round(niceStep(N)));
+    for (let n = 0; n <= N; n += xstep) {
+      const i = Math.max(0, Math.min(N - 1, n - 1));
+      const tx = svg("text", { x: x(i), y: H - 8, "text-anchor": n === 0 ? "start" : "middle" }); tx.textContent = String(n === 0 ? 1 : n); axis.append(tx);
+    }
+    root.append(grid, axis);
+    const line = (f) => P.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(f(p)).toFixed(1)}`).join("");
+    const area = (lo, hi) => line(hi) + P.slice().reverse().map((p, j) => `L${x(N - 1 - j).toFixed(1)},${y(lo(p)).toFixed(1)}`).join("") + "Z";
+    if (split) {
+      const bands = [["other", () => 0, (p) => p[OTHER]], ["mcp", (p) => p[OTHER], (p) => p[OTHER] + p[MCP]], ["tool", (p) => p[OTHER] + p[MCP], (p) => p[OTHER] + p[MCP] + p[TOOL]]];
+      for (const [o, lo, hi] of bands) { const a = svg("path", { class: "band", d: area(lo, hi) }); a.style.fill = ORIGIN[o][0]; root.append(a); }
+      root.append(svg("path", { class: "ctx-line thin", d: line((p) => p[PROMPT]) }));
+    } else {
+      root.append(svg("path", { class: "ctx-fill", d: area(() => 0, (p) => p[PROMPT]) }), svg("path", { class: "ctx-line", d: line((p) => p[PROMPT]) }));
+    }
+    root.append(svg("line", { class: "base", x1: L, x2: W - R, y1: y(0), y2: y(0) }));
+
+    const cross = svg("line", { class: "cross", y1: T, y2: H - B, visibility: "hidden" });
+    const dot = svg("circle", { class: "ctx-dot", r: 3.5, visibility: "hidden" });
+    const pane = svg("rect", { x: L, y: T, width: W - L - R, height: H - T - B, fill: "transparent" });
+    root.append(pane, cross, dot);
+    const since = (i) => { let s = 0; for (const k of C) if (k.seq <= i) s = k.seq; return i - s + 1; };
+    pane.addEventListener("pointermove", (e) => {
+      const box = root.getBoundingClientRect();
+      const i = Math.max(0, Math.min(N - 1, Math.round((((e.clientX - box.left) / box.width) * W - L) / (W - L - R) * (N - 1))));
+      const p = P[i];
+      cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+      dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(p[PROMPT])); dot.setAttribute("visibility", "visible");
+      const rows = [[null, `response ${(i + 1).toLocaleString("en-US")}${p[AT] ? ", " + when(p[AT]) : ""}`], [null, `${plural(since(i), "response")} since the last compaction`]];
+      if (split) for (const [o, k] of [["tool", TOOL], ["mcp", MCP], ["other", OTHER]]) rows.push([ORIGIN[o][0], `${ORIGIN[o][1]} ${compact(p[k])} (est.)`]);
+      showTip(e, `${p[PROMPT].toLocaleString("en-US")} tokens`, rows);
+    });
+    pane.addEventListener("pointerleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); });
+
+    C.forEach((k, n) => {
+      const xx = x(Math.max(0, k.seq - 0.5));
+      const cls = "rule" + (k.detected_by === "prompt-halved" ? " inferred" : "") + (selected === n ? " on" : "");
+      root.append(svg("line", { class: cls, x1: xx, x2: xx, y1: T - 6, y2: H - B }));
+      const lab = svg("text", { class: "rule-label" + (selected === n ? " on" : ""), x: xx, y: T - 9, "text-anchor": "middle" }); lab.textContent = "#" + (n + 1); root.append(lab);
+      const hit = svg("rect", { class: "rule-hit", x: xx - 7, y: T - 20, width: 14, height: H - B - T + 20, role: "button", "aria-label": `Compaction ${n + 1}` });
+      hover(hit, `compaction ${n + 1}`, [[null, when(k.at)], [null, `${compact(k.before_tokens)} before, ${k.after_tokens != null ? compact(k.after_tokens) : "-"} after`], [null, k.detected_by === "prompt-halved" ? "inferred: the prompt halved" : `recorded by the harness (${k.triggered_by})`]]);
+      hit.addEventListener("click", () => select(n));
+      hit.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(n); } });
+      root.append(hit);
+    });
+    chart.replaceChildren(root);
+
+    const key = (color, label, cls) => { const i = el("i", cls ? { class: cls } : {}); if (color) i.style.background = color; return el("span", {}, i, label); };
+    legend.replaceChildren(...(split
+      ? [key(ORIGIN.tool[0], "tool results"), key(ORIGIN.mcp[0], "MCP results"), key(ORIGIN.other[0], "prompts & replies"), el("span", { class: "note", text: "estimated split; the outline is the exact prompt" })]
+      : [key("var(--accent)", "prompt tokens per response"), C.length ? key(null, "compaction", "k-rule") : null, C.some((k) => k.detected_by === "prompt-halved") ? key(null, "inferred compaction", "k-rule inferred") : null].filter(Boolean)));
+  };
+
+  const fill = () => {
+    if (selected == null) {
+      side.replaceChildren(el("div", { class: "note", text: C.length ? "Select a compaction for what filled the context before it." : "The harness did not compact this session's context." }));
+      return;
+    }
+    const k = C[selected];
+    const list = c.sources.filter((s) => s.seq === k.seq);
+    const total = Math.max(1, k.before_tokens);
+    side.replaceChildren(
+      el("h2", { text: `What filled it before compaction ${selected + 1}` }),
+      el("div", { class: "note", text: `${when(k.at)} · ${k.before_tokens.toLocaleString("en-US")} tokens before · estimated` }),
+      ...list.map((s) => {
+        const fillBar = el("div", { class: "fill" }); fillBar.style.width = Math.min(100, (s.tokens / total) * 100) + "%"; fillBar.style.background = (ORIGIN[s.origin] || ORIGIN.other)[0];
+        const name = s.origin === "other" ? "prompts & replies" : s.origin === "mcp" ? "mcp " + s.name : s.name;
+        return el("div", { class: "row" }, el("div", { class: "name", text: name, title: name }),
+          el("div", { class: "track" }, el("div", { class: "lane" }, fillBar), el("span", { class: "val", text: `${compact(s.tokens)} · ${Math.round((s.tokens / total) * 100)}%` })));
+      }));
+    side.className = "ctx-sources bars";
+  };
+  const select = (n) => {
+    selected = selected === n ? null : n;
+    for (const tr of wrap.querySelectorAll("tbody tr")) tr.toggleAttribute("aria-current", Number(tr.dataset.key) === selected);
+    draw(); fill();
+  };
+  draw();
+  if (C.length) {
+    let prev = 0;
+    const rows = C.map((k, n) => { const r = { ...k, n: n + 1, responses: k.seq - prev }; prev = k.seq; return r; });
+    wrap.append(table([
+      { key: "n", label: "#", num: true },
+      { key: "at", label: "At", render: (r) => when(r.at) },
+      { key: "triggered_by", label: "Trigger", render: (r) => el("span", { class: "badge", text: r.detected_by === "prompt-halved" ? "inferred" : r.triggered_by }) },
+      { key: "before_tokens", label: "Before", num: true, render: (r) => compact(r.before_tokens) },
+      { key: "summary_tokens", label: "Summary", num: true, render: (r) => (r.summary_tokens != null ? compact(r.summary_tokens) : "-") },
+      { key: "after_tokens", label: "After", num: true, render: (r) => (r.after_tokens != null ? compact(r.after_tokens) : "-") },
+      { key: "responses", label: "Responses", num: true },
+    ], rows, (r) => select(r.n - 1), (r) => String(r.n - 1)));
+  }
+  wrap.append(side, el("div", { class: "note", text: "Before is the harness's own count. Summary is the summary alone; after is the next prompt, which also carries the system prompt and tools the harness sends again." }));
+  fill();
+  return wrap;
 }
 
 // ---- session detail: run graph -------------------------------------------------
@@ -645,7 +792,7 @@ async function load() {
   try {
     const p = filterParams();
     const [ov, tl, mc, ss] = await Promise.all([api("overview", p), api("tools", p), api("mcp", p), api("sessions", p)]);
-    tiles(ov.totals || {});
+    tiles(ov.totals || {}, ov.compactions);
     daily(ov.by_day);
     bars("chart-project", ov.by_project);
     bars("chart-model", ov.by_model);

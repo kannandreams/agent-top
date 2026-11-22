@@ -204,6 +204,19 @@ fn api(route: &str, p: &Params, db: &Path) -> Result<Option<Json>> {
                 ),
                 &f,
             )?),
+            // How many sessions in the range compacted, and how often.
+            "compactions": rows(r.query_with(
+                &format!(
+                    "SELECT count(*) AS compactions, count(DISTINCT s.harness || ' ' || s.session_id) AS sessions,
+                            coalesce(sum(c.detected_by = 'prompt-halved'), 0) AS inferred
+                     FROM compactions c JOIN counted_sessions s ON s.harness = c.harness AND s.session_id = c.session_id
+                     WHERE s.{}",
+                    FILTER.replace("harness = ?2", "s.harness = ?2")
+                ),
+                &f,
+            )?)
+            .get(0)
+            .cloned(),
             "by_model": rows(r.query_with(
                 &format!(
                     "SELECT coalesce(model, 'unknown') AS name, sum(cost_usd) AS cost_usd, sum(tokens) AS tokens, count(*) AS sessions,
@@ -273,6 +286,32 @@ fn api(route: &str, p: &Params, db: &Path) -> Result<Option<Json>> {
                     &key,
                 )?),
                 "graph": graph(&r, &key)?,
+            })
+        }
+        // The main agent's context at every response, its compactions, and
+        // what filled the context before each (RFC-110 D6). Points are
+        // arrays, [seq, at, prompt, tool, mcp, other], since a long session
+        // has thousands.
+        "context" => {
+            let key = [Value::Text(p.get("harness").to_string()), Value::Text(p.get("id").to_string())];
+            let points = r.query_with(
+                "SELECT seq, at, prompt, tool_tokens, mcp_tokens, other_tokens FROM context_points
+                 WHERE harness = ?1 AND session_id = ?2 AND agent = '' ORDER BY seq",
+                &key,
+            )?;
+            let points: Vec<Json> = points.rows.iter().map(|row| Json::Array(row.iter().map(crate::sql::value_json).collect())).collect();
+            json!({
+                "points": points,
+                "compactions": rows(r.query_with(
+                    "SELECT seq, at, triggered_by, detected_by, before_tokens, summary_tokens, after_tokens FROM compactions
+                     WHERE harness = ?1 AND session_id = ?2 AND agent = '' ORDER BY seq",
+                    &key,
+                )?),
+                "sources": rows(r.query_with(
+                    "SELECT seq, origin, name, tokens FROM compaction_sources
+                     WHERE harness = ?1 AND session_id = ?2 AND agent = '' ORDER BY seq, tokens DESC, name",
+                    &key,
+                )?),
             })
         }
         // One subagent's spans, for the waterfall under the run graph.

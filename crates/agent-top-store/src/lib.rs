@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// The schema this build writes, kept in `PRAGMA user_version`.
-pub const SCHEMA_VERSION: i64 = 5;
+pub const SCHEMA_VERSION: i64 = 6;
 
 /// Recorded on every synced source, so a newer agent-top re-reads what an
 /// older one stored and a parser or price fix reaches the stored rows.
@@ -208,6 +208,62 @@ CREATE TABLE subagents (
 UPDATE sources SET synced_by_version = '';
 ";
 
+/// A session's context at every model response, its compactions, and what
+/// filled the context before each one (RFC-110 D5). `agent` is `''` for the
+/// main agent. Sizes are tokens; `tool_tokens`, `mcp_tokens` and
+/// `other_tokens` are the context ledger's estimate. Emptying
+/// `synced_by_version` makes the next sync fill them for every transcript
+/// still on disk.
+const SCHEMA_V6: &str = "
+CREATE TABLE context_points (
+    harness       TEXT NOT NULL,
+    session_id    TEXT NOT NULL,
+    agent         TEXT NOT NULL DEFAULT '',
+    seq           INTEGER NOT NULL,
+    at            INTEGER,
+    prompt        INTEGER NOT NULL,
+    output        INTEGER NOT NULL,
+    cache_read    INTEGER NOT NULL,
+    tool_tokens   INTEGER NOT NULL,
+    mcp_tokens    INTEGER NOT NULL,
+    other_tokens  INTEGER NOT NULL,
+    PRIMARY KEY (harness, session_id, agent, seq)
+);
+
+CREATE TABLE compactions (
+    harness         TEXT NOT NULL,
+    session_id      TEXT NOT NULL,
+    agent           TEXT NOT NULL DEFAULT '',
+    seq             INTEGER NOT NULL,
+    at              INTEGER,
+    triggered_by    TEXT NOT NULL,
+    detected_by     TEXT NOT NULL,
+    before_tokens   INTEGER NOT NULL,
+    summary_tokens  INTEGER,
+    after_tokens    INTEGER,
+    PRIMARY KEY (harness, session_id, agent, seq)
+);
+
+CREATE TABLE compaction_sources (
+    harness     TEXT NOT NULL,
+    session_id  TEXT NOT NULL,
+    agent       TEXT NOT NULL DEFAULT '',
+    seq         INTEGER NOT NULL,
+    origin      TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    tokens      INTEGER NOT NULL,
+    PRIMARY KEY (harness, session_id, agent, seq, origin, name)
+);
+
+CREATE VIEW compactions_by_day AS
+    SELECT date(at / 1000, 'unixepoch') AS day, count(*) AS compactions,
+           count(DISTINCT harness || ' ' || session_id) AS sessions,
+           sum(detected_by = 'prompt-halved') AS inferred
+    FROM compactions WHERE at IS NOT NULL GROUP BY day;
+
+UPDATE sources SET synced_by_version = '';
+";
+
 /// Where the store lives when `--db` is not given: `AGENT_TOP_DB`, else
 /// `$XDG_DATA_HOME/agent-top/agent-top.db`, else
 /// `~/.local/share/agent-top/agent-top.db`, on every platform.
@@ -294,7 +350,7 @@ impl Store {
                 self.path.display()
             );
         }
-        for (version, sql) in [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3), (4, SCHEMA_V4), (5, SCHEMA_V5)] {
+        for (version, sql) in [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3), (4, SCHEMA_V4), (5, SCHEMA_V5), (6, SCHEMA_V6)] {
             if v < version {
                 let tx = self.conn.transaction()?;
                 tx.execute_batch(sql)?;
@@ -474,7 +530,7 @@ fn replace_session(
     s: &SessionSummary,
     now: i64,
 ) -> Result<()> {
-    for table in ["sessions", "spans", "mcp_calls", "subagents"] {
+    for table in ["sessions", "spans", "mcp_calls", "subagents", "context_points", "compactions", "compaction_sources"] {
         tx.execute(&format!("DELETE FROM {table} WHERE harness = ?1 AND session_id = ?2"), params![harness, id])?;
     }
     let u = &s.usage;
@@ -561,6 +617,52 @@ fn replace_session(
             a.unpriced_tokens as i64,
             a.tool_calls as i64,
         ])?;
+    }
+
+    // The main agent's context timeline. Only kebab-case labels and sizes:
+    // a compaction's summary text never reaches the summary (RFC-110 D7).
+    let label = |v: serde_json::Result<serde_json::Value>| v.ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
+    let mut insert = tx.prepare(
+        "INSERT INTO context_points (harness, session_id, agent, seq, at, prompt, output, cache_read, tool_tokens, mcp_tokens, other_tokens)
+         VALUES (?1, ?2, '', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+    )?;
+    for (i, p) in s.context.points().iter().enumerate() {
+        insert.execute(params![
+            harness,
+            id,
+            i as i64,
+            p.at.map(ms),
+            p.prompt as i64,
+            p.output as i64,
+            p.cache_read as i64,
+            p.tool as i64,
+            p.mcp as i64,
+            p.other as i64
+        ])?;
+    }
+    let mut insert = tx.prepare(
+        "INSERT INTO compactions (harness, session_id, agent, seq, at, triggered_by, detected_by, before_tokens, summary_tokens, after_tokens)
+         VALUES (?1, ?2, '', ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+    )?;
+    let mut source = tx.prepare(
+        "INSERT INTO compaction_sources (harness, session_id, agent, seq, origin, name, tokens) VALUES (?1, ?2, '', ?3, ?4, ?5, ?6)
+         ON CONFLICT DO UPDATE SET tokens = tokens + excluded.tokens",
+    )?;
+    for c in s.context.compactions() {
+        insert.execute(params![
+            harness,
+            id,
+            c.seq as i64,
+            c.at.map(ms),
+            label(serde_json::to_value(c.trigger)),
+            label(serde_json::to_value(c.detected_by)),
+            c.before as i64,
+            c.summary.map(|v| v as i64),
+            c.after.map(|v| v as i64)
+        ])?;
+        for x in &c.sources_before {
+            source.execute(params![harness, id, c.seq as i64, label(serde_json::to_value(x.origin)), x.name, x.tokens as i64])?;
+        }
     }
 
     let mut insert =
