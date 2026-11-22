@@ -1,6 +1,7 @@
 //! agent-top: htop for local coding agents.
 
 mod app;
+mod context_view;
 mod format;
 mod listen;
 mod pane;

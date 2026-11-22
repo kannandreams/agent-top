@@ -1,5 +1,6 @@
 {
   "activity": "Working",
+  "compactions": [],
   "context": [
     {
       "calls": 0,
@@ -58,6 +59,7 @@
       "tokens": 39
     }
   ],
+  "context_points": 17,
   "cost_breakdown_micros": {
     "cache_read": 1005090,
     "cache_write_1h": 1616000,
@@ -75,6 +77,7 @@
   "last_activity_ms": 1786283224243,
   "mcp": [],
   "model": "claude-fable-5",
+  "peak_prompt": 102853,
   "price_source": null,
   "rate_limit": null,
   "session_id": "00000000-1111-2222-3333-444444444444",

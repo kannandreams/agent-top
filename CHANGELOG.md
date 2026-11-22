@@ -4,7 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- `c` opens the selected agent's context timeline: prompt size per response, a rule at each compaction, and a table of them; `s` splits it by source. (PR_LINK)
+- `--once` lists every compaction, and `--json` agents carry `compactions` with the size before, the summary's size and the first prompt after. (PR_LINK)
+
 ### Changed
+- `agent-top-core`: `Agent` gains `context_points` and `compactions`, and `ContextLedger` gains `points()`, `compactions()`, `response_at` and `compacted_at`; code that builds an `Agent` by literal adds two fields. (PR_LINK)
 - `agent-top ui`: a session's detail opens in a panel beside the sessions table, which marks the open row, and a run graph opens on its first subagent's spans. `Esc` closes it. ([#95](https://github.com/kannandreams/agent-top/pull/95))
 - `agent-top ui`: the sessions table shows how many subagents a session ran, and a session without any says it has no run graph. ([#96](https://github.com/kannandreams/agent-top/pull/96))
 

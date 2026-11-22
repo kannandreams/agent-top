@@ -49,6 +49,10 @@
 //!   and `compactMetadata.{preTokens,postTokens}`, then the summary as a
 //!   `user` line with `isCompactSummary: true`. The boundary resets the
 //!   context ledger exactly, so no halving heuristic is needed here.
+//!   `compactMetadata.trigger` is `auto` or `manual`. `postTokens` is the
+//!   summary alone: the next prompt also re-sends the system prompt, tools
+//!   and memory files, and was about four times it on 60 real compactions
+//!   (Claude Code 2.1.3xx, checked 2026-11-22). The summary text is never read.
 //! * Context by source: each `tool_result` is filed under its `tool_use`'s
 //!   name (the MCP server for `mcp__` tools) and sized by the growth of the
 //!   next message's prompt. See `ContextLedger`.
@@ -68,7 +72,8 @@ use super::{
 };
 use crate::jsonl::TailReader;
 use crate::model::{
-    Activity, Attribution, ContextOrigin, CostBreakdown, Harness, HarnessCost, ProcNode, SpanKind, SubagentRun, TokenUsage,
+    Activity, Attribution, CompactionTrigger, ContextOrigin, CostBreakdown, Harness, HarnessCost, ProcNode, SpanKind, SubagentRun,
+    TokenUsage,
 };
 use crate::pricing::{self, Table};
 use crate::process::{RawProc, session_id_from_args};
@@ -439,7 +444,16 @@ impl Parser {
                 }
             }
             "system" if v.get("subtype").and_then(Value::as_str) == Some("compact_boundary") => {
-                self.summary.context.compacted();
+                // Only the sizes and the trigger; the summary that follows is
+                // the conversation in prose and is never read (RFC-110 D7).
+                let meta = v.get("compactMetadata");
+                let num = |k: &str| meta.and_then(|m| m.get(k)).and_then(Value::as_u64);
+                let trigger = match meta.and_then(|m| m.get("trigger")).and_then(Value::as_str) {
+                    Some("auto") => CompactionTrigger::Auto,
+                    Some("manual") => CompactionTrigger::Manual,
+                    _ => CompactionTrigger::Unknown,
+                };
+                self.summary.context.compacted_at(ts, trigger, num("preTokens"), num("postTokens"));
             }
             "cost-state" => {
                 if let Some(usd) = v.get("totalCostUSD").and_then(Value::as_f64) {
@@ -644,7 +658,7 @@ impl Parser {
             }
             // Every line of a message repeats its usage; the first one sizes
             // whatever was submitted since the previous message.
-            self.summary.context.response(&usage, &cost);
+            self.summary.context.response_at(&usage, &cost, ts);
         }
         self.summary.usage.add(&usage);
         self.summary.cost_usd += cost.total();
@@ -1041,12 +1055,27 @@ mod tests {
         // Compaction: the boundary line, then a response whose whole prompt
         // is the summary. Read and fs stop being charged.
         writeln!(f, r#"{{"type":"system","subtype":"compact_boundary","timestamp":"2026-09-03T07:10:00.000Z","compactMetadata":{{"trigger":"auto","preTokens":14100,"postTokens":3000}}}}"#).unwrap();
-        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-03T07:10:01.000Z","isCompactSummary":true,"message":{{"role":"user","content":"summary"}}}}"#).unwrap();
+        writeln!(f, r#"{{"type":"user","timestamp":"2026-09-03T07:10:01.000Z","isCompactSummary":true,"message":{{"role":"user","content":"CANARY-SUMMARY-TEXT"}}}}"#).unwrap();
         writeln!(f, r#"{{"type":"assistant","timestamp":"2026-09-03T07:10:05.000Z","message":{{"id":"m3","model":"claude-sonnet-5","stop_reason":"end_turn","content":[{{"type":"text"}}],"usage":{}}}}}"#, usage(3_000, 10)).unwrap();
         t.refresh().unwrap();
         let c = by_name(t.summary());
         assert_eq!(c["other"].tokens, 13_100);
         assert!((c["Read"].cost_usd - 2_000.0 * 0.2 / 1e6).abs() < 1e-12, "not charged after the compaction");
+
+        // The timeline (RFC-110): a point per response and the boundary as a
+        // record with the harness's own sizes; the next prompt is `after`.
+        let s = t.summary();
+        assert_eq!(s.context.points().iter().map(|p| p.prompt).collect::<Vec<_>>(), vec![10_000, 14_100, 3_000]);
+        assert!(s.context.points()[2].at.is_some());
+        let comp = s.context.compactions();
+        assert_eq!(comp.len(), 1);
+        assert_eq!((comp[0].seq, comp[0].before, comp[0].summary, comp[0].after), (2, 14_100, Some(3_000), Some(3_000)));
+        assert_eq!(
+            (comp[0].trigger, comp[0].detected_by),
+            (crate::model::CompactionTrigger::Auto, crate::model::CompactionSource::Harness)
+        );
+        assert!(comp[0].sources_before.iter().any(|x| x.name == "Read"), "{:?}", comp[0].sources_before);
+        assert!(!format!("{s:?}").contains("CANARY-SUMMARY-TEXT"), "the summary text is never kept");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
