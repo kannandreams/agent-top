@@ -71,6 +71,12 @@ const ABOUT: &[(&str, &str)] = &[
     ("spans", "one row per tool call, inference or turn; parent_seq is the turn it ran in, agent the subagent that issued it"),
     ("subagents", "one row per subagent run folded into a session; spawned_by is the span_id of the call that started it"),
     ("mcp_calls", "calls and errors per MCP server per session"),
+    ("context_points", "the prompt each model response read, and its split by origin (estimated); seq counts responses from 0"),
+    (
+        "compactions",
+        "one row per compaction: tokens before, the summary's own size, and the first prompt after; seq is the first response after it",
+    ),
+    ("compaction_sources", "the largest sources in the context when a compaction cleared it (estimated)"),
     ("sources", "the transcripts synced, with the size and time last read"),
     ("counted_sessions", "sessions with tokens or turns, plus a tokens column; what report counts"),
     ("cost_by_day", "sessions, tokens and cost per UTC day of last activity"),
@@ -79,6 +85,7 @@ const ABOUT: &[(&str, &str)] = &[
     ("cost_by_project", "sessions, tokens and cost per project (last two path components)"),
     ("tool_latency", "calls, errors and p50, p95 and max duration per tool name"),
     ("mcp_errors", "calls, errors and error rate per MCP server"),
+    ("compactions_by_day", "compactions and the sessions that had them per UTC day; inferred counts those the harness did not record"),
 ];
 
 /// The store opened read-only: the file cannot be created, written or

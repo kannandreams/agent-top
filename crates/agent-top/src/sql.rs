@@ -43,25 +43,23 @@ pub fn to_json(r: &QueryResult) -> serde_json::Value {
         .rows
         .iter()
         .map(|row| {
-            let obj: serde_json::Map<String, serde_json::Value> = r
-                .columns
-                .iter()
-                .zip(row)
-                .map(|(c, v)| {
-                    let v = match v {
-                        Value::Null => serde_json::Value::Null,
-                        Value::Integer(i) => json!(i),
-                        Value::Real(f) => json!(f),
-                        Value::Text(s) => json!(s),
-                        Value::Blob(n) => json!(format!("<{n} bytes>")),
-                    };
-                    (c.clone(), v)
-                })
-                .collect();
+            let obj: serde_json::Map<String, serde_json::Value> =
+                r.columns.iter().zip(row).map(|(c, v)| (c.clone(), value_json(v))).collect();
             serde_json::Value::Object(obj)
         })
         .collect();
     serde_json::Value::Array(rows)
+}
+
+/// One stored value as JSON; a blob is described, never sent.
+pub fn value_json(v: &Value) -> serde_json::Value {
+    match v {
+        Value::Null => serde_json::Value::Null,
+        Value::Integer(i) => json!(i),
+        Value::Real(f) => json!(f),
+        Value::Text(s) => json!(s),
+        Value::Blob(n) => json!(format!("<{n} bytes>")),
+    }
 }
 
 /// RFC 4180: a header row, fields quoted when they hold a comma, quote or newline.

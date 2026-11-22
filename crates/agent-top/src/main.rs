@@ -183,8 +183,10 @@ enum Command {
         db: Option<PathBuf>,
     },
     /// Query the local store `sync` fills, read-only. Tables: sessions,
-    /// spans, mcp_calls, sources. Views: cost_by_day, cost_by_harness,
-    /// cost_by_model, cost_by_project, tool_latency, mcp_errors.
+    /// spans, subagents, mcp_calls, context_points, compactions,
+    /// compaction_sources, sources. Views: cost_by_day, cost_by_harness,
+    /// cost_by_model, cost_by_project, tool_latency, mcp_errors,
+    /// compactions_by_day.
     Sql {
         /// One SQL statement, for example
         /// "select * from cost_by_project order by cost_usd desc limit 10".

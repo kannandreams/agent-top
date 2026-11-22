@@ -226,6 +226,72 @@ fn a_subagent_run_is_stored_with_the_call_that_spawned_it() {
     }
 }
 
+#[test]
+fn the_context_timeline_is_stored_without_the_compaction_summary() {
+    const SUMMARY: &str = "SECRET-SUMMARY-9e2b44";
+    let dir = TempDir::new();
+    let db = dir.0.join("agent-top.db");
+    let path = dir.0.join("ctx.jsonl");
+    let reply = |id: &str, ts: &str, prompt: u64| {
+        format!(
+            r#"{{"type":"assistant","timestamp":"{ts}","sessionId":"ctx","message":{{"id":"{id}","model":"claude-sonnet-5","stop_reason":"tool_use","content":[{{"type":"tool_use","id":"t{id}","name":"Read"}}],"usage":{{"input_tokens":{prompt},"output_tokens":10}}}}}}"#
+        )
+    };
+    let result = |id: &str, ts: &str| {
+        format!(
+            r#"{{"type":"user","timestamp":"{ts}","sessionId":"ctx","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"t{id}"}}]}}}}"#
+        )
+    };
+    let lines = [
+        r#"{"type":"user","timestamp":"2026-09-03T07:00:00.000Z","sessionId":"ctx","message":{"role":"user","content":"go"}}"#.to_string(),
+        reply("m1", "2026-09-03T07:00:01.000Z", 10_000),
+        result("m1", "2026-09-03T07:00:02.000Z"),
+        reply("m2", "2026-09-03T07:00:03.000Z", 50_000),
+        r#"{"type":"system","subtype":"compact_boundary","timestamp":"2026-09-03T07:01:00.000Z","compactMetadata":{"trigger":"auto","preTokens":52000,"postTokens":3000}}"#.to_string(),
+        format!(r#"{{"type":"user","timestamp":"2026-09-03T07:01:01.000Z","sessionId":"ctx","isCompactSummary":true,"message":{{"role":"user","content":"{SUMMARY}"}}}}"#),
+        reply("m3", "2026-09-03T07:01:05.000Z", 12_000),
+    ];
+    std::fs::write(&path, lines.join("\n") + "\n").unwrap();
+    {
+        let mut store = Store::open(&db).unwrap();
+        assert_eq!(store.sync_sources(&[source(Harness::Claude, &path)], None).unwrap().stored, 1);
+        let c = store.connection();
+        let prompts: Vec<(i64, i64, i64)> = c
+            .prepare(
+                "SELECT seq, prompt, tool_tokens + mcp_tokens + other_tokens FROM context_points WHERE session_id = 'ctx' ORDER BY seq",
+            )
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(prompts, vec![(0, 10_000, 10_000), (1, 50_000, 50_000), (2, 12_000, 12_000)], "the split sums to the prompt");
+        let comp: (i64, String, String, i64, i64, i64) = c
+            .query_row(
+                "SELECT seq, triggered_by, detected_by, before_tokens, summary_tokens, after_tokens FROM compactions WHERE session_id = 'ctx'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)),
+            )
+            .unwrap();
+        assert_eq!(comp, (2, "auto".into(), "harness".into(), 52_000, 3_000, 12_000));
+        let read: i64 = c
+            .query_row("SELECT tokens FROM compaction_sources WHERE session_id = 'ctx' AND origin = 'tool' AND name = 'Read'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert!(read > 0, "what filled it is kept");
+        let per_day: i64 = c.query_row("SELECT compactions FROM compactions_by_day", [], |r| r.get(0)).unwrap();
+        assert_eq!(per_day, 1);
+    }
+    for f in std::fs::read_dir(&dir.0).unwrap().flatten() {
+        let name = f.file_name().to_string_lossy().into_owned();
+        if name.starts_with("agent-top.db") {
+            let bytes = std::fs::read(f.path()).unwrap();
+            assert!(!bytes.windows(SUMMARY.len()).any(|w| w == SUMMARY.as_bytes()), "{name} holds the compaction summary");
+        }
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn the_file_is_private_to_its_owner() {

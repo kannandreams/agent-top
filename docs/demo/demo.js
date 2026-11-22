@@ -32,6 +32,9 @@
       case "session":
         file = `session/${key(p.get("harness"))}/${key(p.get("id"))}`;
         break;
+      case "context":
+        file = `context/${key(p.get("harness"))}/${key(p.get("id"))}`;
+        break;
       case "spans":
         file = `spans/${key(p.get("harness"))}/${key(p.get("id"))}/${key(p.get("agent"))}`;
         break;

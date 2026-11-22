@@ -146,6 +146,31 @@ tbody tr.click:hover, tbody tr.click:focus { background: var(--wash); outline: n
 @media (max-width: 900px) { .drawer { width: 100vw; border-width: 0; } }
 tbody tr[aria-current="true"] { background: var(--wash); box-shadow: inset 3px 0 0 var(--accent); }
 
+/* Context timeline: the exact prompt in the accent, compactions as rules. */
+.ctx:not(:empty) { margin-bottom: 20px; }
+.ctx > .card-head { margin-bottom: 8px; }
+.ctx .chart svg { margin-top: 4px; }
+.ctx .ctx-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
+.ctx .ctx-line.thin { stroke: var(--ink-2); stroke-width: 1; stroke-opacity: 0.6; }
+.ctx .ctx-fill { fill: var(--accent); fill-opacity: 0.10; }
+.ctx .band { fill-opacity: 0.55; }
+.ctx .rule { stroke: var(--h2); stroke-width: 1; pointer-events: none; }
+.ctx .rule.inferred { stroke-dasharray: 3 3; }
+.ctx .rule.on { stroke-width: 2.5; }
+.ctx .rule-label { fill: var(--h2); font: 11px var(--mono); pointer-events: none; }
+.ctx .rule-label.on { font-weight: 700; }
+.ctx .rule-hit { fill: transparent; cursor: pointer; }
+.ctx .rule-hit:hover, .ctx .rule-hit:focus { fill: var(--wash); outline: none; }
+.ctx .cross { stroke: var(--ink-2); stroke-dasharray: 2 3; pointer-events: none; }
+.ctx .ctx-dot { fill: var(--accent); stroke: var(--card); stroke-width: 1.5; pointer-events: none; }
+.ctx .legend { margin-top: 6px; }
+.ctx .table-wrap { margin-top: 12px; }
+.ctx-sources { margin-top: 12px; display: grid; gap: 2px; }
+.ctx-sources h2 { margin-bottom: 2px; }
+.ctx-sources .track { grid-template-columns: 1fr 112px; }
+.legend .k-rule { width: 0; height: 12px; border-radius: 0; border-left: 2px solid var(--h2); }
+.legend .k-rule.inferred { border-left-style: dashed; }
+
 /* Run graph: a neutral trunk for the main agent, the accent for subagents. */
 .run:not(:empty) { margin-bottom: 20px; }
 .run > .note:only-child { padding: 4px 0; }
