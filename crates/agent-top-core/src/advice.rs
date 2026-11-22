@@ -256,6 +256,8 @@ mod tests {
             mcp_count: 0,
             mcp_servers: Vec::new(),
             context: Vec::new(),
+            context_points: Vec::new(),
+            compactions: Vec::new(),
             tree: None,
             attribution: Attribution::HarnessRegistry,
             shares_process: false,

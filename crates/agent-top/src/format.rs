@@ -70,6 +70,14 @@ pub fn tokens(n: u64) -> String {
     }
 }
 
+/// A time as `MM-DD HH:MM` in UTC, for lists that span days.
+pub fn utc_minute(t: std::time::SystemTime) -> String {
+    let secs = t.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+    let (_, m, d) = crate::report::civil_from_days(secs.div_euclid(86_400));
+    let s = secs.rem_euclid(86_400);
+    format!("{m:02}-{d:02} {:02}:{:02}", s / 3600, s % 3600 / 60)
+}
+
 pub fn bytes(n: u64) -> String {
     const K: f64 = 1024.0;
     let f = n as f64;
@@ -230,6 +238,30 @@ pub fn plain_table(snap: &Snapshot) -> String {
                     calls,
                     tokens(c.tokens),
                     cost
+                ));
+            }
+        }
+    }
+    let compacted: Vec<&Agent> = snap.agents.iter().filter(|a| !a.compactions.is_empty()).collect();
+    if !compacted.is_empty() {
+        out.push_str("\nCOMPACTIONS (context before, the summary alone, and the first prompt after; UTC)\n");
+        for a in compacted {
+            for c in &a.compactions {
+                let opt = |v: Option<u64>| v.map(tokens).unwrap_or_else(|| "-".into());
+                let how = match (c.detected_by, c.trigger) {
+                    (agent_top_core::CompactionSource::PromptHalved, _) => "inferred",
+                    (_, agent_top_core::CompactionTrigger::Auto) => "auto",
+                    (_, agent_top_core::CompactionTrigger::Manual) => "manual",
+                    (_, agent_top_core::CompactionTrigger::Unknown) => "-",
+                };
+                out.push_str(&format!(
+                    "  {:<24} {:<11} {:<8} {:>7} before {:>7} summary {:>7} after\n",
+                    truncate(&session_name(a), 24),
+                    c.at.map(utc_minute).unwrap_or_else(|| "-".into()),
+                    how,
+                    tokens(c.before),
+                    opt(c.summary),
+                    opt(c.after)
                 ));
             }
         }

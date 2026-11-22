@@ -94,6 +94,20 @@ fn describe(s: &SessionSummary) -> Value {
             "tokens": c.tokens,
             "cost_usd_micros": (c.cost_usd * 1_000_000.0).round() as i64,
         })).collect::<Vec<_>>(),
+        // The main agent's context timeline (RFC-110): how many responses it
+        // has a point for, the largest prompt, and every compaction, so an
+        // inferred one that real data should not have shows up here.
+        "context_points": s.context.points().len(),
+        "peak_prompt": s.context.points().iter().map(|p| p.prompt).max(),
+        "compactions": s.context.compactions().iter().map(|c| json!({
+            "seq": c.seq,
+            "at_ms": millis(c.at),
+            "trigger": format!("{:?}", c.trigger),
+            "detected_by": format!("{:?}", c.detected_by),
+            "before": c.before,
+            "summary": c.summary,
+            "after": c.after,
+        })).collect::<Vec<_>>(),
         // The subagent runs folded into the figures above, each with the call
         // that spawned it. A run's tokens and cost are inside the totals.
         "subagent_runs": s.subagent_runs.iter().map(|a| json!({

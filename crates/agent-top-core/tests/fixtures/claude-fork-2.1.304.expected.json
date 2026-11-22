@@ -1,5 +1,6 @@
 {
   "activity": "Waiting",
+  "compactions": [],
   "context": [
     {
       "calls": 0,
@@ -44,6 +45,7 @@
       "tokens": 386
     }
   ],
+  "context_points": 5,
   "cost_breakdown_micros": {
     "cache_read": 1199508,
     "cache_write_1h": 101056,
@@ -61,6 +63,7 @@
   "last_activity_ms": 1792775601652,
   "mcp": [],
   "model": "claude-opus-5-5",
+  "peak_prompt": 260671,
   "price_source": null,
   "rate_limit": null,
   "session_id": "00000000-1111-2222-3333-666666666666",

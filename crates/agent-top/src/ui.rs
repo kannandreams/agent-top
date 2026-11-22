@@ -165,6 +165,11 @@ fn draw_overlay(f: &mut Frame, area: Rect, app: &App, theme: &Theme) {
         Overlay::Help => draw_help(f, area, theme),
         Overlay::Panel(p) => draw_peek(f, area, app, p, theme),
         Overlay::Update => draw_update(f, area, app, theme),
+        // Between the header and the footer, full width.
+        Overlay::Context => {
+            let body = Rect { y: area.y + 6, height: area.height.saturating_sub(7), ..area };
+            crate::context_view::draw(f, body, app.selected_agent(), app.context_split, theme);
+        }
         Overlay::None => {}
     }
 }
@@ -1279,13 +1284,12 @@ const CONTEXT_ROWS: usize = 6;
 /// biggest thing there.
 fn context_by_source(a: &Agent, theme: &Theme) -> Vec<Line<'static>> {
     use agent_top_core::ContextOrigin;
-    let mut lines = vec![
-        Line::from(vec![
-            Span::styled("context", Style::default().fg(theme.accent).bold()),
-            Span::styled("   tokens each tool added to the prompt, and their cost since (est.)", Style::default().fg(theme.dim)),
-        ]),
-        Line::styled(format!("  {:<18} {:>5} {:>7} {:>8}", "source", "calls", "added", "cost"), Style::default().fg(theme.dim)),
-    ];
+    let mut lines = vec![Line::from(vec![
+        Span::styled("context", Style::default().fg(theme.accent).bold()),
+        Span::styled("   tokens each tool added to the prompt, and their cost since (est.)", Style::default().fg(theme.dim)),
+    ])];
+    lines.extend(crate::context_view::summary_line(a, theme));
+    lines.extend([Line::styled(format!("  {:<18} {:>5} {:>7} {:>8}", "source", "calls", "added", "cost"), Style::default().fg(theme.dim))]);
     for c in a.context.iter().take(CONTEXT_ROWS) {
         let (label, style) = match c.origin {
             ContextOrigin::Mcp => (format!("mcp {}", c.name), Style::default().fg(theme.mauve)),
@@ -1382,6 +1386,13 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         // A fresh notice takes the bar for a few seconds: it is the answer to
         // the key the user just pressed.
         left.push(Span::styled(format!(" {notice}"), Style::default().fg(theme.accent)));
+    } else if app.overlay == Overlay::Context {
+        left.extend(key("Esc", "close", theme.accent));
+        left.extend(key("s", if app.context_split { "prompt line" } else { "by source (est.)" }, theme.accent));
+        left.extend(key("↑↓/jk", "agent", theme.accent));
+        left.extend(key("p", if app.paused { "resume" } else { "pause" }, theme.accent));
+        left.push(sep());
+        left.extend(key("?", "help", theme.accent));
     } else if app.pinned.is_some() {
         left.extend(key("↑↓/jk", "scroll", theme.accent));
         if !app.standalone {
@@ -1437,6 +1448,12 @@ fn draw_help(f: &mut Frame, area: Rect, theme: &Theme) {
         Line::raw("  s            cycle sort column   r       reverse sort"),
         Line::raw("  t / Enter    toggle detail pane  x       toggle stopped rows"),
         Line::raw("  Tab / v      detail: tree ⇄ trace"),
+        Line::from(vec![
+            Span::raw("  c            "),
+            Span::styled("context timeline", Style::default().fg(theme.peach)),
+            Span::raw(": prompt size per response and every"),
+        ]),
+        Line::raw("               compaction; s splits it by source (est.), Esc closes"),
         Line::raw("  p / Space    pause refresh       q / Esc quit"),
         Line::from(vec![
             Span::raw("  l            "),
@@ -1568,6 +1585,8 @@ mod tests {
             mcp_count: 1,
             mcp_servers: Vec::new(),
             context: Vec::new(),
+            context_points: Vec::new(),
+            compactions: Vec::new(),
             tree: None,
             attribution: Attribution::HarnessRegistry,
             shares_process: false,
@@ -2188,6 +2207,51 @@ mod tests {
         assert!(out.contains("linear"), "{out}");
         assert!(out.lines().any(|l| l.contains("linear") && l.contains("-     3   0")), "a server with no process: {out}");
         assert!(out.contains("orphaned from tuff-25 (pid 4242) 2m ago"), "{out}");
+    }
+
+    #[test]
+    fn the_context_timeline_draws_the_compactions_full_width() {
+        use agent_top_core::{Compaction, CompactionTrigger, ContextOrigin, ContextPoint, ContextSource};
+        let mut a = agent("ctx", Vec::new());
+        a.context = vec![ContextSource { name: "Bash".into(), origin: ContextOrigin::Tool, calls: 4, tokens: 90_000, cost_usd: 0.0 }];
+        let pt = |prompt| ContextPoint { prompt, tool: prompt / 3, other: prompt - prompt / 3, ..Default::default() };
+        a.context_points = (0..300).map(|i| pt(if i < 200 { 60_000 + i * 1_500 } else { 64_000 + (i - 200) * 1_000 })).collect();
+        let at = SystemTime::UNIX_EPOCH + Duration::from_secs(1_762_300_000);
+        let bash = ContextSource { name: "Bash".into(), origin: ContextOrigin::Tool, calls: 0, tokens: 120_000, cost_usd: 0.0 };
+        a.compactions = vec![Compaction {
+            at: Some(at),
+            seq: 200,
+            trigger: CompactionTrigger::Auto,
+            before: 358_500,
+            summary: Some(15_700),
+            after: Some(64_000),
+            sources_before: vec![bash],
+            ..Default::default()
+        }];
+        let mut app = App::new(snapshot(vec![a]));
+        app.show_detail = true;
+        app.detail = DetailView::Tree;
+        let out = render(&mut app, 140, 44);
+        assert!(
+            out.contains("c timeline") && out.contains("1 compaction · last 100 responses ago"),
+            "the detail pane points at it:\n{out}"
+        );
+
+        app.on_key(ratatui::crossterm::event::KeyCode::Char('c'));
+        let out = render(&mut app, 140, 44);
+        assert!(out.contains("300 responses · 1 compaction"), "{out}");
+        assert!(out.contains("Esc close"), "{out}");
+        let row = out.lines().find(|l| l.contains("358k")).unwrap_or_else(|| panic!("{out}"));
+        assert!(
+            row.contains("auto") && row.contains("15k") && row.contains("64k") && row.contains("200") && row.contains("Bash 33%"),
+            "{row}"
+        );
+        assert!(out.lines().any(|l| l.contains("now") && l.contains("163k") && l.contains("100")), "{out}");
+        assert!(out.chars().any(|c| ('\u{2801}'..='\u{28ff}').contains(&c)), "a braille chart:\n{out}");
+
+        app.on_key(ratatui::crossterm::event::KeyCode::Char('s'));
+        let out = render(&mut app, 140, 44);
+        assert!(out.contains("by source, estimated"), "{out}");
     }
 
     #[test]

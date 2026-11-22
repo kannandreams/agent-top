@@ -320,6 +320,75 @@ pub enum ContextOrigin {
     Other,
 }
 
+/// The context one model response read: its prompt, as the harness counted
+/// it, and the ledger's split of that prompt by origin. RFC-110 D1.
+///
+/// `prompt`, `output` and `cache_read` are the harness's own figures.
+/// `tool`, `mcp` and `other` are an estimate (see `ContextSource`); they sum
+/// to `prompt`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContextPoint {
+    /// When the response was written, where the harness says.
+    pub at: Option<SystemTime>,
+    pub prompt: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub tool: u64,
+    pub mcp: u64,
+    pub other: u64,
+}
+
+/// What started a compaction, as the harness records it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CompactionTrigger {
+    /// The harness compacted on its own, near the window.
+    Auto,
+    /// The user asked for it (`/compact`).
+    Manual,
+    /// The harness did not say, or the compaction was inferred.
+    #[default]
+    Unknown,
+}
+
+/// How agent-top knows a compaction happened.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CompactionSource {
+    /// The transcript records it.
+    #[default]
+    Harness,
+    /// The prompt fell below half its previous size, which nothing else
+    /// does. A heuristic.
+    PromptHalved,
+}
+
+/// One compaction: the harness replaced the context with a summary.
+/// RFC-110 D2.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Compaction {
+    pub at: Option<SystemTime>,
+    /// Index into the session's context points of the first response after
+    /// the compaction.
+    pub seq: usize,
+    pub trigger: CompactionTrigger,
+    pub detected_by: CompactionSource,
+    /// Tokens in the context before: the harness's figure when it gives one,
+    /// otherwise the last prompt before the compaction.
+    pub before: u64,
+    /// The summary's own size, when the harness gives it. Claude Code's
+    /// `postTokens`, which leaves out the system prompt and tools the next
+    /// response sends again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<u64>,
+    /// The first prompt after the compaction; `None` until that response.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<u64>,
+    /// The largest sources in the context when it was cleared (estimated).
+    #[serde(skip)]
+    pub sources_before: Vec<ContextSource>,
+}
+
 /// One source of a session's context: what its results have added to the
 /// prompt, and what sending that on every inference since has cost.
 ///
@@ -544,6 +613,14 @@ pub struct Agent {
     /// cost, largest first. See `ContextSource`.
     #[serde(default)]
     pub context: Vec<ContextSource>,
+    /// The main agent's context at every model response, oldest first. Not
+    /// in `--json`: it is printed every tick, and a long session has
+    /// thousands. See `ContextPoint`.
+    #[serde(skip)]
+    pub context_points: Vec<ContextPoint>,
+    /// Where the main agent's context was compacted, oldest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub compactions: Vec<Compaction>,
     pub tree: Option<ProcNode>,
     /// How the session was attributed to the process, for debugging attribution.
     pub attribution: Attribution,

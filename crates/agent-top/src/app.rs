@@ -208,6 +208,8 @@ pub enum Overlay {
     Panel(Panel),
     /// A newer agent-top is available: upgrade now, or not now.
     Update,
+    /// The selected agent's context timeline, full width (RFC-110 D4).
+    Context,
 }
 
 /// How long a footer notice stays on screen.
@@ -225,6 +227,9 @@ pub struct App {
     pub show_detail: bool,
     pub detail: DetailView,
     pub overlay: Overlay,
+    /// The context timeline shows the estimated split by source, not the
+    /// prompt line alone.
+    pub context_split: bool,
     /// A panel filling the terminal instead of the table and detail pane.
     pub pinned: Option<Panel>,
     /// Started with `agent-top <panel>`: there is no table to go back to, so
@@ -279,6 +284,7 @@ impl App {
             show_detail: true,
             detail: DetailView::Tree,
             overlay: Overlay::None,
+            context_split: false,
             pinned: None,
             standalone: false,
             scroll: 0,
@@ -514,7 +520,23 @@ impl App {
                 _ => {}
             }
         }
+        // The context timeline takes `s` (its split) and `c` (close); the
+        // movement keys still move the selection it follows.
+        if self.overlay == Overlay::Context {
+            match code {
+                KeyCode::Char('s') => {
+                    self.context_split = !self.context_split;
+                    return false;
+                }
+                KeyCode::Char('c') => {
+                    self.close_overlay();
+                    return false;
+                }
+                _ => {}
+            }
+        }
         match code {
+            KeyCode::Char('c') if self.pinned.is_none() => self.toggle(Overlay::Context),
             KeyCode::Char('j' | 'k' | 'g' | 'G')
             | KeyCode::Down
             | KeyCode::Up
@@ -675,6 +697,8 @@ mod tests {
             mcp_count: 0,
             mcp_servers: Vec::new(),
             context: Vec::new(),
+            context_points: Vec::new(),
+            compactions: Vec::new(),
             tree: None,
             attribution: Attribution::HarnessRegistry,
             shares_process: false,
@@ -834,6 +858,24 @@ mod tests {
         assert_eq!(depth(2), 0, "a session is not its own parent");
         assert_eq!(depth(5), 0, "never choose an arbitrary duplicate parent");
         assert!(depth(0) == 0 || depth(1) == 0, "a cycle is broken, not followed");
+    }
+
+    /// `c` opens the context timeline and closes it; `s` inside it splits
+    /// the chart instead of cycling the sort; `Esc` closes it and does not quit.
+    #[test]
+    fn c_opens_the_context_timeline_and_esc_closes_it() {
+        let mut app = App::new(snapshot(0));
+        let sort = app.sort;
+        assert!(!app.on_key(KeyCode::Char('c')));
+        assert_eq!(app.overlay, Overlay::Context);
+        app.on_key(KeyCode::Char('s'));
+        assert!(app.context_split);
+        assert_eq!(app.sort, sort, "s belongs to the timeline while it is open");
+        app.on_key(KeyCode::Char('c'));
+        assert_eq!(app.overlay, Overlay::None);
+        app.on_key(KeyCode::Char('c'));
+        assert!(!app.on_key(KeyCode::Esc), "Esc closes the timeline, it does not quit");
+        assert_eq!(app.overlay, Overlay::None);
     }
 
     /// The question opens once when a newer version is known, not when that

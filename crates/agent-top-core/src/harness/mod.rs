@@ -9,7 +9,10 @@ pub mod gemini;
 pub mod kodelet;
 pub mod opencode;
 
-use crate::model::{Activity, Attribution, ContextOrigin, ContextSource, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage, ToolSpan};
+use crate::model::{
+    Activity, Attribution, Compaction, CompactionSource, CompactionTrigger, ContextOrigin, ContextPoint, ContextSource, CostBreakdown,
+    Harness, ProcNode, SpanKind, TokenUsage, ToolSpan,
+};
 use crate::process::RawProc;
 use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
@@ -149,7 +152,18 @@ pub struct ContextLedger {
     pending: Vec<(String, ContextWeights)>,
     /// The last response's prompt and output, for the next delta.
     prev: Option<(u64, u64)>,
+    /// The context at every response, oldest first (RFC-110 D1). Not merged
+    /// by `merge`: a subagent's context is its own.
+    points: Vec<ContextPoint>,
+    /// Every compaction, oldest first (RFC-110 D2).
+    compactions: Vec<Compaction>,
+    /// The last compaction still waits for the response that says how big
+    /// the context was after it.
+    awaiting_after: bool,
 }
+
+/// How many sources a compaction keeps from the context it cleared.
+const SOURCES_KEPT: usize = 10;
 
 type ContextKey = (ContextOrigin, String);
 
@@ -202,6 +216,11 @@ impl ContextLedger {
     /// the last one, then charges everything in the context for this read.
     /// A record with no prompt is not an API response and is ignored.
     pub fn response(&mut self, usage: &TokenUsage, cost: &CostBreakdown) {
+        self.response_at(usage, cost, None);
+    }
+
+    /// `response`, for a harness that says when the response was written.
+    pub fn response_at(&mut self, usage: &TokenUsage, cost: &CostBreakdown, at: Option<SystemTime>) {
         let prompt = usage.prompt();
         if prompt == 0 {
             return;
@@ -210,6 +229,7 @@ impl ContextLedger {
         match self.prev {
             Some((p, _)) if prompt < p / 2 => {
                 // Compacted: what is in the context now is all new.
+                self.record_compaction(at, CompactionTrigger::Unknown, CompactionSource::PromptHalved, p, None);
                 self.live.clear();
                 self.file(prompt, 0, pending);
             }
@@ -235,6 +255,51 @@ impl ContextLedger {
             }
         }
         self.prev = Some((prompt, usage.output));
+        if std::mem::take(&mut self.awaiting_after)
+            && let Some(c) = self.compactions.last_mut()
+        {
+            c.after = Some(prompt);
+        }
+        let mut point = ContextPoint { at, prompt, output: usage.output, cache_read: usage.cache_read, ..Default::default() };
+        for ((origin, _), t) in &self.live {
+            match origin {
+                ContextOrigin::Tool => point.tool += t,
+                ContextOrigin::Mcp => point.mcp += t,
+                ContextOrigin::Other => point.other += t,
+            }
+        }
+        self.points.push(point);
+    }
+
+    /// Note a compaction before the live set is cleared, with the sources
+    /// that filled it. `after` is filled by the next response.
+    fn record_compaction(
+        &mut self,
+        at: Option<SystemTime>,
+        trigger: CompactionTrigger,
+        detected_by: CompactionSource,
+        before: u64,
+        summary: Option<u64>,
+    ) {
+        let mut sources: Vec<ContextSource> = self
+            .live
+            .iter()
+            .filter(|(_, t)| **t > 0)
+            .map(|((origin, name), t)| ContextSource { name: name.clone(), origin: *origin, calls: 0, tokens: *t, cost_usd: 0.0 })
+            .collect();
+        sources.sort_by(|a, b| b.tokens.cmp(&a.tokens).then_with(|| a.name.cmp(&b.name)));
+        sources.truncate(SOURCES_KEPT);
+        self.compactions.push(Compaction {
+            at,
+            seq: self.points.len(),
+            trigger,
+            detected_by,
+            before,
+            summary,
+            after: None,
+            sources_before: sources,
+        });
+        self.awaiting_after = true;
     }
 
     /// Split evenly across records, then by weight within each record.
@@ -286,8 +351,26 @@ impl ContextLedger {
     /// The harness replaced the context with a summary. Whatever the next
     /// response carries is new.
     pub fn compacted(&mut self) {
+        self.compacted_at(None, CompactionTrigger::Unknown, None, None);
+    }
+
+    /// `compacted`, with what the harness recorded about it. `before` falls
+    /// back to the last prompt when the harness gives no size.
+    pub fn compacted_at(&mut self, at: Option<SystemTime>, trigger: CompactionTrigger, before: Option<u64>, summary: Option<u64>) {
+        let before = before.or(self.prev.map(|(p, _)| p)).unwrap_or(0);
+        self.record_compaction(at, trigger, CompactionSource::Harness, before, summary);
         self.live.clear();
         self.prev = None;
+    }
+
+    /// The context at every response this ledger was fed, oldest first.
+    pub fn points(&self) -> &[ContextPoint] {
+        &self.points
+    }
+
+    /// Every compaction this ledger saw, oldest first.
+    pub fn compactions(&self) -> &[Compaction] {
+        &self.compactions
     }
 
     /// Fold another ledger's totals in, as a parent folds its subagents.
@@ -1015,6 +1098,41 @@ mod tests {
         let v = l.sources();
         assert_eq!(share(&v, ContextLedger::OTHER).tokens, 19_000);
         assert!((share(&v, "Bash").cost_usd - 1_000e-6).abs() < 1e-12);
+    }
+
+    #[test]
+    fn context_ledger_keeps_a_point_per_response_and_a_record_per_compaction() {
+        use crate::model::{CompactionSource, CompactionTrigger};
+        let mut l = ContextLedger::default();
+        l.response(&usage(10_000, 2_000), &cost(10_000));
+        l.result("a", ContextOrigin::Tool, "Bash");
+        l.response(&usage(12_500, 10), &cost(12_500)); // the reply is 2_000, Bash 500
+        let p = l.points();
+        assert_eq!(p.len(), 2);
+        assert_eq!((p[1].prompt, p[1].tool, p[1].mcp, p[1].other), (12_500, 500, 0, 12_000), "the split sums to the prompt");
+
+        // The prompt halves: an inferred compaction, sized by the next response.
+        l.response(&usage(3_000, 10), &cost(3_000));
+        let c = &l.compactions()[0];
+        assert_eq!((c.seq, c.before, c.after, c.summary), (2, 12_500, Some(3_000), None));
+        assert_eq!((c.detected_by, c.trigger), (CompactionSource::PromptHalved, CompactionTrigger::Unknown));
+        let names: Vec<_> = c.sources_before.iter().map(|s| (s.name.as_str(), s.tokens)).collect();
+        assert_eq!(names, vec![(ContextLedger::OTHER, 12_000), ("Bash", 500)], "what filled it, largest first");
+        assert_eq!(l.points()[2].other, 3_000);
+
+        // The harness says so: its own sizes, and `after` waits for the next response.
+        l.compacted_at(None, CompactionTrigger::Manual, Some(9_000), Some(1_000));
+        assert_eq!(l.compactions()[1].after, None);
+        l.response(&usage(4_000, 10), &cost(4_000));
+        let c = &l.compactions()[1];
+        assert_eq!((c.seq, c.before, c.summary, c.after), (3, 9_000, Some(1_000), Some(4_000)));
+        assert_eq!((c.detected_by, c.trigger), (CompactionSource::Harness, CompactionTrigger::Manual));
+        assert_eq!(l.compactions().len(), 2, "a harness compaction is not also counted as a halving");
+
+        // A fold takes totals, never another agent's timeline.
+        let mut parent = ContextLedger::default();
+        parent.merge(&l);
+        assert!(parent.points().is_empty() && parent.compactions().is_empty());
     }
 
     #[test]

@@ -1,6 +1,8 @@
 {
   "activity": "Waiting",
+  "compactions": [],
   "context": [],
+  "context_points": 0,
   "cost_breakdown_micros": {
     "cache_read": 40,
     "cache_write_1h": 0,
@@ -29,6 +31,7 @@
     }
   ],
   "model": "gpt-5.6-luna",
+  "peak_prompt": null,
   "price_source": null,
   "rate_limit": null,
   "session_id": "01000000-0000-7000-0000-0000000000mc",

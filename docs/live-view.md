@@ -59,6 +59,10 @@ Below it, **mcp servers** lists one row per server with its pid, calls, errors a
 
 **context** is what each tool's results added to the prompt, and what re-reading them has cost since. See [Context by source](accounting.md#context-by-source) for the method.
 
+The line above the sources gives the context's size now, how many times the harness has compacted it, and how many responses ago the last one was. `c` opens the **context timeline** over the table, full width: the prompt size at every model response, with a vertical rule at each compaction, and a table of the compactions underneath. Each row gives the time (UTC), the trigger, the size before, the summary's own size, the first prompt after, how many responses the stretch ran, and the two tools whose results filled most of it. The x axis counts responses, not time, so hours of idle do not take up the width.
+
+The prompt line and the compactions are the harness's own numbers. `s` splits the line into tool results, MCP results and prompts and replies; that split is the same estimate as the context sources, and the title says so. A rule drawn dotted, with `inferred` as its trigger, is a compaction the harness did not record: the prompt fell below half its previous size. Claude Code records its compactions. The "after" figure is the next response's prompt, which includes the system prompt and tool definitions the harness sends again, so it is several times the summary. `Esc` or `c` closes the view; `j` and `k` still move the selection, and the view follows it.
+
 **orphaned mcp processes** are servers with no live agent above them, a leak agent-top watches for on every tick (the story is in [The MCP server that outlives its agent](blog/posts/the-server-that-outlives-its-agent.md)). Each says which agent it was orphaned from and when, or that it was already an orphan when agent-top first saw it.
 
 ![The stopped session: a transcript with no process, its MCP server with no pid, and the orphan list](screenshots/stopped-and-orphans.png)
@@ -95,6 +99,6 @@ Nothing is done for you. agent-top never signals a process or edits a config; it
 
 ## The plain-text view
 
-`agent-top --once` prints the same information once and exits: the table, then sections for MCP servers, context by source, orphans, advice and rate limits. It is for a quick look, a cron job, or pasting into an issue.
+`agent-top --once` prints the same information once and exits: the table, then sections for MCP servers, context by source, compactions, orphans, advice and rate limits. It is for a quick look, a cron job, or pasting into an issue.
 
 ![The output of agent-top --once on the same snapshot](screenshots/once.png)
