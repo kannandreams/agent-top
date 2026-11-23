@@ -210,7 +210,7 @@ UPDATE sources SET synced_by_version = '';
 
 /// A session's context at every model response, its compactions, and what
 /// filled the context before each one (RFC-110 D5). `agent` is `''` for the
-/// main agent. Sizes are tokens; `tool_tokens`, `mcp_tokens` and
+/// main agent and the subagent's id for a subagent. Sizes are tokens; `tool_tokens`, `mcp_tokens` and
 /// `other_tokens` are the context ledger's estimate. Emptying
 /// `synced_by_version` makes the next sync fill them for every transcript
 /// still on disk.
@@ -619,49 +619,64 @@ fn replace_session(
         ])?;
     }
 
-    // The main agent's context timeline. Only kebab-case labels and sizes:
-    // a compaction's summary text never reaches the summary (RFC-110 D7).
+    // Each agent's context timeline: the main agent's under `''`, each
+    // subagent's under its id. Only kebab-case labels and sizes: a
+    // compaction's summary text never reaches the summary (RFC-110 D7).
     let label = |v: serde_json::Result<serde_json::Value>| v.ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
-    let mut insert = tx.prepare(
+    let mut point = tx.prepare(
         "INSERT INTO context_points (harness, session_id, agent, seq, at, prompt, output, cache_read, tool_tokens, mcp_tokens, other_tokens)
-         VALUES (?1, ?2, '', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
     )?;
-    for (i, p) in s.context.points().iter().enumerate() {
-        insert.execute(params![
-            harness,
-            id,
-            i as i64,
-            p.at.map(ms),
-            p.prompt as i64,
-            p.output as i64,
-            p.cache_read as i64,
-            p.tool as i64,
-            p.mcp as i64,
-            p.other as i64
-        ])?;
-    }
-    let mut insert = tx.prepare(
+    let mut compaction = tx.prepare(
         "INSERT INTO compactions (harness, session_id, agent, seq, at, triggered_by, detected_by, before_tokens, summary_tokens, after_tokens)
-         VALUES (?1, ?2, '', ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
     )?;
     let mut source = tx.prepare(
-        "INSERT INTO compaction_sources (harness, session_id, agent, seq, origin, name, tokens) VALUES (?1, ?2, '', ?3, ?4, ?5, ?6)
+        "INSERT INTO compaction_sources (harness, session_id, agent, seq, origin, name, tokens) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT DO UPDATE SET tokens = tokens + excluded.tokens",
     )?;
-    for c in s.context.compactions() {
-        insert.execute(params![
-            harness,
-            id,
-            c.seq as i64,
-            c.at.map(ms),
-            label(serde_json::to_value(c.trigger)),
-            label(serde_json::to_value(c.detected_by)),
-            c.before as i64,
-            c.summary.map(|v| v as i64),
-            c.after.map(|v| v as i64)
-        ])?;
-        for x in &c.sources_before {
-            source.execute(params![harness, id, c.seq as i64, label(serde_json::to_value(x.origin)), x.name, x.tokens as i64])?;
+    let timelines = std::iter::once(("", s.context.points(), s.context.compactions()))
+        .chain(s.subagent_runs.iter().map(|a| (a.id.as_str(), a.context_points.as_slice(), a.compactions.as_slice())));
+    for (agent, points, compactions) in timelines {
+        for (i, p) in points.iter().enumerate() {
+            point.execute(params![
+                harness,
+                id,
+                agent,
+                i as i64,
+                p.at.map(ms),
+                p.prompt as i64,
+                p.output as i64,
+                p.cache_read as i64,
+                p.tool as i64,
+                p.mcp as i64,
+                p.other as i64
+            ])?;
+        }
+        for c in compactions {
+            compaction.execute(params![
+                harness,
+                id,
+                agent,
+                c.seq as i64,
+                c.at.map(ms),
+                label(serde_json::to_value(c.trigger)),
+                label(serde_json::to_value(c.detected_by)),
+                c.before as i64,
+                c.summary.map(|v| v as i64),
+                c.after.map(|v| v as i64)
+            ])?;
+            for x in &c.sources_before {
+                source.execute(params![
+                    harness,
+                    id,
+                    agent,
+                    c.seq as i64,
+                    label(serde_json::to_value(x.origin)),
+                    x.name,
+                    x.tokens as i64
+                ])?;
+            }
         }
     }
 

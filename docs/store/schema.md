@@ -22,7 +22,7 @@ Times are milliseconds since the Unix epoch, UTC. A session is dated by its last
 
 Cost is computed with the price table of the agent-top that synced the row. After an upgrade, the next sync re-reads every transcript still on disk, so a price or parser fix reaches it. A session whose transcript is gone keeps the cost it was stored with, and `synced_by_version` in `sessions` says which version that was.
 
-`agent` in the context tables is empty for the main agent; only the main agent's timeline is stored. No compaction summary text is stored.
+`agent` in the context tables is empty for the main agent and the subagent's id for a subagent, the same id as `subagents.agent_id`. No compaction summary text is stored.
 
 `spans.agent` and `subagents` are filled for Claude Code and OpenCode, which both record which subagent issued a call and which call started the subagent. For OpenCode the `agent_id` is the child session's id and the cost is OpenCode's own figure for it. Other harnesses leave them empty. Upgrading a store to this schema makes the next sync re-read every transcript still on disk.
 

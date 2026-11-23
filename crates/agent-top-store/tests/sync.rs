@@ -252,13 +252,24 @@ fn the_context_timeline_is_stored_without_the_compaction_summary() {
         reply("m3", "2026-09-03T07:01:05.000Z", 12_000),
     ];
     std::fs::write(&path, lines.join("\n") + "\n").unwrap();
+    // A subagent with two responses of its own.
+    let sub = dir.0.join("ctx").join("subagents");
+    std::fs::create_dir_all(&sub).unwrap();
+    let sub_reply = |id: &str, ts: &str, prompt: u64| {
+        format!(
+            r#"{{"type":"assistant","timestamp":"{ts}","sessionId":"ctx","isSidechain":true,"agentId":"a1","message":{{"id":"{id}","model":"claude-sonnet-5","stop_reason":"end_turn","content":[],"usage":{{"input_tokens":{prompt},"output_tokens":5}}}}}}"#
+        )
+    };
+    let sub_lines = [sub_reply("s1", "2026-09-03T07:00:04.000Z", 4_000), sub_reply("s2", "2026-09-03T07:00:05.000Z", 6_000)];
+    std::fs::write(sub.join("agent-a1.jsonl"), sub_lines.join("\n") + "\n").unwrap();
     {
         let mut store = Store::open(&db).unwrap();
         assert_eq!(store.sync_sources(&[source(Harness::Claude, &path)], None).unwrap().stored, 1);
         let c = store.connection();
         let prompts: Vec<(i64, i64, i64)> = c
             .prepare(
-                "SELECT seq, prompt, tool_tokens + mcp_tokens + other_tokens FROM context_points WHERE session_id = 'ctx' ORDER BY seq",
+                "SELECT seq, prompt, tool_tokens + mcp_tokens + other_tokens FROM context_points
+                 WHERE session_id = 'ctx' AND agent = '' ORDER BY seq",
             )
             .unwrap()
             .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
@@ -266,9 +277,17 @@ fn the_context_timeline_is_stored_without_the_compaction_summary() {
             .map(Result::unwrap)
             .collect();
         assert_eq!(prompts, vec![(0, 10_000, 10_000), (1, 50_000, 50_000), (2, 12_000, 12_000)], "the split sums to the prompt");
+        let sub_prompts: Vec<i64> = c
+            .prepare("SELECT prompt FROM context_points WHERE session_id = 'ctx' AND agent = 'a1' ORDER BY seq")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(sub_prompts, vec![4_000, 6_000], "the subagent's timeline is its own");
         let comp: (i64, String, String, i64, i64, i64) = c
             .query_row(
-                "SELECT seq, triggered_by, detected_by, before_tokens, summary_tokens, after_tokens FROM compactions WHERE session_id = 'ctx'",
+                "SELECT seq, triggered_by, detected_by, before_tokens, summary_tokens, after_tokens FROM compactions WHERE session_id = 'ctx' AND agent = ''",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)),
             )

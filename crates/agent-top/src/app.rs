@@ -230,6 +230,9 @@ pub struct App {
     /// The context timeline shows the estimated split by source, not the
     /// prompt line alone.
     pub context_split: bool,
+    /// Which of the selected agent's timelines the context view shows: 0 is
+    /// the main agent, then its subagents in start order. `Tab` steps it.
+    pub context_agent: usize,
     /// A panel filling the terminal instead of the table and detail pane.
     pub pinned: Option<Panel>,
     /// Started with `agent-top <panel>`: there is no table to go back to, so
@@ -285,6 +288,7 @@ impl App {
             detail: DetailView::Tree,
             overlay: Overlay::None,
             context_split: false,
+            context_agent: 0,
             pinned: None,
             standalone: false,
             scroll: 0,
@@ -532,11 +536,21 @@ impl App {
                     self.close_overlay();
                     return false;
                 }
+                KeyCode::Tab | KeyCode::BackTab => {
+                    let n = self.selected_agent().map(crate::context_view::timeline_count).unwrap_or(1).max(1);
+                    let i = self.context_agent % n;
+                    self.context_agent = if code == KeyCode::Tab { (i + 1) % n } else { (i + n - 1) % n };
+                    return false;
+                }
+                KeyCode::Char('j' | 'k') | KeyCode::Down | KeyCode::Up => self.context_agent = 0,
                 _ => {}
             }
         }
         match code {
-            KeyCode::Char('c') if self.pinned.is_none() => self.toggle(Overlay::Context),
+            KeyCode::Char('c') if self.pinned.is_none() => {
+                self.context_agent = 0;
+                self.toggle(Overlay::Context);
+            }
             KeyCode::Char('j' | 'k' | 'g' | 'G')
             | KeyCode::Down
             | KeyCode::Up

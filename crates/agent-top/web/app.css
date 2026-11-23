@@ -202,3 +202,5 @@ tbody tr[aria-current="true"] { background: var(--wash); box-shadow: inset 3px 0
 
 .foot { color: var(--muted); font-size: 12px; padding: 8px 24px 24px; }
 @media (max-width: 640px) { .top, .filters { padding-left: 16px; padding-right: 16px; } main { padding: 0 16px 16px; } .foot { padding: 8px 16px 16px; } }
+
+.ctx-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }

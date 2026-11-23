@@ -17,20 +17,49 @@ use ratatui::symbols::Marker;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Axis, Block, BorderType, Chart, Clear, Dataset, GraphType, Paragraph};
 
+/// One agent's timeline: the main agent's, or one subagent's, which starts
+/// from an empty context of its own.
+struct Timeline<'a> {
+    who: String,
+    points: &'a [ContextPoint],
+    compactions: &'a [Compaction],
+}
+
+/// The main agent's timeline, then each subagent's that has a response, in
+/// start order.
+fn timelines(a: &Agent) -> Vec<Timeline<'_>> {
+    let main = Timeline { who: "main agent".into(), points: &a.context_points, compactions: &a.compactions };
+    let subs = a.subagent_runs.iter().filter(|r| !r.context_points.is_empty()).map(|r| Timeline {
+        who: format!("{} {}", r.agent_type.as_deref().unwrap_or("subagent"), truncate(&r.id, 8)),
+        points: &r.context_points,
+        compactions: &r.compactions,
+    });
+    std::iter::once(main).chain(subs).collect()
+}
+
+/// How many timelines `Tab` steps through for this agent.
+pub fn timeline_count(a: &Agent) -> usize {
+    timelines(a).len()
+}
+
 /// Draw the overlay over `area`, the space between the header and footer.
-pub fn draw(f: &mut Frame, area: Rect, agent: Option<&Agent>, split: bool, theme: &Theme) {
+/// `which` picks the timeline: 0 is the main agent, then its subagents.
+pub fn draw(f: &mut Frame, area: Rect, agent: Option<&Agent>, which: usize, split: bool, theme: &Theme) {
     f.render_widget(Clear, area);
+    let all = agent.map(timelines).unwrap_or_default();
+    let t = (!all.is_empty()).then(|| &all[which % all.len()]);
     let mut title = vec![Span::styled(" context ", Style::default().fg(theme.accent).bold())];
-    if let Some(a) = agent {
-        let n = a.context_points.len();
-        let c = &a.compactions;
+    if let (Some(a), Some(t)) = (agent, t) {
+        let n = t.points.len();
+        let c = t.compactions.len();
+        let who = if all.len() > 1 { format!("{} {}/{} · ", t.who, which % all.len() + 1, all.len()) } else { String::new() };
         title.push(Span::styled(
             format!(
-                "· {} · {} responses · {} {} ",
+                "· {} · {who}{} responses · {} {} ",
                 crate::format::session_name(a),
                 n,
-                c.len(),
-                if c.len() == 1 { "compaction" } else { "compactions" }
+                c,
+                if c == 1 { "compaction" } else { "compactions" }
             ),
             Style::default().fg(theme.dim),
         ));
@@ -50,18 +79,21 @@ pub fn draw(f: &mut Frame, area: Rect, agent: Option<&Agent>, split: bool, theme
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let Some(a) = agent.filter(|a| !a.context_points.is_empty()) else {
-        let msg =
-            if agent.is_some() { "No model response with token usage has been read for this agent yet." } else { "No agent selected." };
+    let Some(t) = t.filter(|t| !t.points.is_empty()) else {
+        let msg = match (agent, all.len()) {
+            (None, _) => "No agent selected.",
+            (_, 1) => "No model response with token usage has been read for this agent yet.",
+            _ => "No model response with token usage has been read for the main agent yet. Tab shows its subagents.",
+        };
         f.render_widget(Paragraph::new(Line::styled(format!(" {msg}"), Style::default().fg(theme.dim))), inner);
         return;
     };
 
-    let rows = a.compactions.len() as u16 + 2; // header, compactions, now
+    let rows = t.compactions.len() as u16 + 2; // header, compactions, now
     let table_h = rows.min(inner.height / 2).max(3);
     let [chart_area, table_area] = Layout::vertical([Constraint::Min(6), Constraint::Length(table_h)]).areas(inner);
-    draw_chart(f, chart_area, a, split, theme);
-    f.render_widget(Paragraph::new(table_lines(a, table_h as usize, theme)), table_area);
+    draw_chart(f, chart_area, t, split, theme);
+    f.render_widget(Paragraph::new(table_lines(t, table_h as usize, theme)), table_area);
 }
 
 /// Keep at most `buckets` points, each the largest in its stretch, so a
@@ -80,8 +112,8 @@ fn downsample(points: &[ContextPoint], buckets: usize, value: impl Fn(&ContextPo
         .collect()
 }
 
-fn draw_chart(f: &mut Frame, area: Rect, a: &Agent, split: bool, theme: &Theme) {
-    let pts = &a.context_points;
+fn draw_chart(f: &mut Frame, area: Rect, a: &Timeline, split: bool, theme: &Theme) {
+    let pts = a.points;
     let n = pts.len();
     let peak = pts.iter().map(|p| p.prompt).chain(a.compactions.iter().map(|c| c.before)).max().unwrap_or(0);
     let y_max = (peak as f64 * 1.08).max(1.0);
@@ -131,7 +163,7 @@ fn draw_chart(f: &mut Frame, area: Rect, a: &Agent, split: bool, theme: &Theme) 
 
 /// The compactions, newest last, then where the context is now. When they do
 /// not all fit, the oldest go.
-fn table_lines(a: &Agent, height: usize, theme: &Theme) -> Vec<Line<'static>> {
+fn table_lines(a: &Timeline, height: usize, theme: &Theme) -> Vec<Line<'static>> {
     let dim = Style::default().fg(theme.dim);
     let mut out = vec![Line::styled(
         format!(
@@ -173,7 +205,7 @@ fn table_lines(a: &Agent, height: usize, theme: &Theme) -> Vec<Line<'static>> {
         ]));
         prev_seq = c.seq;
     }
-    if let Some(last) = a.context_points.last() {
+    if let Some(last) = a.points.last() {
         let share = |t: u64| (t * 100).checked_div(last.prompt).unwrap_or(0);
         rows.push(Line::from(vec![
             Span::styled(format!(" {:<3} ", "now"), Style::default().fg(theme.green)),
@@ -184,7 +216,7 @@ fn table_lines(a: &Agent, height: usize, theme: &Theme) -> Vec<Line<'static>> {
                 tokens(last.prompt),
                 "",
                 "",
-                a.context_points.len() - prev_seq
+                a.points.len() - prev_seq
             )),
             Span::styled(format!("tools {}%  mcp {}%  prompts & replies {}%", share(last.tool), share(last.mcp), share(last.other)), dim),
         ]));
@@ -209,6 +241,11 @@ pub fn summary_line(a: &Agent, theme: &Theme) -> Option<Line<'static>> {
         ));
     } else {
         s.push_str(" · no compactions");
+    }
+    match timeline_count(a) - 1 {
+        0 => {}
+        1 => s.push_str(" · 1 subagent"),
+        n => s.push_str(&format!(" · {n} subagents")),
     }
     Some(Line::from(vec![Span::raw(s), Span::styled("   c timeline", Style::default().fg(theme.peach))]))
 }

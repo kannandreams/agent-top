@@ -148,10 +148,13 @@
   "subagent_runs": [
     {
       "agent_type": "fork",
+      "compactions": 0,
+      "context_points": 17,
       "cost_usd_micros": 1221255,
       "id": "af0000000000000001",
       "last_activity_ms": 1792775599213,
       "model": "claude-opus-5-5",
+      "peak_prompt": 296194,
       "spans": 37,
       "spawned_by": "toolu_01L1h9VNXGuejRn3T4ooNnQJ",
       "spawned_by_span": "Agent",

@@ -168,7 +168,7 @@ fn draw_overlay(f: &mut Frame, area: Rect, app: &App, theme: &Theme) {
         // Between the header and the footer, full width.
         Overlay::Context => {
             let body = Rect { y: area.y + 6, height: area.height.saturating_sub(7), ..area };
-            crate::context_view::draw(f, body, app.selected_agent(), app.context_split, theme);
+            crate::context_view::draw(f, body, app.selected_agent(), app.context_agent, app.context_split, theme);
         }
         Overlay::None => {}
     }
@@ -1390,6 +1390,9 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         left.extend(key("Esc", "close", theme.accent));
         left.extend(key("s", if app.context_split { "prompt line" } else { "by source (est.)" }, theme.accent));
         left.extend(key("↑↓/jk", "agent", theme.accent));
+        if app.selected_agent().map(crate::context_view::timeline_count).unwrap_or(1) > 1 {
+            left.extend(key("Tab", "subagent", theme.accent));
+        }
         left.extend(key("p", if app.paused { "resume" } else { "pause" }, theme.accent));
         left.push(sep());
         left.extend(key("?", "help", theme.accent));
@@ -1453,7 +1456,8 @@ fn draw_help(f: &mut Frame, area: Rect, theme: &Theme) {
             Span::styled("context timeline", Style::default().fg(theme.peach)),
             Span::raw(": prompt size per response and every"),
         ]),
-        Line::raw("               compaction; s splits it by source (est.), Esc closes"),
+        Line::raw("               compaction; s splits it by source (est.), Tab steps"),
+        Line::raw("               to each subagent's, Esc closes"),
         Line::raw("  p / Space    pause refresh       q / Esc quit"),
         Line::from(vec![
             Span::raw("  l            "),
@@ -2252,6 +2256,48 @@ mod tests {
         app.on_key(ratatui::crossterm::event::KeyCode::Char('s'));
         let out = render(&mut app, 140, 44);
         assert!(out.contains("by source, estimated"), "{out}");
+        assert!(!out.contains("Tab subagent"), "no subagent, nothing to step to:\n{out}");
+    }
+
+    /// `Tab` in the timeline steps from the main agent to each subagent's
+    /// own timeline and back.
+    #[test]
+    fn tab_in_the_context_timeline_steps_through_the_subagents() {
+        use agent_top_core::{ContextOrigin, ContextPoint, ContextSource, SubagentRun};
+        use ratatui::crossterm::event::KeyCode;
+        let mut a = agent("ctx", Vec::new());
+        a.context = vec![ContextSource { name: "Read".into(), origin: ContextOrigin::Tool, calls: 1, tokens: 9_000, cost_usd: 0.0 }];
+        let pt = |prompt| ContextPoint { prompt, other: prompt, ..Default::default() };
+        a.context_points = (0..30).map(|i| pt(20_000 + i * 1_000)).collect();
+        a.subagent_runs = vec![
+            SubagentRun {
+                id: "a1b2c3d4e5f6".into(),
+                agent_type: Some("Explore".into()),
+                context_points: (0..12).map(|i| pt(5_000 + i * 900)).collect(),
+                ..Default::default()
+            },
+            // A run with no response read has no timeline to step to.
+            SubagentRun { id: "empty".into(), ..Default::default() },
+        ];
+        let mut app = App::new(snapshot(vec![a]));
+        app.show_detail = true;
+        app.detail = DetailView::Tree;
+        assert!(render(&mut app, 140, 44).contains("no compactions · 1 subagent"));
+        app.on_key(KeyCode::Char('c'));
+        let out = render(&mut app, 140, 44);
+        assert!(out.contains("main agent 1/2 · 30 responses"), "{out}");
+        assert!(out.contains("Tab subagent"), "{out}");
+        app.on_key(KeyCode::Tab);
+        let out = render(&mut app, 140, 44);
+        assert!(out.contains("Explore a1b2c3d… 2/2 · 12 responses · 0 compactions"), "{out}");
+        assert!(out.lines().any(|l| l.contains("now") && l.contains("14k")), "the table is the subagent's:\n{out}");
+        app.on_key(KeyCode::Tab);
+        assert!(render(&mut app, 140, 44).contains("main agent 1/2"), "and back");
+        app.on_key(KeyCode::BackTab);
+        assert!(render(&mut app, 140, 44).contains("Explore"));
+        app.on_key(KeyCode::Char('c'));
+        app.on_key(KeyCode::Char('c'));
+        assert!(render(&mut app, 140, 44).contains("main agent 1/2"), "reopening starts at the main agent");
     }
 
     #[test]
