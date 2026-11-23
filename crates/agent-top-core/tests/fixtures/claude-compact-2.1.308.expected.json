@@ -28,6 +28,7 @@
     }
   ],
   "context_points": 27,
+  "context_window": null,
   "cost_breakdown_micros": {
     "cache_read": 647773,
     "cache_write_1h": 454328,
