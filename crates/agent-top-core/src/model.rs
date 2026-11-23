@@ -648,6 +648,11 @@ pub struct Agent {
     /// `cost_usd` and never mixed into it. See `HarnessCost`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub harness_cost: Option<HarnessCost>,
+    /// The model's context window in tokens, as the harness itself last
+    /// wrote it (Codex's `model_context_window`). Never looked up from the
+    /// model id: one id can run with different windows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_window: Option<u64>,
 }
 
 /// A harness's own running total for a session, read from its transcript.

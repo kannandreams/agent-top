@@ -49,6 +49,7 @@
     }
   ],
   "context_points": 4,
+  "context_window": null,
   "cost_breakdown_micros": {
     "cache_read": 0,
     "cache_write_1h": 0,

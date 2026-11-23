@@ -161,6 +161,8 @@ tbody tr[aria-current="true"] { background: var(--wash); box-shadow: inset 3px 0
 .ctx .rule-label.on { font-weight: 700; }
 .ctx .rule-hit { fill: transparent; cursor: pointer; }
 .ctx .rule-hit:hover, .ctx .rule-hit:focus { fill: var(--wash); outline: none; }
+.ctx .window { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 6 4; pointer-events: none; }
+.ctx .window-label { fill: var(--ink-2); font: 11px var(--mono); pointer-events: none; }
 .ctx .cross { stroke: var(--ink-2); stroke-dasharray: 2 3; pointer-events: none; }
 .ctx .ctx-dot { fill: var(--accent); stroke: var(--card); stroke-width: 1.5; pointer-events: none; }
 .ctx .legend { margin-top: 6px; }
@@ -170,6 +172,7 @@ tbody tr[aria-current="true"] { background: var(--wash); box-shadow: inset 3px 0
 .ctx-sources .track { grid-template-columns: 1fr 112px; }
 .legend .k-rule { width: 0; height: 12px; border-radius: 0; border-left: 2px solid var(--h2); }
 .legend .k-rule.inferred { border-left-style: dashed; }
+.legend .k-window { width: 14px; height: 0; border-radius: 0; border-top: 2px dashed var(--ink-2); background: none; }
 
 /* Run graph: a neutral trunk for the main agent, the accent for subagents. */
 .run:not(:empty) { margin-bottom: 20px; }

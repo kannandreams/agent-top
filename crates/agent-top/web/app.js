@@ -426,7 +426,9 @@ function contextView(c, key) {
   const modes = [["line", "Prompt size"], ["split", "By source (estimated)"]].map(([m, label]) =>
     el("button", { type: "button", role: "radio", "aria-checked": String(m === "line"), text: label, onclick: () => { split = m === "split"; for (const b of seg.children) b.setAttribute("aria-checked", String(b === modes[split ? 1 : 0])); draw(); } }));
   seg.append(...modes);
-  const peak = Math.max(...P.map((p) => p[PROMPT]), ...C.map((x) => x.before_tokens));
+  // The window only when the harness wrote it; never looked up by model.
+  const WIN = c.window || null;
+  const peak = Math.max(...P.map((p) => p[PROMPT]), ...C.map((x) => x.before_tokens), WIN || 0);
   head.append(el("h2", { text: `Context (${plural(N, "response")}, ${plural(C.length, "compaction")})` }), el("div", { class: "ctx-controls" }, picker, seg));
   const chart = el("div", { class: "chart" });
   const legend = el("div", { class: "legend" });
@@ -460,6 +462,12 @@ function contextView(c, key) {
       root.append(svg("path", { class: "ctx-fill", d: area(() => 0, (p) => p[PROMPT]) }), svg("path", { class: "ctx-line", d: line((p) => p[PROMPT]) }));
     }
     root.append(svg("line", { class: "base", x1: L, x2: W - R, y1: y(0), y2: y(0) }));
+    if (WIN) {
+      root.append(svg("line", { class: "window", x1: L, x2: W - R, y1: y(WIN), y2: y(WIN) }));
+      const wl = svg("text", { class: "window-label", x: W - R - 4, y: y(WIN) - 5, "text-anchor": "end" });
+      wl.textContent = `context window ${compact(WIN)}`;
+      root.append(wl);
+    }
 
     const cross = svg("line", { class: "cross", y1: T, y2: H - B, visibility: "hidden" });
     const dot = svg("circle", { class: "ctx-dot", r: 3.5, visibility: "hidden" });
@@ -473,6 +481,7 @@ function contextView(c, key) {
       cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
       dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(p[PROMPT])); dot.setAttribute("visibility", "visible");
       const rows = [[null, `response ${(i + 1).toLocaleString("en-US")}${p[AT] ? ", " + when(p[AT]) : ""}`], [null, `${plural(since(i), "response")} since the last compaction`]];
+      if (WIN) rows.push([null, `${Math.round((p[PROMPT] / WIN) * 100)}% of the context window`]);
       if (split) for (const [o, k] of [["tool", TOOL], ["mcp", MCP], ["other", OTHER]]) rows.push([ORIGIN[o][0], `${ORIGIN[o][1]} ${compact(p[k])} (est.)`]);
       showTip(e, `${p[PROMPT].toLocaleString("en-US")} tokens`, rows);
     });
@@ -494,7 +503,7 @@ function contextView(c, key) {
     const key = (color, label, cls) => { const i = el("i", cls ? { class: cls } : {}); if (color) i.style.background = color; return el("span", {}, i, label); };
     legend.replaceChildren(...(split
       ? [key(ORIGIN.tool[0], "tool results"), key(ORIGIN.mcp[0], "MCP results"), key(ORIGIN.other[0], "prompts & replies"), el("span", { class: "note", text: "estimated split; the outline is the exact prompt" })]
-      : [key("var(--accent)", "prompt tokens per response"), C.length ? key(null, "compaction", "k-rule") : null, C.some((k) => k.detected_by === "prompt-halved") ? key(null, "inferred compaction", "k-rule inferred") : null].filter(Boolean)));
+      : [key("var(--accent)", "prompt tokens per response"), WIN ? key(null, "context window, as the harness reports it", "k-window") : null, C.some((k) => k.detected_by !== "prompt-halved") ? key(null, "compaction", "k-rule") : null, C.some((k) => k.detected_by === "prompt-halved") ? key(null, "inferred compaction", "k-rule inferred") : null].filter(Boolean)));
   };
 
   const fill = () => {

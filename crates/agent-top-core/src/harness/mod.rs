@@ -98,6 +98,8 @@ pub struct SessionSummary {
     pub rate_limit: Option<crate::model::RateLimit>,
     /// The harness's own cost figure, when it writes one. See `HarnessCost`.
     pub harness_cost: Option<crate::model::HarnessCost>,
+    /// See `Agent::context_window`.
+    pub context_window: Option<u64>,
 }
 
 /// What a transcript says about one MCP server: how often it was called,

@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `agent-top ui`: a session's detail draws its context timeline, with each compaction and what filled the context before it; the totals count compactions. ([#98](https://github.com/kannandreams/agent-top/pull/98))
 - The store keeps each session's context timeline in `context_points`, `compactions` and `compaction_sources`, with a `compactions_by_day` view; the next `sync` re-reads every transcript still on disk. ([#98](https://github.com/kannandreams/agent-top/pull/98))
 - Each subagent has its own context timeline: `Tab` in the `c` view and an Agent list in `agent-top ui` switch to it; `--json` subagent runs carry `compactions`. Claude Code and OpenCode. ([#99](https://github.com/kannandreams/agent-top/pull/99))
+- Codex: the context timeline draws the model's context window as Codex reports it, and the detail pane gives the context as a share of it; `--json` agents carry `context_window`. ([#101](https://github.com/kannandreams/agent-top/pull/101))
 
 ### Changed
 - `agent-top-core`: `Agent` gains `context_points` and `compactions`, and `ContextLedger` gains `points()`, `compactions()`, `response_at` and `compacted_at`; code that builds an `Agent` by literal adds two fields. ([#97](https://github.com/kannandreams/agent-top/pull/97))
