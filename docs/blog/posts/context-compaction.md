@@ -34,21 +34,23 @@ After a compaction the agent works from the summary. Exact tool output, the reas
 
 ## Claude Code
 
-Claude Code compacts on its own when the context nears the window, and you can ask for one with `/compact`, which takes optional instructions on what the summary should focus on.
+According to [its docs](https://code.claude.com/docs/en/model-config.md#default-auto-compact-thresholds), Claude Code compacts on its own when the conversation reaches the model's context limit. A model with a 1M window compacts before it fills, at about 967K tokens by default. The `autoCompactWindow` setting or the `/autocompact` command sets a different point, and `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` can lower it to a percentage of that window. `/compact` asks for one by hand and takes optional instructions on what the summary should focus on. `/context` shows how full the context is.
+
+[What survives a compaction](https://code.claude.com/docs/en/context-window.md#what-survives-compaction): the system prompt and output style still apply, the project's `CLAUDE.md` and auto memory are read again from disk, and up to five recently changed files are re-read. `PreCompact` and `PostCompact` [hooks](https://code.claude.com/docs/en/hooks.md#precompact) run around it, with the trigger as `manual` or `auto`.
 
 It records each compaction in the session's transcript, a JSONL file under `~/.claude/projects`. A `system` line with `subtype: "compact_boundary"` carries `compactMetadata` with the trigger (`auto` or `manual`), `preTokens` (the context size before) and `postTokens`, followed by the summary itself as a `user` line marked `isCompactSummary`.
 
 From the 32 Claude Code sessions on the machine this post was written on:
 
 - 17 compacted at least once, 60 times in all, every one of them automatic.
-- The size before ranged from 200k to 968k tokens. The same model id runs with a 200k or a 1M window, and the transcript does not say which.
+- The size before ranged from 200k to 968k tokens, the two documented thresholds. The same model id runs with a 200k or a 1M window, and the transcript does not say which.
 - `postTokens` is the summary alone. The first prompt after a compaction was about four times it (median 66.8k against a 16.9k summary), because the system prompt, tools and memory files are sent again with it.
 
 ## Codex
 
-Codex's compaction is in its open source, `codex-rs/core/src/compact.rs` (read at `rust-v0.171.0`). It compacts automatically once the context reaches 90% of the model's window, or earlier if `model_auto_compact_token_limit` in its config is lower, and `/compact` asks for one by hand.
+Codex's compaction is in its open source, `codex-rs/core/src/compact.rs` (read at `rust-v0.171.0`). It compacts automatically once the context reaches 90% of the model's window, or earlier if `model_auto_compact_token_limit` in its [config](https://learn.chatgpt.com/docs/config-file/config-reference) is lower. `model_post_turn_compact_threshold_percent` makes it compact at the end of a turn instead of mid-turn, and `/compact` asks for one by hand. `/status` shows the context left.
 
-The summary prompt asks for "a handoff summary for another LLM that will resume the task": progress and decisions, constraints and user preferences, what remains, and any data needed to continue. The new history is not the summary alone. Codex keeps your most recent messages, up to about 20,000 tokens of them, and adds the summary after them, prefixed with a note that "another language model started to solve this problem and produced a summary of its thinking process".
+The summary prompt asks for "a handoff summary for another LLM that will resume the task": progress and decisions, constraints and user preferences, what remains, and any data needed to continue. The new history is not the summary alone. Codex keeps your most recent messages, up to about 20,000 tokens of them, and adds the summary after them, prefixed with a note that "another language model started to solve this problem and produced a summary of its thinking process". `compact_prompt` in the config replaces the summary prompt.
 
 Codex writes the model's window into every session as `model_context_window`, after taking 5% off as headroom. The sessions agent-top has seen say 258,400, which is 95% of 272,000; automatic compaction comes at 244,800. The source also writes a `compacted` line with the summary when it compacts. None of the 132 Codex sessions on this machine has one yet, so agent-top does not read it until it has a real one to test against.
 
@@ -56,9 +58,10 @@ Codex writes the model's window into every session as `model_context_window`, af
 
 | | Claude Code | Codex |
 |---|---|---|
-| Automatic | near the window | at 90% of the window, or a configured lower limit |
+| Automatic | at the context limit (about 967K on a 1M window), or `autoCompactWindow` | at 90% of the window, or `model_auto_compact_token_limit` |
 | By hand | `/compact [instructions]` | `/compact` |
-| Kept beside the summary | system prompt, tools, memory files | the same, plus your recent messages up to about 20k tokens |
+| Summary prompt | focus instructions on `/compact` | replaceable with `compact_prompt` |
+| Kept beside the summary | system prompt, tools, `CLAUDE.md` and memory, up to five recent files | system prompt, tools, its rebuilt initial context, your recent messages up to about 20k tokens |
 | Recorded | a boundary line with trigger, size before and summary size | a `compacted` line with the summary (none seen yet) |
 | Window in the transcript | no | yes, `model_context_window` |
 
