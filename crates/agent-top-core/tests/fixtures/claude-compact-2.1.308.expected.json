@@ -1,0 +1,148 @@
+{
+  "activity": "Waiting",
+  "compactions": [
+    {
+      "after": 55713,
+      "at_ms": 1792707143163,
+      "before": 416353,
+      "detected_by": "Harness",
+      "seq": 4,
+      "summary": 13488,
+      "trigger": "Auto"
+    }
+  ],
+  "context": [
+    {
+      "calls": 0,
+      "cost_usd_micros": 1019691,
+      "name": "other",
+      "origin": "Other",
+      "tokens": 479531
+    },
+    {
+      "calls": 24,
+      "cost_usd_micros": 82642,
+      "name": "Bash",
+      "origin": "Tool",
+      "tokens": 18576
+    }
+  ],
+  "context_points": 27,
+  "cost_breakdown_micros": {
+    "cache_read": 647773,
+    "cache_write_1h": 454328,
+    "cache_write_5m": 0,
+    "cache_write_unsplit": 0,
+    "input": 232,
+    "output": 206500,
+    "web_search": 0
+  },
+  "cost_usd_micros": 1308833,
+  "cwd": "/Users/dev/code/example",
+  "folds_child_usage": true,
+  "harness_cost": {
+    "as_of_ms": 1792707143503,
+    "current": false,
+    "lower_bound": false,
+    "usd_micros": 26089296
+  },
+  "harness_version": "2.1.308",
+  "last_activity_ms": 1792919599487,
+  "mcp": [],
+  "model": "claude-opus-5-5",
+  "peak_prompt": 416121,
+  "price_source": null,
+  "rate_limit": null,
+  "session_id": "00000000-1111-2222-3333-777777777777",
+  "spans": {
+    "by_kind": [
+      {
+        "count": 24,
+        "kind": "tool",
+        "open": 0,
+        "total_duration_ms": 563412
+      },
+      {
+        "count": 27,
+        "kind": "inference",
+        "open": 0,
+        "total_duration_ms": 150420
+      },
+      {
+        "count": 4,
+        "kind": "turn",
+        "open": 0,
+        "total_duration_ms": 714174
+      }
+    ],
+    "count": 55,
+    "errors": 3,
+    "first": [
+      {
+        "duration_ms": 252776,
+        "error": false,
+        "kind": "turn",
+        "name": "turn",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 3169,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 394,
+        "error": false,
+        "kind": "tool",
+        "name": "Bash",
+        "sidechain": false
+      }
+    ],
+    "last": [
+      {
+        "duration_ms": 13178,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 738,
+        "error": false,
+        "kind": "tool",
+        "name": "Bash",
+        "sidechain": false
+      },
+      {
+        "duration_ms": 6065,
+        "error": false,
+        "kind": "inference",
+        "name": "inference",
+        "sidechain": false
+      }
+    ],
+    "named_agent": 0,
+    "open": 0,
+    "sidechain": 0,
+    "total_duration_ms": 1428006
+  },
+  "started_at_ms": 1792703623910,
+  "subagent_runs": [],
+  "subagent_turns": 0,
+  "tool_calls": 24,
+  "tool_calls_lower_bound": false,
+  "turns": 27,
+  "unpriced_tokens": 0,
+  "usage": {
+    "cache_read": 3238864,
+    "cache_write_1h": 56791,
+    "cache_write_5m": 0,
+    "cache_write_unsplit": 0,
+    "input": 58,
+    "output": 10325,
+    "total": 3306038
+  },
+  "web_searches": 0
+}

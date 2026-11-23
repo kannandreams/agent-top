@@ -220,6 +220,18 @@ fn claude_fork_2_1_304() {
     check("claude-fork-2.1.304", Box::new(ClaudeTranscript::new(p).with_prices(pricing::builtin_table())));
 }
 
+/// A window of a real 2.1.308 session (2.1.310 from midway) around an
+/// automatic compaction: the turn that ran into it, the `compact_boundary`
+/// line with its sizes, and the turns after. The context there was past 200k,
+/// on a model id shared by the 200k and 1M windows, which is why no window
+/// line is drawn for Claude. The summary text is not in the fixture; only the
+/// sizes are read.
+#[test]
+fn claude_compact_2_1_308() {
+    let p = fixtures().join("claude-compact-2.1.308.jsonl");
+    check("claude-compact-2.1.308", Box::new(ClaudeTranscript::new(p).with_prices(pricing::builtin_table())));
+}
+
 #[test]
 fn codex_0_130() {
     let p = fixtures().join("codex-0.130.jsonl");
