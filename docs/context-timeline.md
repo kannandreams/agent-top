@@ -4,7 +4,7 @@ description: "How to read the context timeline: the prompt line, the compaction 
 
 # Reading the context timeline
 
-The context timeline shows how much a coding agent re-read at every model response in a session, and where the harness cut it back. It answers three questions: how fast the context filled, what filled it, and how much each compaction kept.
+The context timeline shows how much a coding agent re-read at every model response in a session, and where the harness cut it back.
 
 It is in two places:
 
@@ -43,7 +43,7 @@ The table under the chart has one row per compaction:
 | after | The prompt of the first response after the compaction. |
 | responses | How many responses the stretch before it ran. |
 
-**After** is several times **summary**. The summary replaces the conversation, but the next response also carries the system prompt, the tool definitions and memory files again. On real Claude Code sessions the first prompt after was about four times the summary. The gap is the fixed cost of every response, and it is the floor the line can never go below.
+**After** is several times **summary**. The summary replaces the conversation, but the next response also carries the system prompt, the tool definitions and memory files again. On real Claude Code sessions the first prompt after was about four times the summary. The gap is the fixed part of every prompt. The line cannot drop below it.
 
 Below the table, the web view shows what filled the context before the selected compaction, as bars per tool. The live view gives the two largest tools in each row.
 
@@ -67,7 +67,7 @@ A subagent starts from an empty context, so each has its own timeline. In the li
 | Compactions a few responses apart | Each stretch fills quickly, so the agent keeps losing detail to summaries. | Start a fresh session for the next task, or split the work across subagents. |
 | A high floor after every compaction | The fixed part of the prompt is large: system prompt, tools, memory files, MCP tool definitions. | Remove MCP servers the session does not use, and trim large memory files. |
 | A long climb close to the window | The next compaction is near. | Compact by hand at a good stopping point, so the summary covers a finished step. |
-| A dashed rule | The harness did not record the compaction. The drop is real; the trigger and summary size are unknown. | Read it as a compaction. |
+| A dashed rule | The harness did not record the compaction. Its trigger and summary size are unknown. | Read it as a compaction. |
 | No line at all | The harness keeps no size per response (Kodelet shows the current size only), or the session was synced by an agent-top older than 0.30. | Run `agent-top sync` again while the transcript is still on disk. |
 
 ## Which harnesses
