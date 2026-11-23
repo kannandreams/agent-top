@@ -503,6 +503,10 @@ def record(port):
 
 
 CONTEXT_MP4 = ROOT / "docs/context-demo.mp4"
+CAPTION_CSS = ("max-width:80%;padding:12px 22px;border-radius:10px;background:#2457d6;color:#fff;"
+               "font:600 21px/1.35 'JetBrains Mono',Menlo,monospace;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.35)")
+# The context video is narrower than the page walk: it is shown small in a feed.
+CONTEXT_SIZE = {"width": 1040, "height": 780}
 
 # A pointer and a caption for the recording only: headless video draws
 # neither, and the page itself has no captions.
@@ -512,9 +516,8 @@ addEventListener('DOMContentLoaded', () => {
   s.textContent = `#demo-cursor{position:fixed;z-index:9999;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;
     background:rgba(224,98,42,.35);border:2px solid #e0622a;pointer-events:none;left:-40px;top:-40px;transition:transform .08s}
     #demo-cursor.down{transform:scale(.7)}
-    #demo-cap{position:fixed;z-index:9998;left:50%;bottom:28px;transform:translateX(-50%);max-width:80%;padding:12px 22px;
-    border-radius:10px;background:rgba(18,20,26,.92);color:#fff;font:600 21px/1.35 "JetBrains Mono",Menlo,monospace;
-    text-align:center;pointer-events:none;opacity:0;transition:opacity .25s}`;
+    #demo-cap{position:fixed;z-index:9998;left:50%;bottom:28px;transform:translateX(-50%);CAPTION;
+    pointer-events:none;opacity:0;transition:opacity .25s}`;
   document.head.append(s);
   const c = document.createElement('div'); c.id = 'demo-cursor'; document.body.append(c);
   const cap = document.createElement('div'); cap.id = 'demo-cap'; document.body.append(cap);
@@ -522,23 +525,23 @@ addEventListener('DOMContentLoaded', () => {
   addEventListener('mousedown', () => c.classList.add('down'), true);
   addEventListener('mouseup', () => c.classList.remove('down'), true);
 });
-"""
+""".replace("CAPTION", CAPTION_CSS)
 
 
 def record_context(port):
-    """A walk through the context timeline alone, as docs/context-demo.mp4."""
+    """A walk through the context timeline, in the web view and then in the
+    terminal, as docs/context-demo.mp4."""
     from playwright.sync_api import sync_playwright
 
     if not shutil.which("ffmpeg"):
         print("ffmpeg not found; skipping", CONTEXT_MP4.name)
         return
     vid = Path(tempfile.mkdtemp())
-    # Narrower than the page walk: the video is shown small in a feed.
-    size = {"width": 1040, "height": 780}
+    size = CONTEXT_SIZE
     with sync_playwright() as p:
         browser = p.chromium.launch()
         # bypass_csp: the page's policy refuses the overlay's inline style.
-        ctx = browser.new_context(viewport=size, record_video_dir=str(vid), record_video_size=size, color_scheme="light",
+        ctx = browser.new_context(viewport=size, record_video_dir=str(vid), record_video_size=size, color_scheme="dark",
                                   bypass_csp=True)
         ctx.add_init_script(DEMO_OVERLAY)
         page = ctx.new_page()
@@ -573,28 +576,28 @@ def record_context(port):
         page.goto(f"http://127.0.0.1:{port}/")
         page.wait_for_selector("#sessions table")
         page.mouse.move(640, 400)
-        caption("agent-top ui · the context timeline, new in 0.30", 2200)
+        caption("agent-top 0.30: watch your coding agent's context fill up", 2400)
         page.evaluate("document.getElementById('h-sessions').scrollIntoView({block: 'start'})")
         page.wait_for_timeout(600)
         caption("Open a session", 600)
         click(page.locator(f"#sessions tr[data-key='claude/{RUN_GRAPH_ID}']").locator("td").first, 1600)
         page.wait_for_selector("#detail-body .ctx .chart svg")
         show_ctx()
-        caption("The prompt every model response read, in tokens", 600)
+        caption("Each point is one model response and the tokens it sent", 600)
         sweep()
-        caption("It climbs until the harness compacts, then starts again from a summary", 1200)
+        caption("When the context gets full, the agent summarises it and starts again", 1400)
         rules = page.locator("#detail-body .ctx .rule-hit")
         click(rules.nth(0), 1400)
-        caption("Select a compaction: size before, the summary, and what filled it", 600)
+        caption("Click a compaction to see what filled the context before it", 600)
         page.evaluate("document.querySelector('#detail-body .ctx .ctx-sources').scrollIntoView({block: 'end', behavior: 'smooth'})")
         page.wait_for_timeout(2600)
         show_ctx()
         click(page.locator("#detail-body .ctx tbody tr").nth(1), 1600)
-        caption("By source: tool results, MCP results, prompts and replies (estimated)", 400)
+        caption("Split it by source: tool results, MCP results, prompts and replies", 400)
         click(page.locator("#detail-body .ctx .seg button").nth(1), 900)
         sweep(2400)
         click(page.locator("#detail-body .ctx .seg button").nth(0), 600)
-        caption("Each subagent starts from an empty context, so it has its own timeline", 400)
+        caption("Each subagent starts empty, so it gets its own chart", 400)
         pick = page.locator("#detail-body .ctx select")
         values = pick.locator("option").evaluate_all("os => os.map(o => o.value)")
         for v in values[1:3] + values[:1]:
@@ -605,27 +608,116 @@ def record_context(port):
             page.wait_for_timeout(500)
             pick = page.locator("#detail-body .ctx select")
             sweep(1500, 0.05, 0.9)
-        caption("Codex writes its context window, so the chart draws it", 400)
+        caption("Codex sessions also show the model's context limit", 400)
         page.mouse.move(100, 300)
         page.evaluate("document.getElementById('h-sessions').scrollIntoView({block: 'start'})")
         page.wait_for_timeout(500)
         click(page.locator("#sessions tr[data-key^='codex/']").first.locator("td").first, 1400)
         page.wait_for_selector("#detail-body .ctx .chart svg")
         show_ctx()
-        sweep(2400)
-        caption("Light or dark. In the terminal, press c in agent-top", 600)
-        # The panel covers the header's theme button.
-        page.evaluate("document.getElementById('theme').click()")
-        page.wait_for_timeout(600)
-        sweep(2000)
-        caption("", 500)
+        caption("The dashed line is that limit; hover for how close each response came", 300)
+        sweep(3000)
+        caption("", 400)
         video = page.video.path()
         ctx.close()
         browser.close()
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", video, "-vf", "fps=30", "-c:v", "libx264",
+    web = vid / "web.mp4"
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", video, "-vf", "fps=30,setsar=1", "-c:v", "libx264",
+                    "-pix_fmt", "yuv420p", "-crf", "20", "-an", str(web)], check=True)
+    parts = [web]
+    term = record_terminal(vid)
+    if term:
+        parts.append(term)
+    inputs = [a for f in parts for a in ("-i", str(f))]
+    chain = "".join(f"[{i}:v]" for i in range(len(parts))) + f"concat=n={len(parts)}:v=1:a=0[v]"
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", chain, "-map", "[v]", "-c:v", "libx264",
                     "-pix_fmt", "yuv420p", "-crf", "20", "-movflags", "+faststart", "-an", str(CONTEXT_MP4)], check=True)
     shutil.rmtree(vid, ignore_errors=True)
     print(f"wrote {CONTEXT_MP4} ({CONTEXT_MP4.stat().st_size // 1024} KB)")
+
+
+def record_terminal(work):
+    """The same view in the live terminal UI, recorded with vhs.
+
+    The live view also lists every agent process on the machine it runs on, so
+    it runs in a container that has only invented transcripts and no other
+    process. It needs Docker, vhs and a Linux build of agent-top in
+    AGENT_TOP_LINUX_BIN, for example:
+
+        docker run --rm -v "$PWD":/src -w /src -e CARGO_TARGET_DIR=target/linux \
+            rust:1-bookworm cargo build --release -p agent-top
+        AGENT_TOP_LINUX_BIN=target/linux/release/agent-top uv run --with playwright python docs/ui-demo.py context
+    """
+    from playwright.sync_api import sync_playwright
+
+    linux = os.environ.get("AGENT_TOP_LINUX_BIN")
+    if not (linux and Path(linux).exists() and shutil.which("docker") and shutil.which("vhs")):
+        print("AGENT_TOP_LINUX_BIN, docker or vhs missing; the video has no terminal part")
+        return None
+    home = work / "home"
+    subprocess.run([sys.executable, str(ROOT / "docs/context-demo-transcripts.py"), str(home)], check=True)
+    # (keys, seconds to wait after them, caption from here on)
+    steps = [
+        # Captions sit at the top here: the table under the chart is the point.
+        (None, 2.4, "The same view in the terminal: run agent-top and pick a session"),
+        ("Down", 1.4, None),
+        ("c", 3.2, "Press c for the context timeline"),
+        ("Tab", 2.4, "Tab steps through the subagents"),
+        ("Tab", 2.2, None),
+        ("Tab", 1.4, None),
+        ("s", 3.0, "s splits it by source"),
+        ("s", 1.0, None),
+        ("Escape", 0.8, None),
+        ("Up", 0.8, "Codex sessions show the context limit"),
+        ("c", 3.6, None),
+        ("Escape", 0.6, "brew install kannandreams/tap/agent-top"),
+        (None, 3.0, None),
+    ]
+    tape = [f'Output "{work / "term.mp4"}"', 'Set Shell "bash"', "Set FontSize 15",
+            f"Set Width {CONTEXT_SIZE['width']}", f"Set Height {CONTEXT_SIZE['height']}",
+            'Set Theme "Catppuccin Mocha"', "Set Padding 14", "Set TypingSpeed 0", "Hide",
+            f'Type "docker run --rm -it --hostname demo -e HOME=/root -e TERM=xterm-256color -e AGENT_TOP_NO_UPDATE_CHECK=1 '
+            f'-v {home}:/root:ro -v {Path(linux).resolve()}:/usr/local/bin/agent-top:ro debian:bookworm-slim '
+            f'agent-top --theme dark --stopped-window-min 600"', "Enter", "Sleep 4s", "Show"]
+    cues, t, current = [], 0.0, None
+    for keys, wait, cap in steps:
+        if cap is not None:
+            if current:
+                cues.append((current[0], t, current[1]))
+            current = (t, cap)
+        if keys:
+            # Named keys are commands of their own; a letter is typed.
+            tape.append(keys if len(keys) > 1 else f'Type "{keys}"')
+        tape.append(f"Sleep {wait}s")
+        t += wait
+    cues.append((current[0], t, current[1]))
+    tape += ["Hide", 'Type "q"', "Sleep 1s"]
+    (work / "term.tape").write_text("\n".join(tape) + "\n")
+    subprocess.run(["vhs", str(work / "term.tape")], check=True, stdout=subprocess.DEVNULL)
+
+    # Captions as images, in the web part's style: this ffmpeg may have no drawtext.
+    pngs = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport=CONTEXT_SIZE)
+        for n, (_, _, text) in enumerate(cues):
+            page.set_content(f'<body style="margin:0;background:transparent"><div id="c" style="display:inline-block;{CAPTION_CSS};max-width:880px">'
+                             f"{text}</div></body>")
+            f = work / f"cap{n}.png"
+            page.locator("#c").screenshot(path=str(f), omit_background=True)
+            pngs.append(f)
+        browser.close()
+    inputs = ["-i", str(work / "term.mp4")] + [a for f in pngs for a in ("-i", str(f))]
+    chain, prev = [], "0:v"
+    for n, (a, b, _) in enumerate(cues):
+        out = f"v{n}"
+        chain.append(f"[{prev}][{n + 1}:v]overlay=(W-w)/2:22:enable='between(t,{a:.2f},{b:.2f})'[{out}]")
+        prev = out
+    chain.append(f"[{prev}]fps=30,scale={CONTEXT_SIZE['width']}:{CONTEXT_SIZE['height']},setsar=1[v]")
+    term = work / "term-captioned.mp4"
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", ";".join(chain), "-map", "[v]",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-an", str(term)], check=True)
+    return term
 
 
 def main():
