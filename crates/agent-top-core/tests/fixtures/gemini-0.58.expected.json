@@ -137,13 +137,31 @@
         "sidechain": false
       }
     ],
-    "named_agent": 0,
+    "named_agent": 4,
     "open": 0,
     "sidechain": 4,
     "total_duration_ms": 125400
   },
   "started_at_ms": 1788598800000,
-  "subagent_runs": [],
+  "subagent_runs": [
+    {
+      "agent_type": null,
+      "compactions": 0,
+      "context_points": 2,
+      "cost_usd_micros": 2320,
+      "id": "b2c3d4e5-0000-4000-8000-000000000002",
+      "last_activity_ms": 1788598934000,
+      "model": "gemini-2.5-flash",
+      "peak_prompt": 3600,
+      "spans": 4,
+      "spawned_by": null,
+      "spawned_by_span": null,
+      "started_at_ms": 1788598924500,
+      "tokens": 7060,
+      "tool_calls": 1,
+      "unpriced_tokens": 0
+    }
+  ],
   "subagent_turns": 2,
   "tool_calls": 5,
   "tool_calls_lower_bound": false,

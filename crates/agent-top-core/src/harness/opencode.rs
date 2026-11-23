@@ -125,7 +125,9 @@
 //! file stem, which is all the collector and the trace resolver need.
 
 use super::{AttributeContext, ContextLedger, HarnessAdapter, RegistryHints, SessionSummary, SessionTracker, SpanRetention};
-use crate::model::{Activity, Attribution, ContextOrigin, CostBreakdown, Harness, ProcNode, SpanKind, SubagentRun, TokenUsage};
+use crate::model::{
+    Activity, Attribution, CompactionTrigger, ContextOrigin, CostBreakdown, Harness, ProcNode, SpanKind, SubagentRun, TokenUsage,
+};
 use crate::process::RawProc;
 use rusqlite::{Connection, OpenFlags};
 use std::collections::HashSet;
@@ -1263,9 +1265,11 @@ fn context_ledger_v2(msgs: &[V2Msg], sid: &str, servers: &[String]) -> ContextLe
             .and_then(|model| crate::pricing::table().lookup(model))
             .map(|p| scaled(p.breakdown(&usage), m.cost))
             .unwrap_or_default();
-        ledger.response(&usage, &cost);
+        // A response is timed by when it finished, as a transcript line is.
+        let at = m.completed.or(Some(m.created));
+        ledger.response_at(&usage, &cost, at);
         if m.typ == "compaction" {
-            ledger.compacted();
+            ledger.compacted_at(at, CompactionTrigger::Unknown, None, None);
         } else {
             for t in &m.tools {
                 match mcp_server_of(&t.name, servers) {
@@ -1303,7 +1307,8 @@ fn context_ledger(conn: &Connection, session_id: &str, servers: &[String]) -> ru
         "SELECT id, json_extract(data,'$.tokens.input'), json_extract(data,'$.tokens.output'), \
          json_extract(data,'$.tokens.reasoning'), json_extract(data,'$.tokens.cache.read'), \
          json_extract(data,'$.tokens.cache.write'), json_extract(data,'$.cost'), json_extract(data,'$.modelID'), \
-         json_extract(data,'$.summary'), json_extract(data,'$.mode') FROM message \
+         json_extract(data,'$.summary'), json_extract(data,'$.mode'), \
+         coalesce(json_extract(data,'$.time.completed'), json_extract(data,'$.time.created'), time_created) FROM message \
          WHERE session_id = ?1 AND json_extract(data,'$.role') = 'assistant' ORDER BY time_created, id",
     )?;
     let mut rows = stmt.query([session_id])?;
@@ -1324,10 +1329,11 @@ fn context_ledger(conn: &Connection, session_id: &str, servers: &[String]) -> ru
             .and_then(|m| crate::pricing::table().lookup(&m))
             .map(|p| scaled(p.breakdown(&usage), total))
             .unwrap_or_default();
-        ledger.response(&usage, &cost);
+        let at = r.get::<_, Option<i64>>(10)?.and_then(from_ms);
+        ledger.response_at(&usage, &cost, at);
         let summary = r.get::<_, Option<i64>>(8)?.unwrap_or(0) != 0 || r.get::<_, Option<String>>(9)?.as_deref() == Some("compaction");
         if summary {
-            ledger.compacted();
+            ledger.compacted_at(at, CompactionTrigger::Unknown, None, None);
         }
         for (call, tool) in calls.remove(&id).unwrap_or_default() {
             match mcp_server_of(&tool, servers) {
@@ -1873,6 +1879,13 @@ mod tests {
             replies.iter().filter(|r| r.input + r.read > 0).map(|r| prompt_side(r.input, r.output + r.reasoning, r.read, r.cost)).sum();
         let got: f64 = rows.values().map(|c| c.cost_usd).sum();
         assert!((expected - got).abs() < 1e-9, "rows {got} vs prompt-side {expected}");
+
+        // The timeline is timed by each reply's completed time, and the
+        // summary reply is a compaction at its own time.
+        let ms = |t: Option<std::time::SystemTime>| t.map(|t| t.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64);
+        let ctx = &t.summary().context;
+        assert_eq!(ctx.points().iter().map(|p| ms(p.at)).collect::<Vec<_>>(), [Some(15), Some(25), Some(35), Some(55)]);
+        assert_eq!(ctx.compactions().iter().map(|c| ms(c.at)).collect::<Vec<_>>(), [Some(45)]);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1920,6 +1933,7 @@ mod tests {
         assert_eq!((run.tool_calls, run.cost_usd), (1, 0.05));
         assert_eq!(run.context_points.len(), 1, "the subagent's one response is on its own timeline");
         assert_eq!(s.context.points().len(), 2, "the parent's timeline has only the parent's two");
+        assert!(s.context.points().iter().chain(&run.context_points).all(|p| p.at.is_some()), "each point has its response's time");
         assert!(s.spans.iter().all(|sp| sp.sidechain == (sp.agent.as_deref() == Some("ses_v2c"))));
         assert!(!s.health.fields_unrecognised());
 

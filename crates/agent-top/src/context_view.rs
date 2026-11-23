@@ -89,6 +89,16 @@ pub fn draw(f: &mut Frame, area: Rect, agent: Option<&Agent>, which: usize, spli
     let Some(t) = t.filter(|t| !t.points.is_empty()) else {
         let msg = match (agent, all.len()) {
             (None, _) => "No agent selected.",
+            (Some(a), 1) if a.context_now.is_some() => {
+                let msg = format!(
+                    " {} records only the context's current size ({}{}), not one per response, so there is no timeline.",
+                    a.harness.label(),
+                    tokens(a.context_now.unwrap_or(0)),
+                    a.context_window.map(|w| format!(" of {}", tokens(w))).unwrap_or_default()
+                );
+                f.render_widget(Paragraph::new(Line::styled(msg, Style::default().fg(theme.dim))), inner);
+                return;
+            }
             (_, 1) => "No model response with token usage has been read for this agent yet.",
             _ => "No model response with token usage has been read for the main agent yet. Tab shows its subagents.",
         };
@@ -242,7 +252,19 @@ fn table_lines(a: &Timeline, height: usize, theme: &Theme) -> Vec<Line<'static>>
 /// One line for the detail pane: where the context is now, and the key that
 /// opens the timeline.
 pub fn summary_line(a: &Agent, theme: &Theme) -> Option<Line<'static>> {
-    let last = a.context_points.last()?;
+    let Some(last) = a.context_points.last() else {
+        // Only the current size, with no series behind it: say so, and offer
+        // no timeline and no claim about compactions.
+        let now = a.context_now?;
+        let s = match a.context_window.filter(|w| *w > 0) {
+            Some(w) => format!("  {} now of {} ({}%)", tokens(now), tokens(w), now * 100 / w),
+            None => format!("  {} now", tokens(now)),
+        };
+        return Some(Line::from(vec![
+            Span::raw(s),
+            Span::styled(" · the harness keeps no size per response", Style::default().fg(theme.dim)),
+        ]));
+    };
     let n = a.compactions.len();
     let mut s = match a.context_window.filter(|w| *w > 0) {
         Some(w) => format!("  {} now of {} ({}%)", tokens(last.prompt), tokens(w), last.prompt * 100 / w),

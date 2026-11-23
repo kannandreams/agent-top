@@ -411,6 +411,12 @@ function contextView(c, key) {
   const picker = agentPicker(c, key, wrap);
   if (P.length < 2) {
     if (picker) wrap.append(el("div", { class: "card-head" }, el("h2", { text: "Context" }), picker));
+    // A harness that records only the current size (Kodelet): the reading, no timeline.
+    if (!P.length && c && c.now != null) {
+      const share = c.window ? ` of a ${c.window.toLocaleString("en-US")}-token window (${Math.round((c.now / c.window) * 100)}%)` : "";
+      wrap.append(el("div", { class: "note", text: `Context now: ${c.now.toLocaleString("en-US")} tokens${share}. The harness records only the current size, not one per response, so there is no timeline.` }));
+      return wrap;
+    }
     wrap.append(el("div", { class: "note", text: P.length
       ? "One model response, so no context timeline."
       : "No context timeline stored for this session. Sessions synced by an older agent-top get one at the next agent-top sync, if the transcript is still on disk." }));

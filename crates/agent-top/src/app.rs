@@ -714,6 +714,7 @@ mod tests {
             context_points: Vec::new(),
             compactions: Vec::new(),
             context_window: None,
+            context_now: None,
             tree: None,
             attribution: Attribution::HarnessRegistry,
             shares_process: false,

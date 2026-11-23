@@ -16,6 +16,10 @@
 //!   counter. Retained/observed calls therefore provide only a lower bound.
 //! * Tool-result timestamps mark completion; `metadata.executionTime` is in
 //!   nanoseconds. Per-response usage and message timestamps are not persisted.
+//! * `usage.currentContextWindow` is the live context in tokens and
+//!   `usage.maxContextWindow` the model's window; Kodelet compares the two to
+//!   auto-compact (`Thread.ShouldAutoCompact`, `pkg/llm/base/base.go`, read
+//!   2026-11-23 at v0.8.33-beta). Only the latest values are kept.
 //! * An MCP call is an ordinary tool named `mcp__<server>_<tool>`
 //!   (`sdk/src/extensions/mcp/register.ts`, `extensionToolName`, read on
 //!   2026-09-20). Taken from that registration rather than a live session, as
@@ -557,6 +561,11 @@ fn accounting(usage: &Value, responses: bool, summary: &mut SessionSummary) {
     // fill it in from the price table, which never priced anything here;
     // `unpriced_tokens` is what says a figure is missing.
     summary.price_source = Some(PriceSource::Harness);
+    // The live context and the window, as Kodelet keeps them for its own
+    // auto-compaction. Only the current value is stored, never one per
+    // response, so this is a reading, not a timeline.
+    summary.context_now = Some(count("currentContextWindow")).filter(|n| *n > 0);
+    summary.context_window = Some(count("maxContextWindow")).filter(|n| *n > 0);
 }
 
 /// The server behind a Kodelet MCP tool name.
@@ -826,6 +835,7 @@ mod tests {
             assert_eq!(summary.started_at, timestamp(CREATED));
             assert_eq!(summary.last_activity, timestamp(UPDATED));
             assert!(summary.context.is_empty(), "cumulative usage cannot reconstruct per-response context");
+            assert_eq!((summary.context_now, summary.context_window), (Some(45), Some(200_000)), "but the current reading is kept");
         }
     }
 

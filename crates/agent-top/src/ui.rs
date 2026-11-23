@@ -1250,6 +1250,11 @@ fn process_tree(
     if !a.context.is_empty() {
         lines.push(Line::raw(""));
         lines.extend(context_by_source(a, theme));
+    } else if let Some(l) = crate::context_view::summary_line(a, theme) {
+        // A harness that records only the context's current size (Kodelet).
+        lines.push(Line::raw(""));
+        lines.push(Line::from(Span::styled("context", Style::default().fg(theme.accent).bold())));
+        lines.push(l);
     }
     if !orphans.is_empty() {
         lines.push(Line::raw(""));
@@ -1592,6 +1597,7 @@ mod tests {
             context_points: Vec::new(),
             compactions: Vec::new(),
             context_window: None,
+            context_now: None,
             tree: None,
             attribution: Attribution::HarnessRegistry,
             shares_process: false,
@@ -2279,6 +2285,25 @@ mod tests {
         let out = render(&mut app, 140, 44);
         assert!(out.contains("· window 258k"), "{out}");
         assert!(out.contains("279k"), "the axis reaches past the window:\n{out}");
+    }
+
+    /// A harness that records only the current size gets that reading and
+    /// its window, no timeline, and no claim about compactions.
+    #[test]
+    fn a_harness_with_only_the_current_size_says_so() {
+        let mut a = agent("kod", Vec::new());
+        a.harness = agent_top_core::Harness::Kodelet;
+        a.context_now = Some(45_000);
+        a.context_window = Some(200_000);
+        let mut app = App::new(snapshot(vec![a]));
+        app.show_detail = true;
+        app.detail = DetailView::Tree;
+        let out = render(&mut app, 140, 44);
+        assert!(out.contains("45k now of 200k (22%) · the harness keeps no size per response"), "{out}");
+        assert!(!out.contains("compaction"), "{out}");
+        app.on_key(ratatui::crossterm::event::KeyCode::Char('c'));
+        let out = render(&mut app, 140, 44);
+        assert!(out.contains("kodelet records only the context's current size (45k of 200k)"), "{out}");
     }
 
     /// `Tab` in the timeline steps from the main agent to each subagent's
