@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// The schema this build writes, kept in `PRAGMA user_version`.
-pub const SCHEMA_VERSION: i64 = 6;
+pub const SCHEMA_VERSION: i64 = 7;
 
 /// Recorded on every synced source, so a newer agent-top re-reads what an
 /// older one stored and a parser or price fix reaches the stored rows.
@@ -264,6 +264,14 @@ CREATE VIEW compactions_by_day AS
 UPDATE sources SET synced_by_version = '';
 ";
 
+/// The model's context window as the harness wrote it (Codex), for the line
+/// the context timeline draws. Emptying `synced_by_version` fills it at the
+/// next sync.
+const SCHEMA_V7: &str = "
+ALTER TABLE sessions ADD COLUMN context_window INTEGER;
+UPDATE sources SET synced_by_version = '';
+";
+
 /// Where the store lives when `--db` is not given: `AGENT_TOP_DB`, else
 /// `$XDG_DATA_HOME/agent-top/agent-top.db`, else
 /// `~/.local/share/agent-top/agent-top.db`, on every platform.
@@ -350,7 +358,9 @@ impl Store {
                 self.path.display()
             );
         }
-        for (version, sql) in [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3), (4, SCHEMA_V4), (5, SCHEMA_V5), (6, SCHEMA_V6)] {
+        for (version, sql) in
+            [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3), (4, SCHEMA_V4), (5, SCHEMA_V5), (6, SCHEMA_V6), (7, SCHEMA_V7)]
+        {
             if v < version {
                 let tx = self.conn.transaction()?;
                 tx.execute_batch(sql)?;
@@ -539,9 +549,10 @@ fn replace_session(
         "INSERT INTO sessions (harness, session_id, parent_session_id, source_path, cwd, project, model, harness_version,
             attribution, started_at, last_activity, turns, subagent_turns, tool_calls, web_searches,
             input, cache_write_5m, cache_write_1h, cache_write_unsplit, cache_read, output,
-            cost_usd, unpriced_tokens, price_source, harness_cost_usd, synced_at, synced_by_version, tool_calls_lower_bound)
+            cost_usd, unpriced_tokens, price_source, harness_cost_usd, synced_at, synced_by_version, tool_calls_lower_bound,
+            context_window)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?28, ?9, ?10, ?11, ?12, ?13, ?14,
-            ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)",
+            ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?29)",
         params![
             harness,
             id,
@@ -571,6 +582,7 @@ fn replace_session(
             WRITER_VERSION,
             s.tool_calls_lower_bound,
             attribution,
+            s.context_window.map(|w| w as i64),
         ],
     )?;
 

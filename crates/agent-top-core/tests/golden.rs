@@ -98,6 +98,7 @@ fn describe(s: &SessionSummary) -> Value {
         // has a point for, the largest prompt, and every compaction, so an
         // inferred one that real data should not have shows up here.
         "context_points": s.context.points().len(),
+        "context_window": s.context_window,
         "peak_prompt": s.context.points().iter().map(|p| p.prompt).max(),
         "compactions": s.context.compactions().iter().map(|c| json!({
             "seq": c.seq,

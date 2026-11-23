@@ -154,6 +154,8 @@ def seed(db):
         )
     for g in RUN_GRAPHS:
         seed_run_graph(con, rnd, now, g)
+    # Codex writes its model's window; the other harnesses do not.
+    con.execute("UPDATE sessions SET context_window = 258400 WHERE harness = 'codex'")
     con.commit()
     con.close()
     return n + 1

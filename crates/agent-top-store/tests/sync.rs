@@ -47,6 +47,26 @@ fn stored_numbers_are_the_parsers_numbers() {
     assert_eq!(store.session_count().unwrap(), 2);
 }
 
+/// The window is stored only when the harness wrote one: Codex does, Claude
+/// Code does not.
+#[test]
+fn the_context_window_is_the_harness_s_own() {
+    let dir = TempDir::new();
+    let mut store = Store::open(&dir.0.join("agent-top.db")).unwrap();
+    for (h, name) in [(Harness::Codex, "codex-0.130.jsonl"), (Harness::Claude, "claude-2.1.278.jsonl")] {
+        store.sync_sources(&[source(h, &copy(&dir, name))], None).unwrap();
+    }
+    let windows: Vec<(String, Option<i64>)> = store
+        .connection()
+        .prepare("SELECT harness, context_window FROM sessions ORDER BY harness")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(windows, [("claude".to_string(), None), ("codex".to_string(), Some(258_400))]);
+}
+
 #[test]
 fn every_tool_span_inside_a_turn_points_at_it() {
     let dir = TempDir::new();

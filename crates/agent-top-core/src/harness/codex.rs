@@ -23,6 +23,9 @@
 //!   `mcp_tool_call_end` follows, and sized by the consuming response. Codex
 //!   writes no compaction marker that was seen, so the ledger's halving
 //!   rule stands in. See `ContextLedger`.
+//! * `info.model_context_window` is the model's window in tokens: 258,400 in
+//!   the 0.130 fixture and in a live 0.158.0-alpha.2 session (2026-11-23).
+//!   The latest one is the session's.
 //! * Usage ordering (0.130 fixture / 0.154.0 live and source, 2026-09-18):
 //!   newer versions emit `token_count` after draining tool outputs, older
 //!   ones before. The first model item freezes that response's input batch;
@@ -557,6 +560,11 @@ impl CodexTranscript {
                                 self.summary.unpriced_tokens = usage.total();
                             }
                         }
+                    }
+                    if let Some(w) =
+                        payload.and_then(|p| p.pointer("/info/model_context_window")).and_then(Value::as_u64).filter(|w| *w > 0)
+                    {
+                        self.summary.context_window = Some(w);
                     }
                     if let Some(last) = payload.and_then(|p| p.pointer("/info/last_token_usage")).filter(|v| v.is_object()) {
                         let g = |k: &str| last.get(k).and_then(Value::as_u64).unwrap_or(0);

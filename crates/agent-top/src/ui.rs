@@ -1591,6 +1591,7 @@ mod tests {
             context: Vec::new(),
             context_points: Vec::new(),
             compactions: Vec::new(),
+            context_window: None,
             tree: None,
             attribution: Attribution::HarnessRegistry,
             shares_process: false,
@@ -2257,6 +2258,27 @@ mod tests {
         let out = render(&mut app, 140, 44);
         assert!(out.contains("by source, estimated"), "{out}");
         assert!(!out.contains("Tab subagent"), "no subagent, nothing to step to:\n{out}");
+    }
+
+    /// A window the harness wrote is drawn and named; without one there is
+    /// no line and no percentage.
+    #[test]
+    fn the_context_timeline_names_the_window_the_harness_wrote() {
+        use agent_top_core::{ContextOrigin, ContextPoint, ContextSource};
+        let mut a = agent("ctx", Vec::new());
+        a.context =
+            vec![ContextSource { name: "exec_command".into(), origin: ContextOrigin::Tool, calls: 1, tokens: 9_000, cost_usd: 0.0 }];
+        a.context_points =
+            (0..40).map(|i| ContextPoint { prompt: 20_000 + i * 1_000, other: 20_000 + i * 1_000, ..Default::default() }).collect();
+        a.context_window = Some(258_400);
+        let mut app = App::new(snapshot(vec![a]));
+        app.show_detail = true;
+        app.detail = DetailView::Tree;
+        assert!(render(&mut app, 140, 44).contains("59k now of 258k (22%)"), "{}", render(&mut app, 140, 44));
+        app.on_key(ratatui::crossterm::event::KeyCode::Char('c'));
+        let out = render(&mut app, 140, 44);
+        assert!(out.contains("· window 258k"), "{out}");
+        assert!(out.contains("279k"), "the axis reaches past the window:\n{out}");
     }
 
     /// `Tab` in the timeline steps from the main agent to each subagent's

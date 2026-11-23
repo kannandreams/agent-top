@@ -713,6 +713,7 @@ mod tests {
             context: Vec::new(),
             context_points: Vec::new(),
             compactions: Vec::new(),
+            context_window: None,
             tree: None,
             attribution: Attribution::HarnessRegistry,
             shares_process: false,

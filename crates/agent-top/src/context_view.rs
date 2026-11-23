@@ -23,16 +23,20 @@ struct Timeline<'a> {
     who: String,
     points: &'a [ContextPoint],
     compactions: &'a [Compaction],
+    /// The model's window, when the harness wrote it. The main agent's only:
+    /// a subagent may run another model.
+    window: Option<u64>,
 }
 
 /// The main agent's timeline, then each subagent's that has a response, in
 /// start order.
 fn timelines(a: &Agent) -> Vec<Timeline<'_>> {
-    let main = Timeline { who: "main agent".into(), points: &a.context_points, compactions: &a.compactions };
+    let main = Timeline { who: "main agent".into(), points: &a.context_points, compactions: &a.compactions, window: a.context_window };
     let subs = a.subagent_runs.iter().filter(|r| !r.context_points.is_empty()).map(|r| Timeline {
         who: format!("{} {}", r.agent_type.as_deref().unwrap_or("subagent"), truncate(&r.id, 8)),
         points: &r.context_points,
         compactions: &r.compactions,
+        window: None,
     });
     std::iter::once(main).chain(subs).collect()
 }
@@ -63,6 +67,9 @@ pub fn draw(f: &mut Frame, area: Rect, agent: Option<&Agent>, which: usize, spli
             ),
             Style::default().fg(theme.dim),
         ));
+        if let Some(w) = t.window {
+            title.push(Span::styled(format!("· window {} ", tokens(w)), Style::default().fg(theme.dim)));
+        }
         if split {
             title.push(Span::styled("· by source, estimated: ", Style::default().fg(theme.dim)));
             title.push(Span::styled("tools ", Style::default().fg(theme.accent)));
@@ -115,7 +122,7 @@ fn downsample(points: &[ContextPoint], buckets: usize, value: impl Fn(&ContextPo
 fn draw_chart(f: &mut Frame, area: Rect, a: &Timeline, split: bool, theme: &Theme) {
     let pts = a.points;
     let n = pts.len();
-    let peak = pts.iter().map(|p| p.prompt).chain(a.compactions.iter().map(|c| c.before)).max().unwrap_or(0);
+    let peak = pts.iter().map(|p| p.prompt).chain(a.compactions.iter().map(|c| c.before)).chain(a.window).max().unwrap_or(0);
     let y_max = (peak as f64 * 1.08).max(1.0);
     let buckets = area.width.saturating_sub(9) as usize * 2;
 
@@ -138,6 +145,11 @@ fn draw_chart(f: &mut Frame, area: Rect, a: &Timeline, split: bool, theme: &Them
         })
         .collect();
 
+    // The window, as the harness wrote it, dotted across the top.
+    let window: Vec<(f64, f64)> = a.window.map(|w| vec![(1.0, w as f64), ((n as f64).max(2.0), w as f64)]).unwrap_or_default();
+    if !window.is_empty() {
+        sets.push(Dataset::default().marker(Marker::Dot).graph_type(GraphType::Line).style(Style::default().fg(theme.dim)).data(&window));
+    }
     let lines: Vec<(Vec<(f64, f64)>, Style)> = if split {
         vec![
             (downsample(pts, buckets, |p| p.other), Style::default().fg(theme.dim)),
@@ -232,7 +244,10 @@ fn table_lines(a: &Timeline, height: usize, theme: &Theme) -> Vec<Line<'static>>
 pub fn summary_line(a: &Agent, theme: &Theme) -> Option<Line<'static>> {
     let last = a.context_points.last()?;
     let n = a.compactions.len();
-    let mut s = format!("  {} now", tokens(last.prompt));
+    let mut s = match a.context_window.filter(|w| *w > 0) {
+        Some(w) => format!("  {} now of {} ({}%)", tokens(last.prompt), tokens(w), last.prompt * 100 / w),
+        None => format!("  {} now", tokens(last.prompt)),
+    };
     if let Some(c) = a.compactions.last() {
         s.push_str(&format!(
             " · {n} {} · last {} responses ago",
