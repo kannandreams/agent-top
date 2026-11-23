@@ -31,6 +31,14 @@ text and was dropped. The agent id is made up, and so is the file name that
 carries it. Its totals are the window's, so they say nothing about what the
 session cost.
 
+`claude-compact-2.1.308.jsonl` is also a window: 274 lines of a real session
+around an automatic compaction, from the prompt of the turn that ran into it
+to the prompt after it. Claude Code upgraded from 2.1.308 to 2.1.310 midway, so
+both versions appear. The `compact_boundary` line keeps `trigger`, `preTokens`
+and `postTokens`; the compaction summary that follows it is prose and is
+reduced to an empty `content` like every other prompt. Message and tool-use ids
+are renumbered, and the session id and cwd are made up.
+
 Each `.expected.json` next to a fixture is the parse the current code produces
 from it. `tests/golden.rs` asserts the two match.
 
