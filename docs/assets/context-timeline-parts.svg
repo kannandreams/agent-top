@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 400" width="100%" role="img" aria-labelledby="t d">
+  <title id="t">The parts of a context timeline</title>
+  <desc id="d">A prompt line climbs with each model response, jumps at one large tool result, drops at a compaction the harness recorded (solid rule), climbs again, and drops at an inferred compaction (dashed rule). A dashed horizontal line near the top marks the context window.</desc>
+  <style>
+    text { font-family: "JetBrains Mono", Menlo, monospace; font-size: 13px; fill: #12141a; }
+    .muted { fill: #5b6170; font-size: 12px; }
+    .grid { stroke: #e3e5ea; stroke-width: 1; }
+    .axis { stroke: #9aa0ad; stroke-width: 1; }
+    .line { fill: none; stroke: #2457d6; stroke-width: 2.2; stroke-linejoin: round; }
+    .area { fill: #2457d6; fill-opacity: 0.09; }
+    .rule { stroke: #e0622a; stroke-width: 2; }
+    .rule.inferred { stroke-dasharray: 6 4; }
+    .window { stroke: #5b6170; stroke-width: 1.5; stroke-dasharray: 2 4; }
+    .lead { stroke: #5b6170; stroke-width: 1; }
+    .dot { fill: #12141a; }
+    .tag { fill: #e0622a; font-weight: 700; }
+  </style>
+  <rect x="0" y="0" width="840" height="400" rx="10" fill="#fbfbfc" stroke="#e3e5ea"/>
+
+  <!-- grid and axes: tokens 0..280k mapped to y 300..40 -->
+  <line class="grid" x1="70" y1="207" x2="790" y2="207"/>
+  <line class="grid" x1="70" y1="114" x2="790" y2="114"/>
+  <line class="axis" x1="70" y1="300" x2="790" y2="300"/>
+  <text class="muted" x="62" y="304" text-anchor="end">0</text>
+  <text class="muted" x="62" y="211" text-anchor="end">100k</text>
+  <text class="muted" x="62" y="118" text-anchor="end">200k</text>
+  <text class="muted" x="70" y="320">1</text>
+  <text class="muted" x="790" y="320" text-anchor="end">responses, not time →</text>
+
+  <!-- window -->
+  <line class="window" x1="70" y1="60" x2="790" y2="60"/>
+  <text class="muted" x="790" y="53" text-anchor="end">window 258k</text>
+
+  <!-- prompt line -->
+  <path class="area" d="M70,272 L100,266 L130,258 L160,250 L175,214 L205,206 L235,196 L265,170 L295,140 L320,110 L330,86 L345,244 L375,238 L405,226 L435,212 L465,190 L495,170 L525,150 L555,128 L585,104 L598,91 L612,235 L645,228 L680,218 L715,206 L750,198 L790,189 L790,300 L70,300 Z"/>
+  <path class="line" d="M70,272 L100,266 L130,258 L160,250 L175,214 L205,206 L235,196 L265,170 L295,140 L320,110 L330,86 L345,244 L375,238 L405,226 L435,212 L465,190 L495,170 L525,150 L555,128 L585,104 L598,91 L612,235 L645,228 L680,218 L715,206 L750,198 L790,189"/>
+
+  <!-- compactions -->
+  <line class="rule" x1="338" y1="40" x2="338" y2="300"/>
+  <text class="tag" x="338" y="34" text-anchor="middle">#1</text>
+  <line class="rule inferred" x1="605" y1="40" x2="605" y2="300"/>
+  <text class="tag" x="605" y="34" text-anchor="middle">#2</text>
+
+  <!-- callouts -->
+  <circle class="dot" cx="330" cy="86" r="3.5"/>
+  <text x="322" y="82" text-anchor="end">before</text>
+  <circle class="dot" cx="345" cy="244" r="3.5"/>
+  <text x="353" y="264">after</text>
+  <line class="lead" x1="175" y1="216" x2="175" y2="274"/>
+  <text x="84" y="290">one large tool result</text>
+  <text x="80" y="172" class="muted">each point is one</text>
+  <text x="80" y="187" class="muted">model response</text>
+  <text x="352" y="104" class="muted">recorded by</text>
+  <text x="352" y="119" class="muted">the harness</text>
+  <text x="619" y="104" class="muted">inferred: the</text>
+  <text x="619" y="119" class="muted">prompt halved</text>
+
+  <!-- legend -->
+  <line class="line" x1="70" y1="356" x2="92" y2="356"/>
+  <text x="100" y="360">prompt tokens</text>
+  <line class="rule" x1="240" y1="346" x2="240" y2="366"/>
+  <text x="250" y="360">compaction</text>
+  <line class="rule inferred" x1="370" y1="346" x2="370" y2="366"/>
+  <text x="380" y="360">inferred compaction</text>
+  <line class="window" x1="570" y1="356" x2="600" y2="356"/>
+  <text x="608" y="360">context window</text>
+</svg>

@@ -12,7 +12,7 @@ The [local store](index.md) has nine tables. The saved views built on them are o
 | `spans` | tool call, inference or turn, keyed by `harness`, `session_id`, `seq` | `kind`, `name`, `started_at`, `duration_ms` (null while open), `error`, `sidechain`, `parent_seq` (the turn it ran in), `agent` (the subagent that issued it; null for the main agent) |
 | `subagents` | subagent run folded into a session, keyed by `harness`, `session_id`, `agent_id` | `agent_type`, `spawned_by` (the `span_id` of the call that started it), `model`, `started_at`, `last_activity`, `tokens`, `cost_usd`, `unpriced_tokens`, `tool_calls` |
 | `mcp_calls` | MCP server a session called | `server`, `calls`, `errors`, `last_call_at` |
-| `context_points` | model response of a session's main agent, keyed by `harness`, `session_id`, `agent`, `seq` | `at`, `prompt` (the tokens it read), `output`, `cache_read`, and `tool_tokens`, `mcp_tokens`, `other_tokens`, an estimated split of `prompt` |
+| `context_points` | model response of a session's main agent or one of its subagents, keyed by `harness`, `session_id`, `agent`, `seq` | `at`, `prompt` (the tokens it read), `output`, `cache_read`, and `tool_tokens`, `mcp_tokens`, `other_tokens`, an estimated split of `prompt` |
 | `compactions` | compaction, keyed like `context_points`; `seq` is the first response after it | `at`, `triggered_by` (`auto`, `manual` or `unknown`), `detected_by` (`harness`, or `prompt-halved` when inferred), `before_tokens`, `summary_tokens`, `after_tokens` |
 | `compaction_sources` | source in the context when a compaction cleared it | `seq`, `origin` (`tool`, `mcp` or `other`), `name`, `tokens` (estimated) |
 | `sources` | transcript synced | `path`, `size`, `mtime_ms`, `synced_by_version` |

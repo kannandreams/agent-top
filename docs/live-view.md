@@ -67,6 +67,8 @@ Kodelet keeps only the context's current size and its window, not a size per res
 
 Each subagent has a timeline of its own, since it starts from an empty context. The line above the sources says how many there are, and `Tab` in the view steps from the main agent to each subagent in start order and back (`Shift-Tab` steps the other way). The title names the one shown.
 
+[Reading the context timeline](context-timeline.md) explains each mark and the shapes worth acting on.
+
 **orphaned mcp processes** are servers with no live agent above them, a leak agent-top watches for on every tick (the story is in [The MCP server that outlives its agent](blog/posts/the-server-that-outlives-its-agent.md)). Each says which agent it was orphaned from and when, or that it was already an orphan when agent-top first saw it.
 
 ![The stopped session: a transcript with no process, its MCP server with no pid, and the orphan list](screenshots/stopped-and-orphans.png)
