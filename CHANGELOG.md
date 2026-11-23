@@ -4,24 +4,27 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-23
+
+### Highlights
+`c` opens a full-width context timeline for the selected agent: the prompt size at every model response, a line at each compaction, and a table giving each compaction's size before, the summary's size, the first prompt after and what had filled the context. It shows how fast a session fills its context and what filled it before each compaction. `agent-top ui` draws the same timeline in a session's detail, from the store.
+
+Each subagent has its own timeline, reached with `Tab` in the view or the Agent list in `agent-top ui`. When the harness records the model's context window (Codex, Kodelet), the timeline draws it and the detail pane gives the context as a share of it. Compactions are exact where the harness records them (Claude Code, OpenCode) and marked as inferred where the prompt fell by half.
+
 ### Added
-- `c` opens the selected agent's context timeline: prompt size per response, a rule at each compaction, and a table of them; `s` splits it by source. ([#97](https://github.com/kannandreams/agent-top/pull/97))
-- `--once` lists every compaction, and `--json` agents carry `compactions` with the size before, the summary's size and the first prompt after. ([#97](https://github.com/kannandreams/agent-top/pull/97))
+- `c` opens the selected agent's context timeline: prompt size per response, a line at each compaction, and a table of them; `s` splits it by source. ([#97](https://github.com/kannandreams/agent-top/pull/97))
+- Each subagent has its own context timeline: `Tab` in the `c` view and an Agent list in `agent-top ui` switch to it. Claude Code, OpenCode and Gemini CLI. ([#99](https://github.com/kannandreams/agent-top/pull/99), [#102](https://github.com/kannandreams/agent-top/pull/102))
 - `agent-top ui`: a session's detail draws its context timeline, with each compaction and what filled the context before it; the totals count compactions. ([#98](https://github.com/kannandreams/agent-top/pull/98))
-- The store keeps each session's context timeline in `context_points`, `compactions` and `compaction_sources`, with a `compactions_by_day` view; the next `sync` re-reads every transcript still on disk. ([#98](https://github.com/kannandreams/agent-top/pull/98))
-- Each subagent has its own context timeline: `Tab` in the `c` view and an Agent list in `agent-top ui` switch to it; `--json` subagent runs carry `compactions`. Claude Code and OpenCode. ([#99](https://github.com/kannandreams/agent-top/pull/99))
-- Codex: the context timeline draws the model's context window as Codex reports it, and the detail pane gives the context as a share of it; `--json` agents carry `context_window`. ([#101](https://github.com/kannandreams/agent-top/pull/101))
-- Gemini CLI: each subagent is a run with its own context timeline, and its spans name it. ([#102](https://github.com/kannandreams/agent-top/pull/102))
-- Kodelet: the detail pane shows the context's current size and window as Kodelet records them; `--json` agents carry `context_now`. ([#102](https://github.com/kannandreams/agent-top/pull/102))
+- Codex and Kodelet: the timeline draws the model's context window as the harness reports it, and the detail pane gives the context as a share of it. ([#101](https://github.com/kannandreams/agent-top/pull/101), [#102](https://github.com/kannandreams/agent-top/pull/102))
+- Kodelet: the detail pane shows the context's current size, the only context figure Kodelet records. ([#102](https://github.com/kannandreams/agent-top/pull/102))
+- `--once` lists every compaction. `--json` agents and subagent runs carry `compactions`, and agents carry `context_window` and `context_now`. ([#97](https://github.com/kannandreams/agent-top/pull/97), [#99](https://github.com/kannandreams/agent-top/pull/99), [#101](https://github.com/kannandreams/agent-top/pull/101), [#102](https://github.com/kannandreams/agent-top/pull/102))
+- The store keeps each agent's timeline in `context_points`, `compactions` and `compaction_sources`, with a `compactions_by_day` view, and `sessions` gains `context_window` and `context_now`. The first `sync` after upgrading re-reads every transcript still on disk. ([#98](https://github.com/kannandreams/agent-top/pull/98), [#101](https://github.com/kannandreams/agent-top/pull/101), [#102](https://github.com/kannandreams/agent-top/pull/102))
 
 ### Changed
-- `agent-top-core`: `Agent` gains `context_points` and `compactions`, and `ContextLedger` gains `points()`, `compactions()`, `response_at` and `compacted_at`; code that builds an `Agent` by literal adds two fields. ([#97](https://github.com/kannandreams/agent-top/pull/97))
-- `agent-top-core`: `SubagentRun` gains `context_points`, `compactions` and `Default`. ([#99](https://github.com/kannandreams/agent-top/pull/99))
-- `agent-top-core`: `Agent` and `SessionSummary` gain `context_window`; code that builds an `Agent` by literal adds one field. ([#101](https://github.com/kannandreams/agent-top/pull/101))
-- Codex, Gemini CLI and OpenCode: each point on the context timeline carries its response's time, and OpenCode compactions carry theirs. ([#102](https://github.com/kannandreams/agent-top/pull/102))
-- `agent-top-core`: `Agent` and `SessionSummary` gain `context_now`. ([#102](https://github.com/kannandreams/agent-top/pull/102))
 - `agent-top ui`: a session's detail opens in a panel beside the sessions table, which marks the open row, and a run graph opens on its first subagent's spans. `Esc` closes it. ([#95](https://github.com/kannandreams/agent-top/pull/95))
 - `agent-top ui`: the sessions table shows how many subagents a session ran, and a session without any says it has no run graph. ([#96](https://github.com/kannandreams/agent-top/pull/96))
+- Gemini CLI: a subagent's spans name it, in the run graph and in `agent-top trace`. ([#102](https://github.com/kannandreams/agent-top/pull/102))
+- `agent-top-core`: `Agent` gains `context_points`, `compactions`, `context_window` and `context_now`; `SubagentRun` gains `context_points`, `compactions` and `Default`; `ContextLedger` gains `points()`, `compactions()`, `response_at` and `compacted_at`. Code that builds an `Agent` by literal adds four fields. ([#97](https://github.com/kannandreams/agent-top/pull/97), [#99](https://github.com/kannandreams/agent-top/pull/99), [#101](https://github.com/kannandreams/agent-top/pull/101), [#102](https://github.com/kannandreams/agent-top/pull/102))
 
 ## [0.29.0] - 2026-11-19
 
