@@ -128,6 +128,7 @@ nav:
   - Using agent-top:
       - The live view: live-view.md
       - Views and panes: views-and-panes.md
+      - Reading the context timeline: context-timeline.md
       - Tool trace and export: trace.md
       - Snapshots and replay: replay.md
   - Cost:
