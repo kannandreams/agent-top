@@ -503,29 +503,28 @@ def record(port):
 
 
 CONTEXT_MP4 = ROOT / "docs/context-demo.mp4"
-CAPTION_CSS = ("max-width:80%;padding:12px 22px;border-radius:10px;background:#2457d6;color:#fff;"
-               "font:600 21px/1.35 'JetBrains Mono',Menlo,monospace;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.35)")
 # The context video is narrower than the page walk: it is shown small in a feed.
 CONTEXT_SIZE = {"width": 1040, "height": 780}
+# Captions go in a band under the picture, so they never cover what they describe.
+BAND = 84
+BAND_CSS = ("box-sizing:border-box;width:1040px;height:84px;display:flex;align-items:center;justify-content:center;"
+            "padding:0 28px;background:#0f1117;border-top:3px solid #2457d6;color:#f2f3f5;"
+            "font:600 21px/1.35 'JetBrains Mono',Menlo,monospace;text-align:center")
 
-# A pointer and a caption for the recording only: headless video draws
-# neither, and the page itself has no captions.
+# A pointer for the recording only: headless video draws none.
 DEMO_OVERLAY = """
 addEventListener('DOMContentLoaded', () => {
   const s = document.createElement('style');
   s.textContent = `#demo-cursor{position:fixed;z-index:9999;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;
     background:rgba(224,98,42,.35);border:2px solid #e0622a;pointer-events:none;left:-40px;top:-40px;transition:transform .08s}
-    #demo-cursor.down{transform:scale(.7)}
-    #demo-cap{position:fixed;z-index:9998;left:50%;bottom:28px;transform:translateX(-50%);CAPTION;
-    pointer-events:none;opacity:0;transition:opacity .25s}`;
+    #demo-cursor.down{transform:scale(.7)}`;
   document.head.append(s);
   const c = document.createElement('div'); c.id = 'demo-cursor'; document.body.append(c);
-  const cap = document.createElement('div'); cap.id = 'demo-cap'; document.body.append(cap);
   addEventListener('mousemove', (e) => { c.style.left = e.clientX + 'px'; c.style.top = e.clientY + 'px'; }, true);
   addEventListener('mousedown', () => c.classList.add('down'), true);
   addEventListener('mouseup', () => c.classList.remove('down'), true);
 });
-""".replace("CAPTION", CAPTION_CSS)
+"""
 
 
 def record_context(port):
@@ -545,9 +544,15 @@ def record_context(port):
                                   bypass_csp=True)
         ctx.add_init_script(DEMO_OVERLAY)
         page = ctx.new_page()
+        # The video starts with the page; each caption is timed from there.
+        t0, cues = time.monotonic(), []
 
         def caption(text, ms=0):
-            page.evaluate("t => { const c = document.getElementById('demo-cap'); c.textContent = t; c.style.opacity = t ? 1 : 0; }", text)
+            now = time.monotonic() - t0
+            if cues and cues[-1][1] is None:
+                cues[-1][1] = now
+            if text:
+                cues.append([now, None, text])
             page.wait_for_timeout(ms)
 
         def glide(x, y, steps=18):
@@ -628,9 +633,7 @@ def record_context(port):
         video = page.video.path()
         ctx.close()
         browser.close()
-    web = vid / "web.mp4"
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", video, "-vf", "fps=30,setsar=1", "-c:v", "libx264",
-                    "-pix_fmt", "yuv420p", "-crf", "20", "-an", str(web)], check=True)
+    web = with_captions(Path(video), [tuple(c) for c in cues], vid, "web")
     parts = [web]
     term = record_terminal(vid)
     if term:
@@ -641,6 +644,35 @@ def record_context(port):
                     "-pix_fmt", "yuv420p", "-crf", "20", "-movflags", "+faststart", "-an", str(CONTEXT_MP4)], check=True)
     shutil.rmtree(vid, ignore_errors=True)
     print(f"wrote {CONTEXT_MP4} ({CONTEXT_MP4.stat().st_size // 1024} KB)")
+
+
+def with_captions(video, cues, work, name):
+    """The video with the caption band under it: each cue is (from, to, text) in
+    seconds, rendered as an image (this ffmpeg may have no drawtext)."""
+    from playwright.sync_api import sync_playwright
+
+    pngs = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": CONTEXT_SIZE["width"], "height": BAND})
+        for n, (_, _, text) in enumerate(cues):
+            page.set_content(f'<body style="margin:0"><div id="c" style="{BAND_CSS}">{text}</div></body>')
+            f = work / f"{name}-cap{n}.png"
+            page.locator("#c").screenshot(path=str(f))
+            pngs.append(f)
+        browser.close()
+    w, h = CONTEXT_SIZE["width"], CONTEXT_SIZE["height"]
+    inputs = ["-i", str(video)] + [a for f in pngs for a in ("-i", str(f))]
+    chain = [f"[0:v]fps=30,scale={w}:{h},setsar=1,pad={w}:{h + BAND}:0:0:color=0x0f1117[b]"]
+    prev = "b"
+    for n, (a, b, _) in enumerate(cues):
+        end = b if b is not None else 10_000
+        chain.append(f"[{prev}][{n + 1}:v]overlay=0:{h}:enable='between(t,{a:.2f},{end:.2f})'[v{n}]")
+        prev = f"v{n}"
+    out = work / f"{name}-captioned.mp4"
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", ";".join(chain), "-map", f"[{prev}]",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-an", str(out)], check=True)
+    return out
 
 
 def record_terminal(work):
@@ -655,8 +687,6 @@ def record_terminal(work):
             rust:1-bookworm cargo build --release -p agent-top
         AGENT_TOP_LINUX_BIN=target/linux/release/agent-top uv run --with playwright python docs/ui-demo.py context
     """
-    from playwright.sync_api import sync_playwright
-
     linux = os.environ.get("AGENT_TOP_LINUX_BIN")
     if not (linux and Path(linux).exists() and shutil.which("docker") and shutil.which("vhs")):
         print("AGENT_TOP_LINUX_BIN, docker or vhs missing; the video has no terminal part")
@@ -665,7 +695,6 @@ def record_terminal(work):
     subprocess.run([sys.executable, str(ROOT / "docs/context-demo-transcripts.py"), str(home)], check=True)
     # (keys, seconds to wait after them, caption from here on)
     steps = [
-        # Captions sit at the top here: the table under the chart is the point.
         (None, 2.4, "The same view in the terminal: run agent-top and pick a session"),
         ("Down", 1.4, None),
         ("c", 3.2, "Press c for the context timeline"),
@@ -702,29 +731,7 @@ def record_terminal(work):
     (work / "term.tape").write_text("\n".join(tape) + "\n")
     subprocess.run(["vhs", str(work / "term.tape")], check=True, stdout=subprocess.DEVNULL)
 
-    # Captions as images, in the web part's style: this ffmpeg may have no drawtext.
-    pngs = []
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page(viewport=CONTEXT_SIZE)
-        for n, (_, _, text) in enumerate(cues):
-            page.set_content(f'<body style="margin:0;background:transparent"><div id="c" style="display:inline-block;{CAPTION_CSS};max-width:880px">'
-                             f"{text}</div></body>")
-            f = work / f"cap{n}.png"
-            page.locator("#c").screenshot(path=str(f), omit_background=True)
-            pngs.append(f)
-        browser.close()
-    inputs = ["-i", str(work / "term.mp4")] + [a for f in pngs for a in ("-i", str(f))]
-    chain, prev = [], "0:v"
-    for n, (a, b, _) in enumerate(cues):
-        out = f"v{n}"
-        chain.append(f"[{prev}][{n + 1}:v]overlay=(W-w)/2:22:enable='between(t,{a:.2f},{b:.2f})'[{out}]")
-        prev = out
-    chain.append(f"[{prev}]fps=30,scale={CONTEXT_SIZE['width']}:{CONTEXT_SIZE['height']},setsar=1[v]")
-    term = work / "term-captioned.mp4"
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", ";".join(chain), "-map", "[v]",
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-an", str(term)], check=True)
-    return term
+    return with_captions(work / "term.mp4", cues, work, "term")
 
 
 def main():
