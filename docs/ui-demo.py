@@ -560,14 +560,21 @@ def record_context(port):
             locator.click()
             page.wait_for_timeout(ms)
 
-        def sweep(ms=2600, frm=0.04, to=0.96):
+        def sweep(dwell=1100):
+            """Glide along the line and stop at a few responses, long enough to
+            read the tooltip: either side of the first compaction when there is
+            one, and spread out otherwise."""
             pane = page.locator("#detail-body .ctx .chart svg").first.bounding_box()
             y = pane["y"] + pane["height"] * 0.55
-            glide(pane["x"] + pane["width"] * frm, y, steps=10)
-            n = 40
-            for i in range(n + 1):
-                page.mouse.move(pane["x"] + pane["width"] * (frm + (to - frm) * i / n), y)
-                page.wait_for_timeout(ms // n)
+            xs = [pane["x"] + pane["width"] * f for f in (0.1, 0.55, 0.93)]
+            rule = page.locator("#detail-body .ctx .rule-hit").first
+            if rule.count():
+                r = rule.bounding_box()
+                xs = sorted(xs[:1] + [r["x"] - 4, r["x"] + r["width"] + 6] + xs[1:])
+            glide(xs[0], y, steps=10)
+            for x in xs:
+                page.mouse.move(x, y, steps=24)
+                page.wait_for_timeout(dwell)
 
         def show_ctx():
             page.evaluate("document.querySelector('#detail-body .ctx').scrollIntoView({block: 'start'})")
@@ -595,7 +602,7 @@ def record_context(port):
         click(page.locator("#detail-body .ctx tbody tr").nth(1), 1600)
         caption("Split it by source: tool results, MCP results, prompts and replies", 400)
         click(page.locator("#detail-body .ctx .seg button").nth(1), 900)
-        sweep(2400)
+        sweep()
         click(page.locator("#detail-body .ctx .seg button").nth(0), 600)
         caption("Each subagent starts empty, so it gets its own chart", 400)
         pick = page.locator("#detail-body .ctx select")
@@ -607,7 +614,7 @@ def record_context(port):
             pick.select_option(v)
             page.wait_for_timeout(500)
             pick = page.locator("#detail-body .ctx select")
-            sweep(1500, 0.05, 0.9)
+            sweep(900)
         caption("Codex sessions also show the model's context limit", 400)
         page.mouse.move(100, 300)
         page.evaluate("document.getElementById('h-sessions').scrollIntoView({block: 'start'})")
@@ -616,7 +623,7 @@ def record_context(port):
         page.wait_for_selector("#detail-body .ctx .chart svg")
         show_ctx()
         caption("The dashed line is that limit; hover for how close each response came", 300)
-        sweep(3000)
+        sweep()
         caption("", 400)
         video = page.video.path()
         ctx.close()
