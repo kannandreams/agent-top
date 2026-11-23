@@ -204,12 +204,12 @@ RESULT_TOKENS = {"Read": 7000, "read": 6000, "Bash": 3000, "bash": 2500, "exec_c
                  "mcp__github__get_issue": 4000, "mcp__docs__search": 6000}
 
 
-def seed_context(con, harness, sid, steps, limit=None):
-    """The context timeline of one session: a point per main-agent inference,
-    `steps` being (time, the tool whose result it read or None), and a
-    compaction where the context passes the session's limit."""
+def seed_context(con, harness, sid, steps, limit=None, agent=""):
+    """The context timeline of one agent in a session ('' the main agent): a
+    point per inference, `steps` being (time, the tool whose result it read or
+    None), and a compaction where the context passes the session's limit."""
     # Its own generator, so the other invented data stays as it was.
-    rnd = random.Random(sid)
+    rnd = random.Random(sid + agent)
     limit = limit or rnd.choice([160_000, 200_000, 240_000])
     live, points, comps, sources = {}, [], [], []
     def add(origin, name, n):
@@ -220,10 +220,10 @@ def seed_context(con, harness, sid, steps, limit=None):
         if prompt > limit:
             summary = rnd.randint(9_000, 22_000)
             halved = harness == "codex"
-            comps.append((harness, sid, "", seq, at, "unknown" if halved or harness == "opencode" else "auto",
+            comps.append((harness, sid, agent, seq, at, "unknown" if halved or harness == "opencode" else "auto",
                           "prompt-halved" if halved else "harness", prompt, None if halved else summary))
             top = sorted(live.items(), key=lambda kv: -kv[1])[:10]
-            sources += [(harness, sid, "", seq, o, n, v) for (o, n), v in top]
+            sources += [(harness, sid, agent, seq, o, n, v) for (o, n), v in top]
             live.clear()
             add("other", "other", rnd.randint(34_000, 44_000) + summary)
         if tool:
@@ -233,7 +233,7 @@ def seed_context(con, harness, sid, steps, limit=None):
         by = {"tool": 0, "mcp": 0, "other": 0}
         for (o, _), v in live.items():
             by[o] += v
-        points.append((harness, sid, "", seq, at, sum(by.values()), rnd.randint(200, 3_000), int(sum(by.values()) * 0.9),
+        points.append((harness, sid, agent, seq, at, sum(by.values()), rnd.randint(200, 3_000), int(sum(by.values()) * 0.9),
                        by["tool"], by["mcp"], by["other"]))
     con.executemany("INSERT INTO context_points VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", points)
     con.executemany("INSERT INTO compactions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -241,11 +241,12 @@ def seed_context(con, harness, sid, steps, limit=None):
     con.executemany("INSERT INTO compaction_sources VALUES (?, ?, ?, ?, ?, ?, ?)", sources)
 
 
-def main_steps(spans, kind, name, at, agent=lambda s: None):
-    """(time, tool read) for each main-agent inference, in order."""
+def main_steps(spans, kind, name, at, agent=lambda s: None, who=None):
+    """(time, tool read) for each inference of one agent (None the main
+    agent), in order."""
     steps, last = [], None
     for s in sorted(spans, key=at):
-        if agent(s) is not None:
+        if agent(s) != who:
             continue
         if kind(s) == "tool":
             last = name(s)
@@ -311,6 +312,9 @@ def seed_run_graph(con, rnd, now, g):
     con.executemany("INSERT INTO subagents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", runs)
     seed_context(con, harness, sid, main_steps(spans, lambda s: s["kind"], lambda s: s["name"], lambda s: s["at"], lambda s: s["agent"]),
                  limit=90_000 if sid == RUN_GRAPH_ID else None)
+    for r in runs:
+        steps = main_steps(spans, lambda s: s["kind"], lambda s: s["name"], lambda s: s["at"], lambda s: s["agent"], who=r[2])
+        seed_context(con, harness, sid, steps, agent=r[2])
     tools = [sp for sp in spans if sp["kind"] == "tool"]
     k = g["turns"] / 9
     inp, cr, cw, out = int(21_000 * k), int(6_400_000 * k), int(310_000 * k), int(48_000 * k)
@@ -405,7 +409,12 @@ def export(port):
         d = get("session", harness=s["harness"], id=s["session_id"])
         put(f"session/{key(s['harness'])}/{key(s['session_id'])}", d)
         files += 1
-        put(f"context/{key(s['harness'])}/{key(s['session_id'])}", get("context", harness=s["harness"], id=s["session_id"]))
+        ctx = get("context", harness=s["harness"], id=s["session_id"])
+        put(f"context/{key(s['harness'])}/{key(s['session_id'])}", ctx)
+        for a in ctx["agents"]:
+            if a["agent"]:
+                put(f"context/{key(s['harness'])}/{key(s['session_id'])}/{key(a['agent'])}",
+                    get("context", harness=s["harness"], id=s["session_id"], agent=a["agent"]))
         for a in (d.get("graph") or {}).get("agents", []):
             spans = get("spans", harness=s["harness"], id=s["session_id"], agent=a["agent_id"])
             put(f"spans/{key(s['harness'])}/{key(s['session_id'])}/{key(a['agent_id'])}", spans)

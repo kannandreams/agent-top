@@ -806,6 +806,10 @@ impl OpenCodeTranscript {
         for (sid, is_sub) in ids {
             let ledger = context_ledger_v2(&msgs, sid, servers);
             if *is_sub {
+                if let Some(run) = summary.subagent_runs.iter_mut().find(|r| r.id == *sid) {
+                    run.context_points = ledger.points().to_vec();
+                    run.compactions = ledger.compactions().to_vec();
+                }
                 summary.context.merge(&ledger);
             } else {
                 let subs = std::mem::take(&mut summary.context);
@@ -974,6 +978,8 @@ impl OpenCodeTranscript {
                     cost_usd: row.cost,
                     unpriced_tokens: 0,
                     tool_calls: 0,
+                    context_points: Vec::new(),
+                    compactions: Vec::new(),
                 });
             } else {
                 summary.session_id = Some(row.id.clone());
@@ -1058,6 +1064,10 @@ impl OpenCodeTranscript {
         for (sid, is_sub) in &ids {
             let ledger = context_ledger(conn, sid, &servers)?;
             if *is_sub {
+                if let Some(run) = summary.subagent_runs.iter_mut().find(|r| r.id == *sid) {
+                    run.context_points = ledger.points().to_vec();
+                    run.compactions = ledger.compactions().to_vec();
+                }
                 summary.context.merge(&ledger);
             } else {
                 let subs = std::mem::take(&mut summary.context);
@@ -1908,6 +1918,8 @@ mod tests {
         let run = &s.subagent_runs[0];
         assert_eq!((run.id.as_str(), run.agent_type.as_deref(), run.spawned_by.as_deref()), ("ses_v2c", Some("explore"), Some("c0")));
         assert_eq!((run.tool_calls, run.cost_usd), (1, 0.05));
+        assert_eq!(run.context_points.len(), 1, "the subagent's one response is on its own timeline");
+        assert_eq!(s.context.points().len(), 2, "the parent's timeline has only the parent's two");
         assert!(s.spans.iter().all(|sp| sp.sidechain == (sp.agent.as_deref() == Some("ses_v2c"))));
         assert!(!s.health.fields_unrecognised());
 

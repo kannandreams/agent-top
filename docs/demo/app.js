@@ -370,7 +370,7 @@ async function openSession(r) {
     fact("turns / tools", `${s.turns} / ${s.tool_calls}`), fact("started", when(s.started_at)), fact("last activity", when(s.last_activity)),
     fact("source", s.attribution), s.harness_cost_usd != null ? fact("harness's own figure", usd(s.harness_cost_usd)) : null,
     s.parent_session_id ? fact("parent session", s.parent_session_id) : null, fact("cwd", s.cwd));
-  const parts = [facts, contextView(ctx), runGraph(d.graph, { harness: s.harness, id: s.session_id }), turnsView(d.spans)];
+  const parts = [facts, contextView(ctx, { harness: s.harness, id: s.session_id }), runGraph(d.graph, { harness: s.harness, id: s.session_id }), turnsView(d.spans)];
   if (d.mcp.length) parts.push(el("h2", { text: "MCP servers" }), table([
     { key: "server", label: "Server", cls: "mono" }, { key: "calls", label: "Calls", num: true }, { key: "errors", label: "Errors", num: true },
     { key: "last_call_at", label: "Last call", render: (m) => when(m.last_call_at) }], d.mcp));
@@ -385,10 +385,32 @@ async function openSession(r) {
 // compactions are the harness's figures; the split by source is an estimate.
 const ORIGIN = { tool: ["var(--h1)", "tool results"], mcp: ["var(--h6)", "MCP results"], other: ["var(--other)", "prompts & replies"] };
 
-function contextView(c) {
+// Each agent keeps its own timeline: a subagent starts from an empty
+// context, so it is a separate chart, picked from the list above it.
+function agentPicker(c, key, wrap) {
+  const agents = (c && c.agents) || [];
+  if (agents.length < 2) return null;
+  const name = (a) => a.agent === "" ? "Main agent"
+    : `${a.agent_type || "Subagent"} ${a.agent.length > 9 ? a.agent.slice(0, 8) : a.agent}`;
+  const pick = el("select", { "aria-label": "Agent", onchange: async () => {
+    pick.disabled = true;
+    try { wrap.replaceWith(contextView(await api("context", { ...key, agent: pick.value }), key)); }
+    catch (e) { pick.disabled = false; }
+  } });
+  for (const a of agents) {
+    const o = el("option", { value: a.agent, text: `${name(a)} · ${plural(a.points, "response")}${a.compactions ? ", " + plural(a.compactions, "compaction") : ""}` });
+    if (a.agent === c.agent) o.selected = true;
+    pick.append(o);
+  }
+  return el("label", { class: "select" }, "Agent", pick);
+}
+
+function contextView(c, key) {
   const wrap = el("div", { class: "ctx" });
   const P = c ? c.points : [];
+  const picker = agentPicker(c, key, wrap);
   if (P.length < 2) {
+    if (picker) wrap.append(el("div", { class: "card-head" }, el("h2", { text: "Context" }), picker));
     wrap.append(el("div", { class: "note", text: P.length
       ? "One model response, so no context timeline."
       : "No context timeline stored for this session. Sessions synced by an older agent-top get one at the next agent-top sync, if the transcript is still on disk." }));
@@ -405,7 +427,7 @@ function contextView(c) {
     el("button", { type: "button", role: "radio", "aria-checked": String(m === "line"), text: label, onclick: () => { split = m === "split"; for (const b of seg.children) b.setAttribute("aria-checked", String(b === modes[split ? 1 : 0])); draw(); } }));
   seg.append(...modes);
   const peak = Math.max(...P.map((p) => p[PROMPT]), ...C.map((x) => x.before_tokens));
-  head.append(el("h2", { text: `Context (${plural(N, "response")}, ${plural(C.length, "compaction")})` }), seg);
+  head.append(el("h2", { text: `Context (${plural(N, "response")}, ${plural(C.length, "compaction")})` }), el("div", { class: "ctx-controls" }, picker, seg));
   const chart = el("div", { class: "chart" });
   const legend = el("div", { class: "legend" });
   const side = el("div", { class: "ctx-sources" });
@@ -477,7 +499,7 @@ function contextView(c) {
 
   const fill = () => {
     if (selected == null) {
-      side.replaceChildren(el("div", { class: "note", text: C.length ? "Select a compaction for what filled the context before it." : "The harness did not compact this session's context." }));
+      side.replaceChildren(el("div", { class: "note", text: C.length ? "Select a compaction for what filled the context before it." : "The harness did not compact this agent's context." }));
       return;
     }
     const k = C[selected];

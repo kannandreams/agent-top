@@ -162,10 +162,13 @@
   "subagent_runs": [
     {
       "agent_type": "explore",
+      "compactions": 0,
+      "context_points": 1,
       "cost_usd_micros": 51200,
       "id": "ses_gold_sub",
       "last_activity_ms": 1789000050000,
       "model": "claude-opus-5",
+      "peak_prompt": 900,
       "spans": 3,
       "spawned_by": null,
       "spawned_by_span": null,

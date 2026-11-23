@@ -520,7 +520,7 @@ pub struct SubagentInfo {
 /// Every field is what the harness wrote. `spawned_by` is the id of the tool
 /// span that started the run, so the join to that call is exact, never a
 /// match on time.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct SubagentRun {
     /// The id spans carry in `ToolSpan::agent`.
     pub id: String,
@@ -538,6 +538,13 @@ pub struct SubagentRun {
     pub cost_usd: f64,
     pub unpriced_tokens: u64,
     pub tool_calls: u64,
+    /// The subagent's own context at each of its model responses, as for
+    /// `Agent::context_points`. Not in `--json`.
+    #[serde(skip)]
+    pub context_points: Vec<ContextPoint>,
+    /// The subagent's own compactions.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub compactions: Vec<Compaction>,
 }
 
 /// A single row in the agent table.

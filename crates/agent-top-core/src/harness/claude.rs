@@ -784,6 +784,8 @@ impl ClaudeTranscript {
                     cost_usd: t.cost_usd,
                     unpriced_tokens: t.unpriced_tokens,
                     tool_calls: t.tool_calls,
+                    context_points: t.context.points().to_vec(),
+                    compactions: t.context.compactions().to_vec(),
                 })
             })
             .collect();
@@ -1284,6 +1286,17 @@ mod tests {
         t.refresh().unwrap();
         assert_eq!(t.summary().usage.total(), 1212);
         assert_eq!(t.summary().subagent_turns, 2);
+        // The subagent keeps its own context timeline; the parent's has only
+        // the parent's response.
+        let s = t.summary();
+        let prompts: Vec<u64> = s.subagent_runs[0].context_points.iter().map(|p| p.prompt).collect();
+        assert_eq!(prompts, [1000, 1]);
+        assert_eq!(s.context.points().len(), 1);
+        assert_eq!(s.context.points()[0].prompt, 100);
+        // 1,000 to 1 halves the prompt: the subagent's own inferred compaction.
+        let c = &s.subagent_runs[0].compactions;
+        assert_eq!((c.len(), c[0].seq, c[0].detected_by), (1, 1, crate::model::CompactionSource::PromptHalved));
+        assert!(s.context.compactions().is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

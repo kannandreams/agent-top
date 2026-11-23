@@ -63,6 +63,8 @@ The line above the sources gives the context's size now, how many times the harn
 
 The prompt line and the compactions are the harness's own numbers. `s` splits the line into tool results, MCP results and prompts and replies; that split is the same estimate as the context sources, and the title says so. A rule drawn dotted, with `inferred` as its trigger, is a compaction the harness did not record: the prompt fell below half its previous size. Claude Code records its compactions. The "after" figure is the next response's prompt, which includes the system prompt and tool definitions the harness sends again, so it is several times the summary. `Esc` or `c` closes the view; `j` and `k` still move the selection, and the view follows it.
 
+Each subagent has a timeline of its own, since it starts from an empty context. The line above the sources says how many there are, and `Tab` in the view steps from the main agent to each subagent in start order and back (`Shift-Tab` steps the other way). The title names the one shown.
+
 **orphaned mcp processes** are servers with no live agent above them, a leak agent-top watches for on every tick (the story is in [The MCP server that outlives its agent](blog/posts/the-server-that-outlives-its-agent.md)). Each says which agent it was orphaned from and when, or that it was already an orphan when agent-top first saw it.
 
 ![The stopped session: a transcript with no process, its MCP server with no pid, and the orphan list](screenshots/stopped-and-orphans.png)

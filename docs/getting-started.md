@@ -39,7 +39,7 @@ If the table is empty, no supported agent is running or has written a transcript
 | `f` | failed tool calls |
 | `a` | advice: oversized results, idle and growing MCP servers |
 | `m` | MCP servers under every agent, and the orphans |
-| `c` | the selected agent's context timeline: prompt size per response and every compaction; `s` splits it by source, `Esc` closes it |
+| `c` | the selected agent's context timeline: prompt size per response and every compaction; `s` splits it by source, `Tab` steps to each subagent's, `Esc` closes it |
 | `Enter` on a popup | fill the terminal with that panel; `Esc` goes back |
 | `o` on a popup | open that panel in a new tmux, zellij, WezTerm or kitty pane |
 | `?` | help, the version and how to upgrade |

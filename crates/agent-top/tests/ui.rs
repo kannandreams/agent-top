@@ -198,8 +198,33 @@ fn a_session_s_context_timeline_is_served_with_its_compactions() {
             ),
         )
         .unwrap();
+        // A subagent with a timeline of its own.
+        let sub = projects.join("ctx").join("subagents");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("agent-a1.meta.json"), r#"{"agentType":"Explore"}"#).unwrap();
+        std::fs::write(
+            sub.join("agent-a1.jsonl"),
+            concat!(
+                r#"{"type":"assistant","timestamp":"2026-09-03T07:00:04.000Z","sessionId":"ctx","isSidechain":true,"agentId":"a1","message":{"id":"s1","model":"claude-sonnet-5","stop_reason":"end_turn","content":[],"usage":{"input_tokens":4000,"output_tokens":5}}}"#,
+                "\n",
+                r#"{"type":"assistant","timestamp":"2026-09-03T07:00:05.000Z","sessionId":"ctx","isSidechain":true,"agentId":"a1","message":{"id":"s2","model":"claude-sonnet-5","stop_reason":"end_turn","content":[],"usage":{"input_tokens":6000,"output_tokens":5}}}"#,
+                "\n",
+            ),
+        )
+        .unwrap();
     });
     let c = get_json(&ui, "/api/context?harness=claude&id=ctx");
+    let agents: Vec<(&str, Option<&str>, i64)> = c["agents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| (a["agent"].as_str().unwrap(), a["agent_type"].as_str(), a["points"].as_i64().unwrap()))
+        .collect();
+    assert_eq!(agents, [("", None, 3), ("a1", Some("Explore"), 2)], "the main agent first");
+    let sub = get_json(&ui, "/api/context?harness=claude&id=ctx&agent=a1");
+    let prompts: Vec<i64> = sub["points"].as_array().unwrap().iter().map(|p| p[2].as_i64().unwrap()).collect();
+    assert_eq!(prompts, [4_000, 6_000]);
+    assert!(sub["compactions"].as_array().unwrap().is_empty());
     let prompts: Vec<i64> = c["points"].as_array().unwrap().iter().map(|p| p[2].as_i64().unwrap()).collect();
     assert_eq!(prompts, [10_000, 50_000, 12_000]);
     let k = &c["compactions"][0];

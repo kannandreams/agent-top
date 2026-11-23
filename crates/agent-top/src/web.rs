@@ -288,28 +288,41 @@ fn api(route: &str, p: &Params, db: &Path) -> Result<Option<Json>> {
                 "graph": graph(&r, &key)?,
             })
         }
-        // The main agent's context at every response, its compactions, and
-        // what filled the context before each (RFC-110 D6). Points are
-        // arrays, [seq, at, prompt, tool, mcp, other], since a long session
-        // has thousands.
+        // One agent's context at every response, its compactions, and what
+        // filled the context before each (RFC-110 D6): the main agent's
+        // unless `agent` names a subagent. Points are arrays, [seq, at,
+        // prompt, tool, mcp, other], since a long session has thousands.
+        // `agents` lists every agent in the session with a timeline.
         "context" => {
-            let key = [Value::Text(p.get("harness").to_string()), Value::Text(p.get("id").to_string())];
+            let session = [Value::Text(p.get("harness").to_string()), Value::Text(p.get("id").to_string())];
+            let key = [session[0].clone(), session[1].clone(), Value::Text(p.get("agent").to_string())];
             let points = r.query_with(
                 "SELECT seq, at, prompt, tool_tokens, mcp_tokens, other_tokens FROM context_points
-                 WHERE harness = ?1 AND session_id = ?2 AND agent = '' ORDER BY seq",
+                 WHERE harness = ?1 AND session_id = ?2 AND agent = ?3 ORDER BY seq",
                 &key,
             )?;
             let points: Vec<Json> = points.rows.iter().map(|row| Json::Array(row.iter().map(crate::sql::value_json).collect())).collect();
             json!({
+                "agent": p.get("agent"),
+                "agents": rows(r.query_with(
+                    "SELECT p.agent, a.agent_type, count(*) AS points, max(p.prompt) AS peak, min(p.at) AS started_at,
+                            (SELECT count(*) FROM compactions c
+                             WHERE c.harness = p.harness AND c.session_id = p.session_id AND c.agent = p.agent) AS compactions
+                     FROM context_points p
+                     LEFT JOIN subagents a ON a.harness = p.harness AND a.session_id = p.session_id AND a.agent_id = p.agent
+                     WHERE p.harness = ?1 AND p.session_id = ?2
+                     GROUP BY p.agent ORDER BY p.agent != '', started_at, p.agent",
+                    &session,
+                )?),
                 "points": points,
                 "compactions": rows(r.query_with(
                     "SELECT seq, at, triggered_by, detected_by, before_tokens, summary_tokens, after_tokens FROM compactions
-                     WHERE harness = ?1 AND session_id = ?2 AND agent = '' ORDER BY seq",
+                     WHERE harness = ?1 AND session_id = ?2 AND agent = ?3 ORDER BY seq",
                     &key,
                 )?),
                 "sources": rows(r.query_with(
                     "SELECT seq, origin, name, tokens FROM compaction_sources
-                     WHERE harness = ?1 AND session_id = ?2 AND agent = '' ORDER BY seq, tokens DESC, name",
+                     WHERE harness = ?1 AND session_id = ?2 AND agent = ?3 ORDER BY seq, tokens DESC, name",
                     &key,
                 )?),
             })
