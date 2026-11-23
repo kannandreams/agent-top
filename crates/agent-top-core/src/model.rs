@@ -653,6 +653,11 @@ pub struct Agent {
     /// model id: one id can run with different windows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_window: Option<u64>,
+    /// The context's size now, as the harness itself last recorded it, for a
+    /// harness that keeps no size per response and so has no
+    /// `context_points` (Kodelet's `currentContextWindow`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_now: Option<u64>,
 }
 
 /// A harness's own running total for a session, read from its transcript.

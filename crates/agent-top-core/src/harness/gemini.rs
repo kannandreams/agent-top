@@ -38,7 +38,9 @@
 //!   checkpoint that re-lists them does not double count either.
 //! * A subagent gets its own file at `chats/<parent sessionId>/<id>.jsonl`
 //!   with `kind: "subagent"`. Those are tailed and folded into the parent,
-//!   as Claude Code's are.
+//!   as Claude Code's are. Each is a `SubagentRun` under its own
+//!   `sessionId`, and its spans name it. The file names no agent type and
+//!   no spawning call, so the run has neither.
 //! * Turns and inferences are reconstructed from line order: a prompt starts
 //!   a turn and an inference, a tool result starts an inference, and each
 //!   `gemini` message ends the inference and moves the end of the turn.
@@ -58,7 +60,7 @@ use super::{
     AttributeContext, HarnessAdapter, REFRESH_BUDGET_BYTES, SessionSummary, SessionTracker, SpanLog, SpanRetention, parse_rfc3339_utc,
 };
 use crate::jsonl::TailReader;
-use crate::model::{Activity, Attribution, ContextOrigin, CostBreakdown, Harness, ProcNode, SpanKind, TokenUsage};
+use crate::model::{Activity, Attribution, ContextOrigin, CostBreakdown, Harness, ProcNode, SpanKind, SubagentRun, TokenUsage};
 use crate::pricing::{self, Table};
 use crate::process::RawProc;
 use serde_json::Value;
@@ -334,6 +336,10 @@ impl Parser {
         if m.get("kind").and_then(Value::as_str) == Some("subagent") {
             self.subagent = true;
         }
+        // A subagent's spans name it, as its run does.
+        if self.subagent {
+            self.summary.spans.set_agent(self.summary.session_id.as_deref());
+        }
     }
 
     fn ingest_message(&mut self, m: &Value, prices: &Table) {
@@ -395,7 +401,7 @@ impl Parser {
         }
         let c = self.account(id, m, prices);
         if first_time {
-            self.summary.context.response(&c.usage, &c.cost);
+            self.summary.context.response_at(&c.usage, &c.cost, ts);
         }
         self.ingest_tool_calls(m, ts);
     }
@@ -594,6 +600,34 @@ impl GeminiTranscript {
         }
     }
 
+    /// One `SubagentRun` per subagent file, oldest first. Gemini CLI writes
+    /// no agent type or spawning call id in the file, so those stay empty.
+    fn runs(&self) -> Vec<SubagentRun> {
+        let mut runs: Vec<SubagentRun> = self
+            .subagents
+            .iter()
+            .filter_map(|(path, c)| {
+                let t = &c.summary;
+                let id = t.session_id.clone().or_else(|| path.file_stem().and_then(|f| f.to_str()).map(str::to_string))?;
+                Some(SubagentRun {
+                    id,
+                    model: t.model.clone(),
+                    started_at: t.started_at,
+                    last_activity: t.last_activity,
+                    tokens: t.usage.total(),
+                    cost_usd: t.cost_usd,
+                    unpriced_tokens: t.unpriced_tokens,
+                    tool_calls: t.tool_calls,
+                    context_points: t.context.points().to_vec(),
+                    compactions: t.context.compactions().to_vec(),
+                    ..Default::default()
+                })
+            })
+            .collect();
+        runs.sort_by(|a, b| a.started_at.cmp(&b.started_at).then_with(|| a.id.cmp(&b.id)));
+        runs
+    }
+
     fn fold(&mut self) {
         let mut s = self.main.summary.clone();
         for c in self.subagents.values() {
@@ -618,6 +652,7 @@ impl GeminiTranscript {
         if !self.subagents.is_empty() {
             let logs = std::iter::once(&self.main.summary.spans).chain(self.subagents.values().map(|c| &c.summary.spans));
             s.spans = SpanLog::merged(logs, self.main.summary.spans.cap());
+            s.subagent_runs = self.runs();
         }
         self.summary = s;
     }
@@ -721,6 +756,8 @@ mod tests {
         };
         let attributed: f64 = c.values().map(|x| x.cost_usd).sum();
         assert!((attributed - prompt_cost).abs() < 1e-9, "{attributed} vs {prompt_cost}");
+        let at: Vec<_> = t.summary().context.points().iter().map(|p| p.at).collect();
+        assert_eq!(at, [parse_rfc3339_utc("2026-09-05T09:00:03.000Z"), parse_rfc3339_utc("2026-09-05T09:00:09.000Z")], "each reply's time");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

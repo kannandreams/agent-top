@@ -3,7 +3,7 @@
   "compactions": [
     {
       "after": 900,
-      "at_ms": null,
+      "at_ms": 1789000011000,
       "before": 3800,
       "detected_by": "Harness",
       "seq": 3,

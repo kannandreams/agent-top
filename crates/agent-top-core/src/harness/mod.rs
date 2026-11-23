@@ -100,6 +100,8 @@ pub struct SessionSummary {
     pub harness_cost: Option<crate::model::HarnessCost>,
     /// See `Agent::context_window`.
     pub context_window: Option<u64>,
+    /// See `Agent::context_now`.
+    pub context_now: Option<u64>,
 }
 
 /// What a transcript says about one MCP server: how often it was called,

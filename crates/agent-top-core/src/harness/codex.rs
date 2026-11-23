@@ -584,7 +584,7 @@ impl CodexTranscript {
                                 .and_then(|m| self.prices.lookup(m))
                                 .map(|p| p.breakdown(&usage))
                                 .unwrap_or_default();
-                            self.summary.context.response(&usage, &cost);
+                            self.summary.context.response_at(&usage, &cost, ts);
                             self.last_response = Some(response);
                             self.response_in_progress = false;
                         }
@@ -796,6 +796,20 @@ mod tests {
     use super::*;
     use std::io::Write;
     use std::time::Duration;
+
+    /// Each response on the timeline carries its `token_count` line's time,
+    /// and the window is the one Codex wrote.
+    #[test]
+    fn the_context_timeline_is_timed_and_knows_its_window() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/codex-0.130.jsonl");
+        let mut t = CodexTranscript::new(path);
+        while t.refresh().unwrap() {}
+        let s = t.summary();
+        assert!(!s.context.points().is_empty());
+        assert!(s.context.points().iter().all(|p| p.at.is_some()));
+        assert!(s.context.points().windows(2).all(|w| w[0].at <= w[1].at), "in time order");
+        assert_eq!(s.context_window, Some(258_400));
+    }
 
     fn record_response(t: &mut CodexTranscript, input: u64, cached: u64, output: u64) -> String {
         let line = serde_json::json!({"type":"event_msg","payload":{"type":"token_count","info":{

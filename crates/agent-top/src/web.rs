@@ -304,19 +304,19 @@ fn api(route: &str, p: &Params, db: &Path) -> Result<Option<Json>> {
             let points: Vec<Json> = points.rows.iter().map(|row| Json::Array(row.iter().map(crate::sql::value_json).collect())).collect();
             // The window is the session's model's; a subagent in the same
             // session may run another model, so it gets none.
-            let window = if p.get("agent").is_empty() {
-                r.query_with("SELECT context_window FROM sessions WHERE harness = ?1 AND session_id = ?2", &session)?
-                    .rows
-                    .first()
-                    .and_then(|row| row.first())
-                    .map(crate::sql::value_json)
-                    .unwrap_or(Json::Null)
+            let (window, now) = if p.get("agent").is_empty() {
+                let q =
+                    r.query_with("SELECT context_window, context_now FROM sessions WHERE harness = ?1 AND session_id = ?2", &session)?;
+                let col = |i: usize| q.rows.first().and_then(|row| row.get(i)).map(crate::sql::value_json).unwrap_or(Json::Null);
+                (col(0), col(1))
             } else {
-                Json::Null
+                (Json::Null, Json::Null)
             };
             json!({
                 "agent": p.get("agent"),
                 "window": window,
+                // Only for a harness with no size per response (Kodelet).
+                "now": now,
                 "agents": rows(r.query_with(
                     "SELECT p.agent, a.agent_type, count(*) AS points, max(p.prompt) AS peak, min(p.at) AS started_at,
                             (SELECT count(*) FROM compactions c

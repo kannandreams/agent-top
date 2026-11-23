@@ -436,12 +436,18 @@
                   "value": {
                     "boolValue": true
                   }
+                },
+                {
+                  "key": "agent_top.agent",
+                  "value": {
+                    "stringValue": "b2c3d4e5-0000-4000-8000-000000000002"
+                  }
                 }
               ],
               "endTimeUnixNano": "1788598934000000000",
               "kind": 1,
               "name": "turn",
-              "spanId": "55c826a170aa6b85",
+              "spanId": "a8729be65d865d49",
               "startTimeUnixNano": "1788598924600000000",
               "status": {
                 "code": 0
@@ -467,13 +473,19 @@
                   "value": {
                     "boolValue": true
                   }
+                },
+                {
+                  "key": "agent_top.agent",
+                  "value": {
+                    "stringValue": "b2c3d4e5-0000-4000-8000-000000000002"
+                  }
                 }
               ],
               "endTimeUnixNano": "1788598928000000000",
               "kind": 1,
               "name": "inference",
-              "parentSpanId": "55c826a170aa6b85",
-              "spanId": "6410351f2bb446ab",
+              "parentSpanId": "a8729be65d865d49",
+              "spanId": "f5072ed8a443241f",
               "startTimeUnixNano": "1788598924600000000",
               "status": {
                 "code": 0
@@ -499,13 +511,19 @@
                   "value": {
                     "boolValue": true
                   }
+                },
+                {
+                  "key": "agent_top.agent",
+                  "value": {
+                    "stringValue": "b2c3d4e5-0000-4000-8000-000000000002"
+                  }
                 }
               ],
               "endTimeUnixNano": "1788598930000000000",
               "kind": 1,
               "name": "grep_search",
-              "parentSpanId": "55c826a170aa6b85",
-              "spanId": "42cfec8d9b6a9262",
+              "parentSpanId": "a8729be65d865d49",
+              "spanId": "c87638b517f34ba6",
               "startTimeUnixNano": "1788598928000000000",
               "status": {
                 "code": 0
@@ -531,13 +549,19 @@
                   "value": {
                     "boolValue": true
                   }
+                },
+                {
+                  "key": "agent_top.agent",
+                  "value": {
+                    "stringValue": "b2c3d4e5-0000-4000-8000-000000000002"
+                  }
                 }
               ],
               "endTimeUnixNano": "1788598934000000000",
               "kind": 1,
               "name": "inference",
-              "parentSpanId": "55c826a170aa6b85",
-              "spanId": "6410361f2bb4485e",
+              "parentSpanId": "a8729be65d865d49",
+              "spanId": "f5072fd8a44325d2",
               "startTimeUnixNano": "1788598930100000000",
               "status": {
                 "code": 0

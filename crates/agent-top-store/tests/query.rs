@@ -127,6 +127,7 @@ fn a_version_one_store_is_upgraded_by_sync_not_by_sql() {
         c.execute("DROP TABLE telemetry_spans", []).unwrap();
         c.execute("ALTER TABLE sessions DROP COLUMN tool_calls_lower_bound", []).unwrap();
         c.execute("ALTER TABLE sessions DROP COLUMN context_window", []).unwrap();
+        c.execute("ALTER TABLE sessions DROP COLUMN context_now", []).unwrap();
         c.execute("DROP TABLE subagents", []).unwrap();
         c.execute("ALTER TABLE spans DROP COLUMN agent", []).unwrap();
         c.pragma_update(None, "user_version", 1).unwrap();

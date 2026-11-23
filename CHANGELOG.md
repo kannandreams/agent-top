@@ -11,11 +11,15 @@ All notable changes to this project are documented here. The format follows [Kee
 - The store keeps each session's context timeline in `context_points`, `compactions` and `compaction_sources`, with a `compactions_by_day` view; the next `sync` re-reads every transcript still on disk. ([#98](https://github.com/kannandreams/agent-top/pull/98))
 - Each subagent has its own context timeline: `Tab` in the `c` view and an Agent list in `agent-top ui` switch to it; `--json` subagent runs carry `compactions`. Claude Code and OpenCode. ([#99](https://github.com/kannandreams/agent-top/pull/99))
 - Codex: the context timeline draws the model's context window as Codex reports it, and the detail pane gives the context as a share of it; `--json` agents carry `context_window`. ([#101](https://github.com/kannandreams/agent-top/pull/101))
+- Gemini CLI: each subagent is a run with its own context timeline, and its spans name it. ([#102](https://github.com/kannandreams/agent-top/pull/102))
+- Kodelet: the detail pane shows the context's current size and window as Kodelet records them; `--json` agents carry `context_now`. ([#102](https://github.com/kannandreams/agent-top/pull/102))
 
 ### Changed
 - `agent-top-core`: `Agent` gains `context_points` and `compactions`, and `ContextLedger` gains `points()`, `compactions()`, `response_at` and `compacted_at`; code that builds an `Agent` by literal adds two fields. ([#97](https://github.com/kannandreams/agent-top/pull/97))
 - `agent-top-core`: `SubagentRun` gains `context_points`, `compactions` and `Default`. ([#99](https://github.com/kannandreams/agent-top/pull/99))
 - `agent-top-core`: `Agent` and `SessionSummary` gain `context_window`; code that builds an `Agent` by literal adds one field. ([#101](https://github.com/kannandreams/agent-top/pull/101))
+- Codex, Gemini CLI and OpenCode: each point on the context timeline carries its response's time, and OpenCode compactions carry theirs. ([#102](https://github.com/kannandreams/agent-top/pull/102))
+- `agent-top-core`: `Agent` and `SessionSummary` gain `context_now`. ([#102](https://github.com/kannandreams/agent-top/pull/102))
 - `agent-top ui`: a session's detail opens in a panel beside the sessions table, which marks the open row, and a run graph opens on its first subagent's spans. `Esc` closes it. ([#95](https://github.com/kannandreams/agent-top/pull/95))
 - `agent-top ui`: the sessions table shows how many subagents a session ran, and a session without any says it has no run graph. ([#96](https://github.com/kannandreams/agent-top/pull/96))
 
