@@ -6,8 +6,10 @@ nothing, with invented projects and sessions dated over the last 30 days,
 starts `agent-top ui` on it and saves the images under docs/screenshots/.
 
 It also writes the hosted demo, docs/demo/ (the page plus one JSON file per
-API request, answered by docs/demo/demo.js), and docs/ui-demo.gif, a walk
-through the page that needs ffmpeg.
+API request, answered by docs/demo/demo.js), and two recordings that need
+ffmpeg: docs/ui-demo.gif, a walk through the page, and docs/context-demo.mp4,
+a walk through the context timeline. `ui-demo.py context` records only the
+second.
 
     cargo build --release
     uv run --with playwright python docs/ui-demo.py
@@ -500,7 +502,134 @@ def record(port):
         print(f"wrote {f} ({f.stat().st_size // 1024} KB)")
 
 
+CONTEXT_MP4 = ROOT / "docs/context-demo.mp4"
+
+# A pointer and a caption for the recording only: headless video draws
+# neither, and the page itself has no captions.
+DEMO_OVERLAY = """
+addEventListener('DOMContentLoaded', () => {
+  const s = document.createElement('style');
+  s.textContent = `#demo-cursor{position:fixed;z-index:9999;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;
+    background:rgba(224,98,42,.35);border:2px solid #e0622a;pointer-events:none;left:-40px;top:-40px;transition:transform .08s}
+    #demo-cursor.down{transform:scale(.7)}
+    #demo-cap{position:fixed;z-index:9998;left:50%;bottom:28px;transform:translateX(-50%);max-width:80%;padding:12px 22px;
+    border-radius:10px;background:rgba(18,20,26,.92);color:#fff;font:600 21px/1.35 "JetBrains Mono",Menlo,monospace;
+    text-align:center;pointer-events:none;opacity:0;transition:opacity .25s}`;
+  document.head.append(s);
+  const c = document.createElement('div'); c.id = 'demo-cursor'; document.body.append(c);
+  const cap = document.createElement('div'); cap.id = 'demo-cap'; document.body.append(cap);
+  addEventListener('mousemove', (e) => { c.style.left = e.clientX + 'px'; c.style.top = e.clientY + 'px'; }, true);
+  addEventListener('mousedown', () => c.classList.add('down'), true);
+  addEventListener('mouseup', () => c.classList.remove('down'), true);
+});
+"""
+
+
+def record_context(port):
+    """A walk through the context timeline alone, as docs/context-demo.mp4."""
+    from playwright.sync_api import sync_playwright
+
+    if not shutil.which("ffmpeg"):
+        print("ffmpeg not found; skipping", CONTEXT_MP4.name)
+        return
+    vid = Path(tempfile.mkdtemp())
+    # Narrower than the page walk: the video is shown small in a feed.
+    size = {"width": 1040, "height": 780}
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        # bypass_csp: the page's policy refuses the overlay's inline style.
+        ctx = browser.new_context(viewport=size, record_video_dir=str(vid), record_video_size=size, color_scheme="light",
+                                  bypass_csp=True)
+        ctx.add_init_script(DEMO_OVERLAY)
+        page = ctx.new_page()
+
+        def caption(text, ms=0):
+            page.evaluate("t => { const c = document.getElementById('demo-cap'); c.textContent = t; c.style.opacity = t ? 1 : 0; }", text)
+            page.wait_for_timeout(ms)
+
+        def glide(x, y, steps=18):
+            page.mouse.move(x, y, steps=steps)
+
+        def click(locator, ms=900):
+            box = locator.bounding_box()
+            glide(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            page.wait_for_timeout(250)
+            locator.click()
+            page.wait_for_timeout(ms)
+
+        def sweep(ms=2600, frm=0.04, to=0.96):
+            pane = page.locator("#detail-body .ctx .chart svg").first.bounding_box()
+            y = pane["y"] + pane["height"] * 0.55
+            glide(pane["x"] + pane["width"] * frm, y, steps=10)
+            n = 40
+            for i in range(n + 1):
+                page.mouse.move(pane["x"] + pane["width"] * (frm + (to - frm) * i / n), y)
+                page.wait_for_timeout(ms // n)
+
+        def show_ctx():
+            page.evaluate("document.querySelector('#detail-body .ctx').scrollIntoView({block: 'start'})")
+            page.wait_for_timeout(400)
+
+        page.goto(f"http://127.0.0.1:{port}/")
+        page.wait_for_selector("#sessions table")
+        page.mouse.move(640, 400)
+        caption("agent-top ui · the context timeline, new in 0.30", 2200)
+        page.evaluate("document.getElementById('h-sessions').scrollIntoView({block: 'start'})")
+        page.wait_for_timeout(600)
+        caption("Open a session", 600)
+        click(page.locator(f"#sessions tr[data-key='claude/{RUN_GRAPH_ID}']").locator("td").first, 1600)
+        page.wait_for_selector("#detail-body .ctx .chart svg")
+        show_ctx()
+        caption("The prompt every model response read, in tokens", 600)
+        sweep()
+        caption("It climbs until the harness compacts, then starts again from a summary", 1200)
+        rules = page.locator("#detail-body .ctx .rule-hit")
+        click(rules.nth(0), 1400)
+        caption("Select a compaction: size before, the summary, and what filled it", 600)
+        page.evaluate("document.querySelector('#detail-body .ctx .ctx-sources').scrollIntoView({block: 'end', behavior: 'smooth'})")
+        page.wait_for_timeout(2600)
+        show_ctx()
+        click(page.locator("#detail-body .ctx tbody tr").nth(1), 1600)
+        caption("By source: tool results, MCP results, prompts and replies (estimated)", 400)
+        click(page.locator("#detail-body .ctx .seg button").nth(1), 900)
+        sweep(2400)
+        click(page.locator("#detail-body .ctx .seg button").nth(0), 600)
+        caption("Each subagent starts from an empty context, so it has its own timeline", 400)
+        pick = page.locator("#detail-body .ctx select")
+        values = pick.locator("option").evaluate_all("os => os.map(o => o.value)")
+        for v in values[1:3] + values[:1]:
+            box = pick.bounding_box()
+            glide(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            page.wait_for_timeout(300)
+            pick.select_option(v)
+            page.wait_for_timeout(500)
+            pick = page.locator("#detail-body .ctx select")
+            sweep(1500, 0.05, 0.9)
+        caption("Codex writes its context window, so the chart draws it", 400)
+        page.mouse.move(100, 300)
+        page.evaluate("document.getElementById('h-sessions').scrollIntoView({block: 'start'})")
+        page.wait_for_timeout(500)
+        click(page.locator("#sessions tr[data-key^='codex/']").first.locator("td").first, 1400)
+        page.wait_for_selector("#detail-body .ctx .chart svg")
+        show_ctx()
+        sweep(2400)
+        caption("Light or dark. In the terminal, press c in agent-top", 600)
+        # The panel covers the header's theme button.
+        page.evaluate("document.getElementById('theme').click()")
+        page.wait_for_timeout(600)
+        sweep(2000)
+        caption("", 500)
+        video = page.video.path()
+        ctx.close()
+        browser.close()
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", video, "-vf", "fps=30", "-c:v", "libx264",
+                    "-pix_fmt", "yuv420p", "-crf", "20", "-movflags", "+faststart", "-an", str(CONTEXT_MP4)], check=True)
+    shutil.rmtree(vid, ignore_errors=True)
+    print(f"wrote {CONTEXT_MP4} ({CONTEXT_MP4.stat().st_size // 1024} KB)")
+
+
 def main():
+    only_context = sys.argv[1:] == ["context"]
     if not Path(BIN).exists():
         sys.exit(f"{BIN} not found; run `cargo build --release` first or set AGENT_TOP_BIN")
     shutil.rmtree(DB_DIR, ignore_errors=True)
@@ -520,9 +649,13 @@ def main():
                 break
             except OSError:
                 time.sleep(0.1)
+        if only_context:
+            record_context(port)
+            return
         shoot(port)
         export(port)
         record(port)
+        record_context(port)
     finally:
         ui.terminate()
         ui.wait()

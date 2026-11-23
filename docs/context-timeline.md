@@ -11,6 +11,8 @@ It is in two places:
 - In the live view, select a session and press `c`. `s` splits the line by source, `Tab` steps to a subagent, `Esc` closes it.
 - In `agent-top ui`, open a session. The chart is at the top of the session panel.
 
+<video src="../context-demo.mp4" controls muted playsinline preload="metadata" width="100%" aria-label="A walk through the context timeline in agent-top ui: the prompt line, a compaction and what filled it, the by-source split, a subagent's timeline, and a Codex session with its context window"></video>
+
 ## What one point is
 
 Each point is one model response. Its height is the prompt that response read: the system prompt, the tool definitions, memory files, and the whole conversation so far, including every tool result still in it. The harness sends all of it again on every response, so the line climbs as the session goes on and never falls by itself.
