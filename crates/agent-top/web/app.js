@@ -341,6 +341,7 @@ function sessions(rows) {
   document.getElementById("sessions-count").textContent = q ? `${rows.length} of ${sessionRows.length}` : sessionRows.length >= 200 ? "the 200 most recent" : plural(sessionRows.length, "session");
   if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: q ? "No session matches the filter." : "No sessions in this range." })); return; }
   box.replaceChildren(table([
+    { key: "open", label: "", cls: "open-cell", render: (r) => openButton(r) },
     { key: "last_activity", label: "Last activity", render: (r) => when(r.last_activity) },
     // The subagent count marks the sessions with a run graph. It sits in this
     // column, not its own, so it stays in view beside the open side panel.
@@ -352,14 +353,16 @@ function sessions(rows) {
     { key: "tokens", label: "Tokens", num: true, render: (r) => compact(r.tokens) },
     { key: "cost_usd", label: "Cost", num: true, render: (r) => usd(r.cost_usd) + (r.unpriced_tokens > 0 ? "+" : "") },
     { key: "attribution", label: "Source", render: (r) => el("span", { class: "badge", text: r.attribution }) },
-    { key: "open", label: "", num: true, render: () => openHint() },
   ], rows, openSession, sessionKey));
+  // The button is the keyboard stop; the whole row still opens on a click.
+  for (const tr of box.querySelectorAll("tr.click")) tr.tabIndex = -1;
 }
 
-function openHint() {
+function openButton(r) {
   const s = svg("svg", { viewBox: "0 0 20 20", "aria-hidden": "true" });
-  s.append(svg("path", { d: "M8 5l5 5-5 5" }));
-  return el("span", { class: "open-hint" }, "Details", s);
+  s.append(svg("rect", { x: 3, y: 4, width: 14, height: 12, rx: 2 }), svg("path", { d: "M12 4v12" }));
+  return el("button", { type: "button", class: "open-btn", "aria-label": `Open session ${r.project || r.session_id}`,
+    onclick: (e) => { e.stopPropagation(); openSession(r); } }, s, "Open");
 }
 
 // ---- session detail: facts and span waterfall --------------------------------
