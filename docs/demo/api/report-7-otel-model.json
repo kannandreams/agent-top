@@ -1,1 +1,1 @@
-[{"cache_read":40000,"cache_write":0,"cost_usd":0.042,"input":8000,"name":"claude-sonnet-5","output":1800,"sessions":2,"tokens":49800,"tool_calls":4,"turns":2,"unpriced_tokens":0}]
+[{"cache_read":40000,"cache_write":0,"cost_usd":0.042,"estimate":{"cache_read_wh":{"high":0.0,"low":0.0},"co2e_g":{"high":0.0,"low":0.0},"energy_wh":{"high":0.0,"low":0.0},"estimated":true,"estimated_tokens":0,"unestimated_tokens":49800},"input":8000,"name":"claude-sonnet-5","output":1800,"sessions":2,"tokens":49800,"tool_calls":4,"turns":2,"unpriced_tokens":0}]

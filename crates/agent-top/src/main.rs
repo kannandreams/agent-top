@@ -138,6 +138,11 @@ enum Command {
         /// Read only the transcripts on disk, not the local store.
         #[arg(long)]
         no_store: bool,
+        /// Add an estimate of CO2e and energy, from the coefficients in
+        /// ~/.config/agent-top/energy.toml. agent-top ships none: no provider
+        /// publishes them. Without the file, shows the token activity alone.
+        #[arg(long)]
+        energy: bool,
     },
     /// Keep what the transcripts say in a local SQLite file, so the numbers
     /// outlive a harness deleting its history. Reads every transcript that
@@ -379,7 +384,7 @@ fn main() -> Result<()> {
     if let Some(Command::Trace { session, format, output, endpoint }) = &cli.command {
         return export_trace(session, *format, output.as_deref(), endpoint.as_deref());
     }
-    if let Some(Command::Report { since, by, json, db, no_store }) = &cli.command {
+    if let Some(Command::Report { since, by, json, db, no_store, energy }) = &cli.command {
         for w in &agent_top_core::pricing::table().warnings {
             eprintln!("agent-top: {w}");
         }
@@ -399,10 +404,14 @@ fn main() -> Result<()> {
         };
         let hint = path.is_some() && reader.is_none();
         let rep = report::build(since, *by, reader, hint);
-        if *json {
-            println!("{}", serde_json::to_string_pretty(&rep.to_json())?);
-        } else {
-            print!("{}", rep.to_plain());
+        let table = energy.then(agent_top_core::energy::table);
+        for w in table.iter().flat_map(|t| &t.warnings) {
+            eprintln!("agent-top: {w}");
+        }
+        match (json, table) {
+            (true, t) => println!("{}", serde_json::to_string_pretty(&rep.to_json_with(t))?),
+            (false, Some(t)) => print!("{}", rep.to_plain_energy(t)),
+            (false, None) => print!("{}", rep.to_plain()),
         }
         return Ok(());
     }

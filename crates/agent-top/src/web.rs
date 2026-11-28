@@ -6,9 +6,12 @@
 //! from anywhere else. Every API request opens the store with the read-only
 //! `Reader`, so the view shows the latest sync and cannot change the file.
 
+use agent_top_core::energy::{Estimate, Range};
+use agent_top_core::model::TokenUsage;
 use agent_top_store::{QueryResult, Reader, Value};
 use anyhow::{Result, anyhow};
 use serde_json::{Value as Json, json};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 const INDEX_HTML: &str = include_str!("../web/index.html");
@@ -186,6 +189,7 @@ fn api(route: &str, p: &Params, db: &Path) -> Result<Option<Json>> {
                 "last_received": one("SELECT max(received_at) AS at FROM telemetry_spans")?,
                 "harnesses": rows(r.query("SELECT DISTINCT harness FROM counted_sessions ORDER BY 1")?),
                 "first_activity": one("SELECT min(last_activity) AS at FROM counted_sessions")?,
+                "energy": energy_meta(agent_top_core::energy::table()),
             })
         }
         "overview" => json!({
@@ -247,7 +251,7 @@ fn api(route: &str, p: &Params, db: &Path) -> Result<Option<Json>> {
                 "day" => ("date(last_activity / 1000, 'unixepoch')", "name DESC"),
                 _ => ("harness", "cost_usd DESC, tokens DESC"),
             };
-            rows(r.query_with(
+            let mut groups = rows(r.query_with(
                 &format!(
                     "SELECT {key} AS name, count(*) AS sessions, sum(turns) AS turns, sum(tool_calls) AS tool_calls,
                             sum(input) AS input, sum(cache_write_5m + cache_write_1h + cache_write_unsplit) AS cache_write,
@@ -256,7 +260,48 @@ fn api(route: &str, p: &Params, db: &Path) -> Result<Option<Json>> {
                      FROM counted_sessions WHERE {FILTER} GROUP BY 1 ORDER BY {order} LIMIT 1000"
                 ),
                 &f,
-            )?)
+            )?);
+            // With the user's energy table (RFC-111), each group's estimate,
+            // model by model: a group by harness or day mixes models.
+            let table = agent_top_core::energy::table();
+            if table.is_usable() {
+                let per_model = r.query_with(
+                    &format!(
+                        "SELECT {key} AS name, model, sum(input), sum(cache_write_5m), sum(cache_write_1h),
+                                sum(cache_write_unsplit), sum(cache_read), sum(output)
+                         FROM counted_sessions WHERE {FILTER} GROUP BY 1, 2"
+                    ),
+                    &f,
+                )?;
+                let mut est: HashMap<String, Estimate> = HashMap::new();
+                for row in &per_model.rows {
+                    let text = |i: usize| match row.get(i) {
+                        Some(Value::Text(t)) => Some(t.clone()),
+                        _ => None,
+                    };
+                    let n = |i: usize| match row.get(i) {
+                        Some(Value::Integer(v)) => (*v).max(0) as u64,
+                        _ => 0,
+                    };
+                    let usage = TokenUsage {
+                        input: n(2),
+                        cache_write_5m: n(3),
+                        cache_write_1h: n(4),
+                        cache_write_unsplit: n(5),
+                        cache_read: n(6),
+                        output: n(7),
+                    };
+                    let name = text(0).unwrap_or_default();
+                    est.entry(name).or_default().add(&table.estimate(text(1).as_deref(), &usage));
+                }
+                if let Json::Array(list) = &mut groups {
+                    for g in list {
+                        let name = g["name"].as_str().unwrap_or_default().to_string();
+                        g["estimate"] = est.get(&name).copied().unwrap_or_default().to_json();
+                    }
+                }
+            }
+            groups
         }
         "tools" => rows(r.query_with(
             &format!(
@@ -385,6 +430,20 @@ fn api(route: &str, p: &Params, db: &Path) -> Result<Option<Json>> {
         _ => return Ok(None),
     };
     Ok(Some(v))
+}
+
+/// What the page needs to know about the energy table: whether there is one
+/// to estimate with, where it is, and the grid figure and its source. The
+/// models' own sources are in `agent-top report --energy --json`.
+fn energy_meta(t: &agent_top_core::energy::Table) -> Json {
+    json!({
+        "usable": t.is_usable(),
+        "path": t.path.as_deref().map(|p| p.to_string_lossy().into_owned()),
+        "warnings": t.warnings,
+        "grid": t.gco2e_per_kwh.map(Range::to_json),
+        "grid_source": t.grid_source,
+        "models": t.entries.iter().map(|e| e.model.clone()).collect::<Vec<_>>(),
+    })
 }
 
 /// A session as a trunk and its branches: the main agent's turns, each

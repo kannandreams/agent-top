@@ -874,21 +874,139 @@ const hitRate = (r) => {
   const prompt = (r.input || 0) + (r.cache_write || 0) + (r.cache_read || 0);
   return prompt > 0 ? (r.cache_read || 0) / prompt : null;
 };
+// What people compare first, then the token breakdown behind it.
 const reportCols = () => [
   { key: "name", label: BY_LABEL[state.by], cls: "mono trunc", text: (r) => r.name },
   { key: "sessions", label: "Sessions", num: true },
+  { key: "tokens", label: "Tokens", num: true, fmt: compact },
+  { key: "cost_usd", label: "Cost", num: true, cls: "cost", fmt: (v, r) => usd(v) + (r.unpriced_tokens > 0 ? "+" : "") },
+  ...(energyOn() ? [
+    { key: "co2e", label: "CO2e (est.)", num: true, cls: "est", value: (r) => mid(r.estimate, "co2e_g"), fmt: (_, r) => estText(r.estimate, "co2e_g", grams),
+      csv: (r) => lowHigh(r.estimate, "co2e_g"), csvHead: ["co2e_g_low", "co2e_g_high"] },
+    { key: "energy", label: "Energy (est.)", num: true, cls: "est", value: (r) => mid(r.estimate, "energy_wh"), fmt: (_, r) => estText(r.estimate, "energy_wh", wattHours),
+      csv: (r) => lowHigh(r.estimate, "energy_wh"), csvHead: ["energy_wh_low", "energy_wh_high"] },
+  ] : []),
+  { key: "share", label: "Share of cost", num: true, cls: "share", value: (r) => (reportTotalCost > 0 ? (r.cost_usd || 0) / reportTotalCost : 0), node: (v) => meter(v, 12) },
   { key: "turns", label: "Turns", num: true },
   { key: "tool_calls", label: "Tool calls", num: true },
   { key: "input", label: "Input", num: true, fmt: compact },
   { key: "cache_write", label: "Cache write", num: true, fmt: compact },
   { key: "cache_read", label: "Cache read", num: true, fmt: compact },
   { key: "output", label: "Output", num: true, fmt: compact },
-  { key: "tokens", label: "Tokens", num: true, fmt: compact },
   { key: "hit", label: "Cache hit", num: true, value: hitRate, fmt: (v) => (v == null ? "-" : Math.round(v * 100) + "%") },
-  { key: "cost_usd", label: "Cost", num: true, cls: "cost", fmt: (v, r) => usd(v) + (r.unpriced_tokens > 0 ? "+" : "") },
-  { key: "share", label: "Share of cost", num: true, cls: "share", value: (r) => (reportTotalCost > 0 ? (r.cost_usd || 0) / reportTotalCost : 0), node: (v) => meter(v, 12) },
   { key: "unpriced_tokens", label: "Unpriced", num: true, fmt: (v) => (v > 0 ? compact(v) : "-") },
 ];
+
+// ---- energy and CO2e (RFC-111): only from the user's own table -------------------
+
+const energyOn = () => !!(state.energy && state.energy.usable);
+const mid = (e, k) => (e && e.estimated_tokens > 0 ? (e[k].low + e[k].high) / 2 : null);
+const lowHigh = (e, k) => (e && e.estimated_tokens > 0 ? [e[k].low, e[k].high] : ["", ""]);
+// A range in one unit, picked by the high bound so both ends share it.
+function scaledRange(r, units) {
+  const [k, u] = r.high >= 1e6 ? [1e6, units[2]] : r.high >= 1e3 ? [1e3, units[1]] : [1, units[0]];
+  const lo = r.low / k, hi = r.high / k, d = hi >= 100 ? 0 : 1;
+  const f = (v) => v.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
+  return (Math.abs(hi - lo) < 1e-9 ? f(lo) : `${f(lo)}–${f(hi)}`) + " " + u;
+}
+const grams = (r) => scaledRange(r, ["g", "kg", "t"]);
+const wattHours = (r) => scaledRange(r, ["Wh", "kWh", "MWh"]);
+const estText = (e, k, f) => (e && e.estimated_tokens > 0 ? f(e[k]) : "-");
+function sumEstimates(rows) {
+  const z = () => ({ low: 0, high: 0 });
+  const t = { co2e_g: z(), energy_wh: z(), cache_read_wh: z(), estimated_tokens: 0, unestimated_tokens: 0 };
+  for (const r of rows) {
+    const e = r.estimate; if (!e) continue;
+    for (const k of ["co2e_g", "energy_wh", "cache_read_wh"]) { t[k].low += e[k].low; t[k].high += e[k].high; }
+    t.estimated_tokens += e.estimated_tokens; t.unestimated_tokens += e.unestimated_tokens;
+  }
+  return t;
+}
+
+const DOCS = "https://agenttop.dev/energy/";
+
+// Above the report: the estimate's totals and a CO2e range per day, or, with
+// no table, how to add one.
+function energyPanel(rows, days) {
+  const box = document.getElementById("energy");
+  const en = state.energy || {};
+  const link = (text) => el("a", { href: DOCS, target: "_blank", rel: "noopener", text });
+  if (!en.usable) {
+    const why = (en.warnings || [])[0];
+    box.replaceChildren(el("section", { class: "card callout" },
+      el("div", { class: "callout-mark", "aria-hidden": "true" }, leaf()),
+      el("div", {},
+        el("h2", { text: "Add a CO2e estimate" }),
+        el("p", { text: `No provider publishes energy per token, so agent-top ships no figure of its own. Write the coefficients you trust to ${en.path || "~/.config/agent-top/energy.toml"}, with a source for each, and this tab shows CO2e and energy for every row.` }),
+        why ? el("p", { class: "err", text: why }) : null,
+        el("p", {}, link("Published figures and how to write the table")))));
+    return;
+  }
+  const t = sumEstimates(rows);
+  const share = (k) => (t.energy_wh[k] > 0 ? t.cache_read_wh[k] / t.energy_wh[k] : 0);
+  const kpi = (label, value, sub, hero) => el("div", { class: "kpi" + (hero ? " hero-soft" : "") }, el("div", { class: "label", text: label }),
+    el("div", { class: "value", text: value }), sub ? el("div", { class: "sub", text: sub }) : null);
+  const missing = rows.length && t.unestimated_tokens > 0;
+  const cards = el("div", { class: "kpis energy-kpis" },
+    kpi("CO2e, estimated", t.estimated_tokens ? grams(t.co2e_g) : "-", `at ${scaledRange(en.grid, ["g", "kg", "t"])} CO2e per kWh`, true),
+    kpi("Energy, estimated", t.estimated_tokens ? wattHours(t.energy_wh) : "-", "watt-hours from your table"),
+    kpi("From cache reads", t.estimated_tokens ? `${Math.round(share("low") * 100)}–${Math.round(share("high") * 100)}%` : "-", "of the energy; unmeasured by any source"),
+    kpi("Unestimated tokens", missing ? compact(t.unestimated_tokens) : "0", missing ? "on models with no entry in your table" : "every model has an entry"));
+  const chart = el("section", { class: "card" },
+    el("div", { class: "card-head" }, el("h2", { text: "CO2e by day, estimated" }),
+      el("div", { class: "legend" }, el("span", {}, el("i", { class: "k-low" }), "low bound"), el("span", {}, el("i", { class: "k-high" }), "up to the high bound"))),
+    co2eChart(days),
+    el("p", { class: "foot-note" }, `From ${en.path}. The grid figure's source: ${en.grid_source || "-"}. Every model's source is in `,
+      el("code", { text: "agent-top report --energy --json" }), ". ", link("How the estimate works")));
+  box.replaceChildren(cards, chart);
+}
+
+function leaf() {
+  const s = svg("svg", { viewBox: "0 0 20 20" });
+  s.append(svg("path", { d: "M4 16c0-7 5-11 12-12-1 7-5 12-12 12zM4 16l6-6" }));
+  return s;
+}
+
+// One bar per day: solid to the low bound, lighter up to the high bound, so
+// the uncertainty is the picture rather than a footnote.
+function co2eChart(days) {
+  const box = el("div", { class: "chart" });
+  const pts = (days || []).filter((d) => d.estimate && d.estimate.estimated_tokens > 0).map((d) => ({ day: d.name, r: d.estimate.co2e_g })).sort((a, b) => (a.day < b.day ? -1 : 1));
+  if (!pts.length) { box.append(el("div", { class: "empty", text: "No estimated tokens in this range." })); return box; }
+  const first = Date.parse(pts[0].day + "T00:00:00Z"), last = Date.parse(pts[pts.length - 1].day + "T00:00:00Z");
+  const by = new Map(pts.map((p) => [p.day, p.r]));
+  const all = [];
+  for (let d = first; d <= last; d += DAY) all.push(new Date(d).toISOString().slice(0, 10));
+  const maxHigh = Math.max(...pts.map((p) => p.r.high));
+  const [k, unit] = maxHigh >= 1e6 ? [1e6, "t"] : maxHigh >= 1e3 ? [1e3, "kg"] : [1, "g"];
+  const stepV = niceStep(maxHigh / k), ticks = Math.max(1, Math.ceil(maxHigh / k / stepV)), max = stepV * ticks;
+  const W = Math.max(320, document.getElementById("main").clientWidth - 80 || 800), H = 220, L = 56, R = 8, T = 10, B = 28;
+  const band = (W - L - R) / all.length, bw = Math.max(2, Math.min(22, band - 2));
+  const y = (v) => T + (H - T - B) * (1 - v / max);
+  const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Estimated CO2e by day, low and high bounds" });
+  const grid = svg("g", { class: "grid" }), axis = svg("g", { class: "axis" });
+  for (let i = 0; i <= ticks; i++) {
+    const v = stepV * i;
+    if (i > 0) grid.append(svg("line", { x1: L, x2: W - R, y1: y(v), y2: y(v) }));
+    const t = svg("text", { x: L - 8, y: y(v) + 4, "text-anchor": "end" }); t.textContent = `${+v.toFixed(2)} ${unit}`; axis.append(t);
+  }
+  const step = Math.ceil(all.length / Math.max(1, Math.floor((W - L - R) / 72)));
+  all.forEach((d, i) => { if (i % step) return; const t = svg("text", { x: L + band * i + band / 2, y: H - 8, "text-anchor": "middle" }); t.textContent = d.slice(5); axis.append(t); });
+  root.append(grid, axis);
+  all.forEach((d, i) => {
+    const r = by.get(d); if (!r) return;
+    const x = L + band * i + (band - bw) / 2;
+    const lo = r.low / k, hi = r.high / k;
+    const hiBar = svg("rect", { class: "co2-high", x, y: y(hi), width: bw, height: Math.max(1, y(0) - y(hi)), rx: Math.min(3, bw / 2) });
+    const loBar = svg("rect", { class: "co2-low", x, y: y(lo), width: bw, height: Math.max(lo > 0 ? 1 : 0, y(0) - y(lo)) });
+    const g = svg("g", {}); g.append(hiBar, loBar);
+    hover(g, grams(r), [[null, d], [null, "low bound solid, high bound light"]]);
+    root.append(g);
+  });
+  root.append(svg("line", { class: "base", x1: L, x2: W - R, y1: y(0), y2: y(0) }));
+  box.append(root);
+  return box;
+}
 const cellValue = (c, r) => (c.value ? c.value(r) : r[c.key]);
 
 let reportRows = [], reportTotalCost = 0;
@@ -910,6 +1028,7 @@ function report(rows) {
   }
   const total = { name: "total" };
   for (const c of cols) if (c.num && !c.value) total[c.key] = rows.reduce((n, r) => n + (Number(r[c.key]) || 0), 0);
+  if (energyOn()) total.estimate = sumEstimates(rows);
   const show = (c, r) => {
     const v = cellValue(c, r);
     return c.fmt ? c.fmt(v, r) : c.num ? Number(v || 0).toLocaleString("en-US") : v == null ? "" : String(v);
@@ -936,8 +1055,9 @@ function report(rows) {
 function reportCsv() {
   const cols = reportCols();
   const cell = (v) => { const t = v == null ? "" : String(v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
-  const lines = [cols.map((c) => cell(c.key === "name" ? state.by : c.key)).join(",")]
-    .concat(reportRows.map((r) => cols.map((c) => cell(cellValue(c, r))).join(",")));
+  const head = cols.flatMap((c) => (c.csvHead ? c.csvHead : [c.key === "name" ? state.by : c.key]));
+  const lines = [head.map(cell).join(",")]
+    .concat(reportRows.map((r) => cols.flatMap((c) => (c.csv ? c.csv(r) : [cellValue(c, r)])).map(cell).join(",")));
   const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
   const a = el("a", { href: url, download: `agent-top-report-${state.by}-${state.range === "0" ? "all" : state.range + "d"}.csv` });
   document.body.append(a); a.click(); a.remove();
@@ -961,7 +1081,14 @@ const LOADERS = {
     bars("chart-project", ov.by_project);
     bars("chart-model", ov.by_model);
   },
-  report: async (p) => report(await api("report", { ...p, by: state.by })),
+  report: async (p) => {
+    const [rows, days] = await Promise.all([
+      api("report", { ...p, by: state.by }),
+      energyOn() && state.by !== "day" ? api("report", { ...p, by: "day" }) : null,
+    ]);
+    report(rows);
+    energyPanel(rows, days || rows);
+  },
   sessions: async (p) => sessions(await api("sessions", p)),
   tools: async (p) => {
     const [tl, mc] = await Promise.all([api("tools", p), api("mcp", p)]);
@@ -1034,6 +1161,7 @@ function goTab(tab) {
 async function meta() {
   const m = await api("meta");
   document.getElementById("meta").textContent = m.store;
+  state.energy = m.energy || null;
   const lines = [];
   if (m.last_sync && m.last_sync.at) lines.push("Synced " + when(m.last_sync.at));
   if (m.last_received && m.last_received.at) lines.push("Received " + when(m.last_received.at));

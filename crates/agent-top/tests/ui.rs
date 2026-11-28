@@ -50,6 +50,9 @@ fn start_with(tag: &str, more: impl FnOnce(&Path)) -> Ui {
             .env("HOME", &home)
             .env("XDG_DATA_HOME", &home)
             .env("AGENT_TOP_NO_UPDATE_CHECK", "1")
+            // The energy table comes from this home only, never the developer's.
+            .env_remove("AGENT_TOP_ENERGY")
+            .env_remove("XDG_CONFIG_HOME")
             .stdout(Stdio::null())
             .stderr(Stdio::null());
         c
@@ -140,6 +143,40 @@ fn the_page_and_its_api_answer_with_the_store_s_numbers() {
     assert_eq!(get_json(&ui, "/api/report?since=0&by=harness")[0]["name"], "claude");
     // Anything else groups by harness; the value never reaches the SQL.
     assert_eq!(get_json(&ui, "/api/report?since=0&by=1;DROP")[0]["name"], "claude");
+    // No energy table in this home: no estimate anywhere.
+    assert_eq!(get_json(&ui, "/api/meta")["energy"]["usable"], false);
+    assert!(get_json(&ui, "/api/report?since=0&by=model")[0].get("estimate").is_none());
+}
+
+#[test]
+fn with_an_energy_table_each_report_group_carries_its_estimate() {
+    let ui = start_with("energy", |projects| {
+        // home/.claude/projects/<dir> -> home/.config/agent-top/energy.toml
+        let home = projects.parent().unwrap().parent().unwrap().parent().unwrap();
+        let dir = home.join(".config/agent-top");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("energy.toml"),
+            "[grid]\ngco2e_per_kwh = [100, 400]\nsource = \"t\"\nchecked = \"2026-11-28\"\n\n\
+             [models.\"claude-opus-5\"]\ninput = 1\ncache_write = 1\ncache_read = 1\noutput = 1\n\
+             source = \"t\"\nchecked = \"2026-11-28\"\n",
+        )
+        .unwrap();
+    });
+    let meta = get_json(&ui, "/api/meta");
+    assert_eq!(meta["energy"]["usable"], true, "{meta}");
+    let groups = get_json(&ui, "/api/report?since=0&by=model");
+    let g = &groups[0];
+    let e = &g["estimate"];
+    assert_eq!(e["estimated"], true);
+    assert_eq!(g["name"], "claude-opus-5", "the fixture's model");
+    {
+        // 1 Wh per million tokens of every kind: the energy is the token count in millions.
+        let wh = g["tokens"].as_f64().unwrap() / 1e6;
+        assert!((e["energy_wh"]["low"].as_f64().unwrap() - wh).abs() < 1e-9, "{g}");
+        assert!((e["co2e_g"]["high"].as_f64().unwrap() - wh / 1000.0 * 400.0).abs() < 1e-9, "{g}");
+    }
+    assert_eq!(e["unestimated_tokens"], 0, "{g}");
 }
 
 #[test]

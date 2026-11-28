@@ -6,6 +6,7 @@
 
 pub mod advice;
 pub mod collector;
+pub mod energy;
 pub mod harness;
 pub mod jsonl;
 pub mod model;
