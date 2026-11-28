@@ -130,21 +130,55 @@ function table(cols, rows, onRow, keyOf) {
 
 // ---- tiles ---------------------------------------------------------------
 
-function tiles(t, comp) {
+// The meter: the logo's stepped bars as a share of a whole. Lit segments
+// step through the logo's three blues from left to right.
+function meter(frac, n) {
+  const m = el("span", { class: "meter", role: "img", "aria-label": Math.round((frac || 0) * 100) + "%" });
+  const lit = Math.round(Math.max(0, Math.min(1, frac || 0)) * n);
+  for (let i = 0; i < n; i++) m.append(el("i", { class: i < lit ? "on" + (i < n / 3 ? " lo" : i < (2 * n) / 3 ? " mid" : "") : "" }));
+  return m;
+}
+
+function pill(h) {
+  const i = el("i"); i.style.background = slot(h);
+  return el("span", { class: "pill" }, i, h);
+}
+
+function tiles(t, comp, byDay) {
   const box = document.getElementById("tiles");
-  const hit = t.prompt > 0 ? Math.round((t.cache_read / t.prompt) * 100) + "%" : "-";
+  const hit = t.prompt > 0 ? t.cache_read / t.prompt : null;
   const days = Number(state.range);
-  const tile = (label, value, sub, hero) =>
-    el("div", { class: "tile" + (hero ? " hero" : "") }, el("div", { class: "label", text: label }),
-      el("div", { class: "value", text: value }), sub ? el("div", { class: "sub", text: sub }) : null);
+  const kpi = (label, value, sub, extra, cls) =>
+    el("div", { class: "kpi" + (cls ? " " + cls : "") }, el("div", { class: "label", text: label }),
+      el("div", { class: "value", text: value }), sub ? el("div", { class: "sub", text: sub }) : null, extra || null);
+  // The hero: total cost, over a bar for each day in the range.
+  const perDay = new Map();
+  for (const r of byDay || []) perDay.set(r.day, (perDay.get(r.day) || 0) + (r.cost_usd || 0));
+  const spark = el("div", { class: "spark", "aria-hidden": "true" });
+  let first = null, last = null;
+  if (perDay.size) {
+    const keys = [...perDay.keys()].sort();
+    first = keys[0]; last = keys[keys.length - 1];
+    const max = Math.max(...perDay.values(), 0.0001);
+    for (let d = Date.parse(first + "T00:00:00Z"); d <= Date.parse(last + "T00:00:00Z"); d += DAY) {
+      const day = new Date(d).toISOString().slice(0, 10), v = perDay.get(day) || 0, f = v / max;
+      const bar = el("i", { class: v <= 0 ? "zero" : f > 0.66 ? "hi" : f > 0.33 ? "mid" : "" });
+      bar.style.height = Math.max(4, f * 100) + "%";
+      spark.append(bar);
+    }
+  }
+  const hero = el("div", { class: "kpi hero" }, el("div", { class: "label", text: "Cost" }),
+    el("div", { class: "value", text: usd(t.cost_usd) + (t.unpriced_tokens > 0 ? "+" : "") }),
+    el("div", { class: "sub", text: days ? `Last ${days} days, ${plural(Number(t.sessions) || 0, "session")}` : `All time, ${plural(Number(t.sessions) || 0, "session")}` }),
+    spark, first ? el("div", { class: "spark-axis" }, el("span", { text: first.slice(5) }), el("span", { text: last.slice(5) })) : null);
   box.replaceChildren(...[
-    tile("Cost", usd(t.cost_usd) + (t.unpriced_tokens > 0 ? "+" : ""), days ? `last ${days} days` : "all time", true),
-    tile("Sessions", Number(t.sessions).toLocaleString("en-US"), `${compact(t.turns)} turns`),
-    tile("Tokens", compact(t.tokens), `${compact(t.tool_calls)} tool calls`),
-    tile("Cache hit", hit, "of the prompt"),
-    comp && comp.compactions > 0 ? tile("Compactions", Number(comp.compactions).toLocaleString("en-US"), `in ${plural(comp.sessions, "session")}${comp.inferred > 0 ? `, ${comp.inferred} inferred` : ""}`) : null,
-    t.unpriced_tokens > 0 ? tile("Unpriced tokens", compact(t.unpriced_tokens), "no price in the table") : null,
-  ].filter(Boolean));
+    hero,
+    kpi("Tokens", compact(t.tokens), `${compact(t.tool_calls)} tool calls in ${compact(t.turns)} turns`),
+    kpi("Cache hit", hit == null ? "-" : Math.round(hit * 100) + "%", "of the prompt read from cache", hit == null ? null : meter(hit, 24)),
+    comp && comp.compactions > 0 ? kpi("Compactions", Number(comp.compactions).toLocaleString("en-US"), `in ${plural(comp.sessions, "session")}${comp.inferred > 0 ? `, ${comp.inferred} inferred` : ""}`) : kpi("Compactions", "0", "none in this range"),
+    t.unpriced_tokens > 0 ? kpi("Unpriced tokens", compact(t.unpriced_tokens), "no price in the table, so not in the cost", null, "warn")
+      : kpi("Sessions", Number(t.sessions).toLocaleString("en-US"), `${compact(t.turns)} turns`),
+  ]);
 }
 
 // ---- cost by day: stacked columns ----------------------------------------
@@ -298,17 +332,20 @@ function mcp(rows) {
   ], rows));
 }
 
+let sessionRows = [];
 function sessions(rows) {
+  if (rows) sessionRows = rows;
   const box = document.getElementById("sessions");
-  if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: "No sessions in this range." })); return; }
+  const q = document.getElementById("sessions-filter").value.trim().toLowerCase();
+  rows = q ? sessionRows.filter((r) => [r.project, r.model, r.session_id, r.harness].some((v) => v && String(v).toLowerCase().includes(q))) : sessionRows;
+  document.getElementById("sessions-count").textContent = q ? `${rows.length} of ${sessionRows.length}` : sessionRows.length >= 200 ? "the 200 most recent" : plural(sessionRows.length, "session");
+  if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: q ? "No session matches the filter." : "No sessions in this range." })); return; }
   box.replaceChildren(table([
     { key: "last_activity", label: "Last activity", render: (r) => when(r.last_activity) },
     // The subagent count marks the sessions with a run graph. It sits in this
     // column, not its own, so it stays in view beside the open side panel.
-    { key: "harness", label: "Harness", render: (r) => {
-      const k = el("span", { class: "key" }); k.style.background = slot(r.harness);
-      return el("span", {}, k, " " + r.harness, r.subagents > 0 ? el("span", { class: "badge sub", text: plural(r.subagents, "subagent") }) : "");
-    } },
+    { key: "harness", label: "Harness", render: (r) =>
+      el("span", {}, pill(r.harness), r.subagents > 0 ? el("span", { class: "badge sub", text: plural(r.subagents, "subagent") }) : "") },
     { key: "project", label: "Project", cls: "mono trunc" },
     { key: "model", label: "Model", cls: "mono trunc" },
     { key: "turns", label: "Turns", num: true },
@@ -362,7 +399,7 @@ async function openSession(r) {
     return;
   }
   const s = d.session;
-  document.getElementById("h-detail").textContent = `Session · ${s.harness}${s.project ? " · " + s.project : ""}`;
+  document.getElementById("h-detail").textContent = s.project ? `${s.project} (${s.harness})` : `Session (${s.harness})`;
   const fact = (k, v) => el("div", {}, el("div", { class: "k", text: k }), el("div", { class: "v", text: v == null || v === "" ? "-" : String(v) }));
   const facts = el("div", { class: "facts" },
     fact("session id", s.session_id),
@@ -841,14 +878,16 @@ const reportCols = () => [
   { key: "output", label: "Output", num: true, fmt: compact },
   { key: "tokens", label: "Tokens", num: true, fmt: compact },
   { key: "hit", label: "Cache hit", num: true, value: hitRate, fmt: (v) => (v == null ? "-" : Math.round(v * 100) + "%") },
-  { key: "cost_usd", label: "Cost", num: true, fmt: (v, r) => usd(v) + (r.unpriced_tokens > 0 ? "+" : "") },
+  { key: "cost_usd", label: "Cost", num: true, cls: "cost", fmt: (v, r) => usd(v) + (r.unpriced_tokens > 0 ? "+" : "") },
+  { key: "share", label: "Share of cost", num: true, cls: "share", value: (r) => (reportTotalCost > 0 ? (r.cost_usd || 0) / reportTotalCost : 0), node: (v) => meter(v, 12) },
   { key: "unpriced_tokens", label: "Unpriced", num: true, fmt: (v) => (v > 0 ? compact(v) : "-") },
 ];
 const cellValue = (c, r) => (c.value ? c.value(r) : r[c.key]);
 
-let reportRows = [];
+let reportRows = [], reportTotalCost = 0;
 function report(rows) {
   reportRows = rows;
+  reportTotalCost = rows.reduce((n, r) => n + (r.cost_usd || 0), 0);
   const box = document.getElementById("report");
   if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: "No sessions in this range." })); return; }
   const cols = reportCols();
@@ -874,7 +913,14 @@ function report(rows) {
       onclick: () => { state.sort = { key: c.key, desc: on ? !sort.desc : c.num }; report(reportRows); } });
     return el("th", { class: c.num ? "num" : "", "aria-sort": on ? (sort.desc ? "descending" : "ascending") : "none" }, b);
   }));
-  const row = (r, cls) => el("tr", cls ? { class: cls } : {}, ...cols.map((c) => el("td", { class: [c.num ? "num" : "", c.cls || ""].join(" ").trim(), text: show(c, r) })));
+  const cell = (c, r, total) => {
+    const td = el("td", { class: [c.num ? "num" : "", c.cls || ""].join(" ").trim() });
+    if (c.node) td.append(c.node(cellValue(c, r)));
+    else if (c.key === "name" && state.by === "harness" && !total) td.append(pill(r.name));
+    else td.textContent = show(c, r);
+    return td;
+  };
+  const row = (r, cls) => el("tr", cls ? { class: cls } : {}, ...cols.map((c) => cell(c, r, cls === "total")));
   box.replaceChildren(el("div", { class: "table-wrap" }, el("table", { class: "report" },
     el("thead", {}, head), el("tbody", {}, ...sorted.map((r) => row(r))), el("tfoot", {}, row(total, "total")))));
 }
@@ -903,7 +949,7 @@ function setBy(by) {
 const LOADERS = {
   overview: async (p) => {
     const ov = await api("overview", p);
-    tiles(ov.totals || {}, ov.compactions);
+    tiles(ov.totals || {}, ov.compactions, ov.by_day);
     daily(ov.by_day);
     bars("chart-project", ov.by_project);
     bars("chart-model", ov.by_model);
@@ -945,6 +991,8 @@ function showTab(tab) {
     b.tabIndex = on ? 0 : -1;
   }
   for (const t of TABS) document.getElementById("panel-" + t).hidden = t !== state.tab;
+  document.getElementById("page-title").textContent = document.getElementById("tab-" + state.tab).dataset.title;
+  document.title = state.tab === "overview" ? "agent-top" : `${document.getElementById("page-title").textContent} · agent-top`;
   remember("agent-top-tab", state.tab);
 }
 
@@ -978,10 +1026,11 @@ function goTab(tab) {
 
 async function meta() {
   const m = await api("meta");
-  const parts = [m.store];
-  if (m.last_sync && m.last_sync.at) parts.push("synced " + when(m.last_sync.at));
-  if (m.last_received && m.last_received.at) parts.push("received " + when(m.last_received.at));
-  document.getElementById("meta").textContent = parts.join(" · ");
+  document.getElementById("meta").textContent = m.store;
+  const lines = [];
+  if (m.last_sync && m.last_sync.at) lines.push("Synced " + when(m.last_sync.at));
+  if (m.last_received && m.last_received.at) lines.push("Received " + when(m.last_received.at));
+  document.getElementById("meta-sync").replaceChildren(...lines.map((t) => el("div", { text: t })));
   const sel = document.getElementById("harness");
   for (const h of m.harnesses) sel.append(el("option", { value: h.harness, text: h.harness }));
 }
@@ -1014,7 +1063,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Arrow keys move along the tabs, as the ARIA tabs pattern describes.
     b.addEventListener("keydown", (e) => {
       const i = tabs.indexOf(b);
-      const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+      const j = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
       if (j == null) return;
       e.preventDefault();
       const next = tabs[(j + tabs.length) % tabs.length];
@@ -1030,6 +1079,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     load();
   });
   document.getElementById("report-csv").addEventListener("click", reportCsv);
+  document.getElementById("sessions-filter").addEventListener("input", () => sessions());
   window.addEventListener("popstate", () => route(false));
   document.getElementById("theme").addEventListener("click", () => {
     const dark = getComputedStyle(document.documentElement).colorScheme === "dark";
@@ -1043,6 +1093,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     b.addEventListener("click", () => {
       const on = b.getAttribute("aria-pressed") !== "true";
       b.setAttribute("aria-pressed", String(on));
+      b.textContent = on ? "Show as chart" : "Show as table";
       document.getElementById("table-" + b.dataset.table).hidden = !on;
       document.getElementById("chart-" + b.dataset.table).hidden = on;
     });
