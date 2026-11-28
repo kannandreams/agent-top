@@ -14,6 +14,11 @@ use std::path::{Path, PathBuf};
 const INDEX_HTML: &str = include_str!("../web/index.html");
 const APP_JS: &str = include_str!("../web/app.js");
 const APP_CSS: &str = include_str!("../web/app.css");
+const FAVICON: &str = include_str!("../web/favicon.svg");
+// The docs site's two faces (SIL OFL 1.1, licences beside them), so the page
+// loads nothing from anywhere else.
+const GEIST: &[u8] = include_bytes!("../web/fonts/Geist.woff2");
+const JETBRAINS_MONO: &[u8] = include_bytes!("../web/fonts/JetBrainsMono.woff2");
 
 /// The default address: loopback, so only this machine can open it.
 pub const DEFAULT_ADDR: &str = "127.0.0.1:4320";
@@ -38,7 +43,11 @@ impl Reply {
     }
 
     fn asset(content_type: &'static str, body: &str) -> Reply {
-        Reply { status: 200, content_type, body: body.as_bytes().to_vec() }
+        Reply::bytes(content_type, body.as_bytes())
+    }
+
+    fn bytes(content_type: &'static str, body: &[u8]) -> Reply {
+        Reply { status: 200, content_type, body: body.to_vec() }
     }
 }
 
@@ -100,6 +109,9 @@ pub fn handle(get: bool, url: &str, host: Option<&str>, addr: &str, port: u16, d
         "/" | "/index.html" => Reply::asset("text/html; charset=utf-8", INDEX_HTML),
         "/app.js" => Reply::asset("text/javascript; charset=utf-8", APP_JS),
         "/app.css" => Reply::asset("text/css; charset=utf-8", APP_CSS),
+        "/favicon.svg" => Reply::asset("image/svg+xml", FAVICON),
+        "/fonts/Geist.woff2" => Reply::bytes("font/woff2", GEIST),
+        "/fonts/JetBrainsMono.woff2" => Reply::bytes("font/woff2", JETBRAINS_MONO),
         p if p.starts_with("/api/") => match api(&p[5..], &Params::parse(query), db) {
             Ok(Some(v)) => Reply::json(v),
             Ok(None) => Reply::text(404, "not found"),

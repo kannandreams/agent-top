@@ -69,8 +69,10 @@ fn start_with(tag: &str, more: impl FnOnce(&Path)) -> Ui {
 fn request(port: u16, method: &str, path: &str, host: &str) -> (u16, String, String) {
     let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
     write!(s, "{method} {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n").unwrap();
-    let mut resp = String::new();
-    s.read_to_string(&mut resp).unwrap();
+    let mut raw = Vec::new();
+    s.read_to_end(&mut raw).unwrap();
+    // A font is binary; only its status and headers matter here.
+    let resp = String::from_utf8_lossy(&raw).into_owned();
     let (head, body) = resp.split_once("\r\n\r\n").unwrap_or((&resp, ""));
     let status = head.split_whitespace().nth(1).and_then(|c| c.parse().ok()).unwrap_or(0);
     (status, head.to_ascii_lowercase(), body.to_string())
@@ -91,8 +93,12 @@ fn the_page_and_its_api_answer_with_the_store_s_numbers() {
     assert!(body.contains("<script src=\"/app.js\""));
     assert!(head.contains("content-security-policy: default-src 'self'"), "{head}");
     assert!(head.contains("x-frame-options: deny"));
-    for asset in ["/app.js", "/app.css"] {
-        assert_eq!(request(ui.port, "GET", asset, &host).0, 200, "{asset}");
+    for asset in ["/app.js", "/app.css", "/favicon.svg", "/fonts/Geist.woff2", "/fonts/JetBrainsMono.woff2"] {
+        let (status, head, _) = request(ui.port, "GET", asset, &host);
+        assert_eq!(status, 200, "{asset}");
+        if asset.ends_with(".woff2") {
+            assert!(head.contains("content-type: font/woff2"), "{head}");
+        }
     }
 
     let ov = get_json(&ui, "/api/overview?since=0");

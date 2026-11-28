@@ -348,7 +348,7 @@ def shoot(port):
         for scheme in ("light", "dark"):
             page = browser.new_page(viewport={"width": 1280, "height": 900}, device_scale_factor=2, color_scheme=scheme)
             page.goto(f"http://127.0.0.1:{port}/")
-            page.wait_for_selector("#tiles .tile")
+            page.wait_for_selector("#tiles .kpi")
             page.wait_for_timeout(300)
             suffix = "" if scheme == "light" else "-dark"
             page.screenshot(path=str(OUT / f"ui-overview{suffix}.png"), clip={"x": 0, "y": 0, "width": 1280, "height": 900})
@@ -434,7 +434,7 @@ def export(port):
     # The page itself, with relative links so it works under /demo/ and the shim ahead of app.js.
     html = (WEB / "index.html").read_text()
     # data-open: the session the demo opens with, the one with a run graph.
-    html = html.replace('href="/app.css"', 'href="app.css"').replace(
+    html = html.replace('href="/app.css"', 'href="app.css"').replace('href="/favicon.svg"', 'href="favicon.svg"').replace(
         '<script src="/app.js" defer></script>',
         f'<script src="demo.js" data-open="#s/claude/{RUN_GRAPH_ID}"></script>\n<script src="app.js" defer></script>')
     html = html.replace("<title>agent-top</title>", "<title>agent-top ui demo</title>")
@@ -445,6 +445,8 @@ def export(port):
     (DEMO / "index.html").write_text(html)
     shutil.copy(WEB / "app.js", DEMO / "app.js")
     shutil.copy(WEB / "app.css", DEMO / "app.css")
+    shutil.copy(WEB / "favicon.svg", DEMO / "favicon.svg")
+    shutil.copytree(WEB / "fonts", DEMO / "fonts", dirs_exist_ok=True)
     print(f"exported the demo to {DEMO} ({files} sessions)")
 
 
@@ -462,7 +464,7 @@ def record(port):
         ctx = browser.new_context(viewport=size, record_video_dir=str(vid), record_video_size=size, color_scheme="light")
         page = ctx.new_page()
         page.goto(f"http://127.0.0.1:{port}/")
-        page.wait_for_selector("#tiles .tile")
+        page.wait_for_selector("#tiles .kpi")
         page.wait_for_timeout(1800)
         for r in ("7", "90", "30"):
             page.click(f"#range button[data-range='{r}']")
@@ -603,7 +605,7 @@ def record_context(port):
             page.wait_for_timeout(400)
 
         page.goto(f"http://127.0.0.1:{port}/")
-        page.wait_for_selector("#tiles .tile")
+        page.wait_for_selector("#tiles .kpi")
         page.mouse.move(640, 400)
         caption("agent-top 0.30: watch your coding agent's context fill up", 2400)
         caption("Open a session", 300)

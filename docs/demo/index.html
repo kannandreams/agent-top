@@ -4,45 +4,73 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>agent-top ui demo</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="app.css">
 <script src="demo.js" data-open="#s/claude/0000beef-demo-4000-8000-00000000cafe"></script>
 <script src="app.js" defer></script>
 </head>
 <body>
-<header class="top">
-  <div class="brand"><span class="mark">A</span><span>agent-top</span><span class="sub">local store</span></div>
-  <div class="meta" id="meta"></div>
-  <button type="button" class="theme" id="theme" aria-label="Switch light or dark">◐</button>
-</header>
-
-<div class="tabs" role="tablist" aria-label="Views" id="tabs">
-  <button type="button" role="tab" id="tab-overview" aria-controls="panel-overview" data-tab="overview">Overview</button>
-  <button type="button" role="tab" id="tab-report" aria-controls="panel-report" data-tab="report">Report</button>
-  <button type="button" role="tab" id="tab-sessions" aria-controls="panel-sessions" data-tab="sessions">Sessions</button>
-  <button type="button" role="tab" id="tab-tools" aria-controls="panel-tools" data-tab="tools">Tools</button>
-</div>
-
-<nav class="filters" aria-label="Filters">
-  <div class="seg" role="radiogroup" aria-label="Time range" id="range">
-    <button type="button" role="radio" data-range="7">7 days</button>
-    <button type="button" role="radio" data-range="30">30 days</button>
-    <button type="button" role="radio" data-range="90">90 days</button>
-    <button type="button" role="radio" data-range="0">All</button>
+<div class="shell">
+<aside class="side" aria-label="agent-top">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="8" fill="#12141a"/><rect x="6" y="44" width="8" height="10" fill="#9db2ee"/><rect x="17" y="30" width="8" height="24" fill="#6a90f6"/><rect x="28" y="10" width="8" height="44" fill="#2453e0"/><rect x="39" y="30" width="8" height="24" fill="#6a90f6"/><rect x="50" y="44" width="8" height="10" fill="#9db2ee"/><rect x="17" y="38" width="30" height="5" fill="#12141a"/></svg>
+    <span class="name">agent-top</span>
   </div>
-  <label class="select">Harness
-    <select id="harness"><option value="">All</option></select>
-  </label>
-</nav>
+
+  <nav class="tabs" role="tablist" aria-label="Views" aria-orientation="vertical" id="tabs">
+    <button type="button" role="tab" id="tab-overview" aria-controls="panel-overview" data-tab="overview" data-title="Overview">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="11" width="3" height="6" rx="1"/><rect x="8.5" y="4" width="3" height="13" rx="1"/><rect x="14" y="8" width="3" height="9" rx="1"/></svg>
+      <span>Overview</span>
+    </button>
+    <button type="button" role="tab" id="tab-report" aria-controls="panel-report" data-tab="report" data-title="Report">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3.5" width="14" height="13" rx="2" fill="none"/><path d="M3 8h14M8 8v8.5" fill="none"/></svg>
+      <span>Report</span>
+    </button>
+    <button type="button" role="tab" id="tab-sessions" aria-controls="panel-sessions" data-tab="sessions" data-title="Sessions">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5.5h12M4 10h12M4 14.5h8" fill="none"/></svg>
+      <span>Sessions</span>
+    </button>
+    <button type="button" role="tab" id="tab-tools" aria-controls="panel-tools" data-tab="tools" data-title="Tools">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16.5a6.5 6.5 0 1 1 6.5-6.5M10 10l3.5-3" fill="none"/><circle cx="10" cy="10" r="1.2"/></svg>
+      <span>Tools</span>
+    </button>
+  </nav>
+
+  <div class="store" id="store">
+    <div class="store-state"><span class="live-dot" aria-hidden="true"></span>Local store, read-only</div>
+    <div class="store-path" id="meta"></div>
+    <div class="store-sync" id="meta-sync"></div>
+  </div>
+</aside>
+
+<div class="main-col">
+<header class="topbar">
+  <h1 id="page-title">Overview</h1>
+  <div class="controls" aria-label="Filters">
+    <div class="seg" role="radiogroup" aria-label="Time range" id="range">
+      <button type="button" role="radio" data-range="7">7 days</button>
+      <button type="button" role="radio" data-range="30">30 days</button>
+      <button type="button" role="radio" data-range="90">90 days</button>
+      <button type="button" role="radio" data-range="0">All</button>
+    </div>
+    <label class="select"><span class="sr">Harness</span>
+      <select id="harness" aria-label="Harness"><option value="">All harnesses</option></select>
+    </label>
+    <button type="button" class="icon-btn" id="theme" aria-label="Switch light or dark">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" fill="none"/><path d="M10 3.5a6.5 6.5 0 0 1 0 13z"/></svg>
+    </button>
+  </div>
+</header>
 
 <main id="main">
 <div class="panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
-  <section class="tiles" id="tiles" aria-label="Totals"></section>
+  <section class="kpis" id="tiles" aria-label="Totals"></section>
 
   <section class="card" aria-labelledby="h-daily">
     <div class="card-head">
       <h2 id="h-daily">Cost by day</h2>
       <div class="legend" id="legend-daily"></div>
-      <button type="button" class="toggle" data-table="daily">Table</button>
+      <button type="button" class="btn ghost" data-table="daily">Show as table</button>
     </div>
     <div class="chart" id="chart-daily"></div>
     <div class="table-view" id="table-daily" hidden></div>
@@ -50,11 +78,11 @@
 
   <div class="grid2">
     <section class="card" aria-labelledby="h-project">
-      <div class="card-head"><h2 id="h-project">Cost by project</h2></div>
+      <div class="card-head"><h2 id="h-project">Cost by project</h2><span class="note">top 10</span></div>
       <div class="bars" id="chart-project"></div>
     </section>
     <section class="card" aria-labelledby="h-model">
-      <div class="card-head"><h2 id="h-model">Cost by model</h2></div>
+      <div class="card-head"><h2 id="h-model">Cost by model</h2><span class="note">top 10</span></div>
       <div class="bars" id="chart-model"></div>
     </section>
   </div>
@@ -63,23 +91,34 @@
 <div class="panel" role="tabpanel" id="panel-report" aria-labelledby="tab-report" hidden>
   <section class="card" aria-labelledby="h-report">
     <div class="card-head">
-      <h2 id="h-report">Report</h2>
+      <h2 id="h-report">Usage and cost</h2>
       <div class="seg" role="radiogroup" aria-label="Group by" id="report-by">
         <button type="button" role="radio" data-by="harness">Harness</button>
         <button type="button" role="radio" data-by="model">Model</button>
         <button type="button" role="radio" data-by="project">Project</button>
         <button type="button" role="radio" data-by="day">Day</button>
       </div>
-      <button type="button" class="toggle" id="report-csv">CSV</button>
+      <button type="button" class="btn" id="report-csv">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.5v9M6 9l4 4 4-4M4 16.5h12" fill="none"/></svg>
+        Download CSV
+      </button>
     </div>
     <div id="report"></div>
-    <div class="note">The groups <code>agent-top report</code> prints, from the local store. Select a column heading to sort by it.</div>
+    <p class="foot-note">The groups <code>agent-top report</code> prints, from the local store. Select a column heading to sort by it.</p>
   </section>
 </div>
 
 <div class="panel" role="tabpanel" id="panel-sessions" aria-labelledby="tab-sessions" hidden>
   <section class="card" aria-labelledby="h-sessions">
-    <div class="card-head"><h2 id="h-sessions">Sessions</h2><span class="note">newest first; select one for its spans</span></div>
+    <div class="card-head">
+      <h2 id="h-sessions">Sessions</h2>
+      <span class="note" id="sessions-count"></span>
+      <label class="search">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5" fill="none"/><path d="M13 13l3.5 3.5" fill="none"/></svg>
+        <input type="search" id="sessions-filter" placeholder="Filter sessions" aria-label="Filter sessions">
+      </label>
+    </div>
+    <p class="hint"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M12 4v12"/></svg>Open a session to see its context timeline, run graph, turns and tool calls beside the list.</p>
     <div id="sessions"></div>
   </section>
 </div>
@@ -97,12 +136,14 @@
 </div>
 
   <section class="card drawer" id="detail" hidden aria-labelledby="h-detail">
-    <div class="card-head"><h2 id="h-detail">Session</h2><button type="button" class="toggle" id="close-detail">Close</button></div>
+    <div class="card-head"><h2 id="h-detail">Session</h2><button type="button" class="btn ghost" id="close-detail">Close</button></div>
     <div id="detail-body"></div>
   </section>
 </main>
 
 <footer class="foot" id="foot">A demo of <code>agent-top ui</code> on invented sessions. Run <code>agent-top sync &amp;&amp; agent-top ui</code> to see your own. <a href="../store/">About the local store</a></footer>
+</div>
+</div>
 <div class="tip" id="tip" role="tooltip" hidden></div>
 </body>
 </html>
