@@ -26,7 +26,7 @@
   --critical: #d03b3b;
   --ok: #1baf7a;
   --shadow: 0 1px 2px rgba(18, 20, 26, 0.06), 0 1px 1px rgba(18, 20, 26, 0.03);
-  --h1: #2a78d6; --h2: #eb6834; --h3: #1baf7a; --h4: #eda100; --h5: #e87ba4; --h6: #4a3aa7;
+  --h1: #2f63e0; --h2: #d99a1e; --h3: #139a8a; --h4: #b04fb0; --h5: #e2706a; --h6: #3aa0d8;
   --other: #898781;
   --turn: #e9e8e4;
   /* The sidebar is the logo's tile, in both themes. */
@@ -46,7 +46,7 @@
     --accent: #6f8ff0; --ramp-2: #4b6fd8; --ramp-3: #33498f;
     --wash: rgba(111, 143, 240, 0.10); --focus: rgba(111, 143, 240, 0.55);
     --shadow: none;
-    --h1: #3987e5; --h2: #d95926; --h3: #199e70; --h4: #c98500; --h5: #d55181; --h6: #9085e9;
+    --h1: #5b86f0; --h2: #c98f1c; --h3: #16a08f; --h4: #c062c0; --h5: #e0705f; --h6: #3f97d6;
     --turn: #262624;
     --side: #08090c; --side-2: #14161c;
   }
@@ -59,7 +59,7 @@
   --accent: #6f8ff0; --ramp-2: #4b6fd8; --ramp-3: #33498f;
   --wash: rgba(111, 143, 240, 0.10); --focus: rgba(111, 143, 240, 0.55);
   --shadow: none;
-  --h1: #3987e5; --h2: #d95926; --h3: #199e70; --h4: #c98500; --h5: #d55181; --h6: #9085e9;
+  --h1: #5b86f0; --h2: #c98f1c; --h3: #16a08f; --h4: #c062c0; --h5: #e0705f; --h6: #3f97d6;
   --turn: #262624;
   --side: #08090c; --side-2: #14161c;
 }
@@ -186,6 +186,11 @@ main.loading { opacity: 0.6; }
 @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi.hero { grid-column: 1 / -1; grid-row: auto; } }
 @media (max-width: 520px) { .kpis { gap: 12px; } .kpi { padding: 14px; } .kpi .value { font-size: 22px; } .kpi.hero .value { font-size: 40px; } }
 @media (max-width: 480px) { .tabs [role="tab"] svg { display: none; } .tabs { gap: 0; } }
+
+/* Harness colours, one fixed slot each (claude, codex, opencode, gemini,
+   kodelet, otel): cobalt, gold, teal, plum, coral, sky. Validated with the
+   dataviz checks in both modes; the stacked bars keep a 2px gap and a legend
+   and table view, which the gold and sky slots need on white. */
 
 /* ---- charts ------------------------------------------------------------------- */
 
@@ -336,3 +341,12 @@ table.report td.cost { font-weight: 600; }
   .table-wrap { margin: 0 -20px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* A session row opens the side panel; the last cell says so. */
+.open-hint { display: inline-flex; align-items: center; gap: 2px; color: var(--muted); font: 500 12.5px var(--sans); white-space: nowrap; opacity: 0.75; }
+.open-hint svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; fill: none; transition: transform 0.12s; }
+tbody tr.click:hover .open-hint, tbody tr.click:focus .open-hint, tbody tr[aria-current="true"] .open-hint { color: var(--accent); opacity: 1; }
+tbody tr.click:hover .open-hint svg, tbody tr.click:focus .open-hint svg { transform: translateX(2px); }
+tbody tr.click:hover { background: var(--wash); }
+.hint { display: flex; align-items: center; gap: 8px; margin: -4px 0 12px; padding: 8px 12px; border-radius: 8px; background: var(--wash); color: var(--ink-2); font-size: 13px; }
+.hint svg { width: 16px; height: 16px; flex: none; stroke: var(--accent); stroke-width: 1.7; fill: none; }

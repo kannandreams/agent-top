@@ -352,7 +352,14 @@ function sessions(rows) {
     { key: "tokens", label: "Tokens", num: true, render: (r) => compact(r.tokens) },
     { key: "cost_usd", label: "Cost", num: true, render: (r) => usd(r.cost_usd) + (r.unpriced_tokens > 0 ? "+" : "") },
     { key: "attribution", label: "Source", render: (r) => el("span", { class: "badge", text: r.attribution }) },
+    { key: "open", label: "", num: true, render: () => openHint() },
   ], rows, openSession, sessionKey));
+}
+
+function openHint() {
+  const s = svg("svg", { viewBox: "0 0 20 20", "aria-hidden": "true" });
+  s.append(svg("path", { d: "M8 5l5 5-5 5" }));
+  return el("span", { class: "open-hint" }, "Details", s);
 }
 
 // ---- session detail: facts and span waterfall --------------------------------
@@ -422,7 +429,7 @@ async function openSession(r) {
 // compacted the context. The x axis counts responses, not time: hours of idle
 // between two turns would otherwise take the width. The line and the
 // compactions are the harness's figures; the split by source is an estimate.
-const ORIGIN = { tool: ["var(--h1)", "tool results"], mcp: ["var(--h6)", "MCP results"], other: ["var(--other)", "prompts & replies"] };
+const ORIGIN = { tool: ["var(--h1)", "tool results"], mcp: ["var(--h4)", "MCP results"], other: ["var(--other)", "prompts & replies"] };
 
 // Each agent keeps its own timeline: a subagent starts from an empty
 // context, so it is a separate chart, picked from the list above it.
