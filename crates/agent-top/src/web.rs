@@ -226,6 +226,26 @@ fn api(route: &str, p: &Params, db: &Path) -> Result<Option<Json>> {
                 &f,
             )?),
         }),
+        // The groups `agent-top report` prints, with every token column. The
+        // grouping comes from a fixed list, never from the query string.
+        "report" => {
+            let (key, order) = match p.get("by") {
+                "model" => ("coalesce(model, 'unknown')", "cost_usd DESC, tokens DESC"),
+                "project" => ("coalesce(project, 'unknown')", "cost_usd DESC, tokens DESC"),
+                "day" => ("date(last_activity / 1000, 'unixepoch')", "name DESC"),
+                _ => ("harness", "cost_usd DESC, tokens DESC"),
+            };
+            rows(r.query_with(
+                &format!(
+                    "SELECT {key} AS name, count(*) AS sessions, sum(turns) AS turns, sum(tool_calls) AS tool_calls,
+                            sum(input) AS input, sum(cache_write_5m + cache_write_1h + cache_write_unsplit) AS cache_write,
+                            sum(cache_read) AS cache_read, sum(output) AS output, sum(tokens) AS tokens,
+                            sum(cost_usd) AS cost_usd, sum(unpriced_tokens) AS unpriced_tokens
+                     FROM counted_sessions WHERE {FILTER} GROUP BY 1 ORDER BY {order} LIMIT 1000"
+                ),
+                &f,
+            )?)
+        }
         "tools" => rows(r.query_with(
             &format!(
                 "WITH ranked AS (

@@ -118,6 +118,22 @@ fn the_page_and_its_api_answer_with_the_store_s_numbers() {
     assert!(get_json(&ui, "/api/tools?since=0").as_array().is_some());
     assert_eq!(get_json(&ui, "/api/sessions?since=0&harness=codex").as_array().unwrap().len(), 0);
     assert_eq!(get_json(&ui, "/api/meta")["counts"]["sessions"], 1);
+
+    // The Report tab: each grouping adds up to the overview's totals, and its
+    // token columns add up to the session's tokens.
+    for by in ["harness", "model", "project", "day"] {
+        let groups = get_json(&ui, &format!("/api/report?since=0&by={by}"));
+        let groups = groups.as_array().unwrap();
+        assert_eq!(groups.len(), 1, "{by}");
+        let g = &groups[0];
+        assert_eq!(g["tokens"], totals["tokens"], "{by}");
+        assert_eq!(g["cost_usd"], totals["cost_usd"], "{by}");
+        let parts: i64 = ["input", "cache_write", "cache_read", "output"].iter().map(|k| g[*k].as_i64().unwrap()).sum();
+        assert_eq!(parts, g["tokens"].as_i64().unwrap(), "{by}");
+    }
+    assert_eq!(get_json(&ui, "/api/report?since=0&by=harness")[0]["name"], "claude");
+    // Anything else groups by harness; the value never reaches the SQL.
+    assert_eq!(get_json(&ui, "/api/report?since=0&by=1;DROP")[0]["name"], "claude");
 }
 
 #[test]

@@ -7,7 +7,9 @@ const DAY = 86400000;
 // A harness not listed shares the last slot under "other".
 const HARNESS_SLOTS = ["claude", "codex", "opencode", "gemini", "kodelet", "otel"];
 // open: the session shown in the side panel, as "<harness>/<id>", or null.
-const state = { range: "30", harness: "", open: null };
+// tab: the view shown; by and sort: the Report tab's grouping and order.
+const TABS = ["overview", "report", "sessions", "tools"];
+const state = { range: "30", harness: "", open: null, tab: "overview", by: "harness", sort: null };
 
 // ---- small helpers -------------------------------------------------------
 
@@ -334,7 +336,7 @@ function closeSession() {
   document.getElementById("detail").hidden = true;
   document.body.classList.remove("drawer-open");
   markOpen(null);
-  history.replaceState(null, "", location.pathname + location.search);
+  history.replaceState(null, "", tabLink(state.tab));
 }
 
 // The detail opens in a panel on the right, over the page, so the sessions
@@ -821,26 +823,157 @@ function waterfall(turn, inner) {
   return wrap;
 }
 
+// ---- report: the groups agent-top report prints ---------------------------------
+
+const BY_LABEL = { harness: "Harness", model: "Model", project: "Project", day: "Day" };
+const hitRate = (r) => {
+  const prompt = (r.input || 0) + (r.cache_write || 0) + (r.cache_read || 0);
+  return prompt > 0 ? (r.cache_read || 0) / prompt : null;
+};
+const reportCols = () => [
+  { key: "name", label: BY_LABEL[state.by], cls: "mono trunc", text: (r) => r.name },
+  { key: "sessions", label: "Sessions", num: true },
+  { key: "turns", label: "Turns", num: true },
+  { key: "tool_calls", label: "Tool calls", num: true },
+  { key: "input", label: "Input", num: true, fmt: compact },
+  { key: "cache_write", label: "Cache write", num: true, fmt: compact },
+  { key: "cache_read", label: "Cache read", num: true, fmt: compact },
+  { key: "output", label: "Output", num: true, fmt: compact },
+  { key: "tokens", label: "Tokens", num: true, fmt: compact },
+  { key: "hit", label: "Cache hit", num: true, value: hitRate, fmt: (v) => (v == null ? "-" : Math.round(v * 100) + "%") },
+  { key: "cost_usd", label: "Cost", num: true, fmt: (v, r) => usd(v) + (r.unpriced_tokens > 0 ? "+" : "") },
+  { key: "unpriced_tokens", label: "Unpriced", num: true, fmt: (v) => (v > 0 ? compact(v) : "-") },
+];
+const cellValue = (c, r) => (c.value ? c.value(r) : r[c.key]);
+
+let reportRows = [];
+function report(rows) {
+  reportRows = rows;
+  const box = document.getElementById("report");
+  if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: "No sessions in this range." })); return; }
+  const cols = reportCols();
+  const sort = state.sort;
+  const sorted = rows.slice();
+  if (sort) {
+    const c = cols.find((x) => x.key === sort.key);
+    if (c) sorted.sort((a, b) => {
+      const va = cellValue(c, a), vb = cellValue(c, b);
+      const d = c.num ? (va ?? -1) - (vb ?? -1) : String(va).localeCompare(String(vb));
+      return sort.desc ? -d : d;
+    });
+  }
+  const total = { name: "total" };
+  for (const c of cols) if (c.num && !c.value) total[c.key] = rows.reduce((n, r) => n + (Number(r[c.key]) || 0), 0);
+  const show = (c, r) => {
+    const v = cellValue(c, r);
+    return c.fmt ? c.fmt(v, r) : c.num ? Number(v || 0).toLocaleString("en-US") : v == null ? "" : String(v);
+  };
+  const head = el("tr", {}, ...cols.map((c) => {
+    const on = sort && sort.key === c.key;
+    const b = el("button", { type: "button", class: "sort", text: c.label + (on ? (sort.desc ? " ↓" : " ↑") : ""),
+      onclick: () => { state.sort = { key: c.key, desc: on ? !sort.desc : c.num }; report(reportRows); } });
+    return el("th", { class: c.num ? "num" : "", "aria-sort": on ? (sort.desc ? "descending" : "ascending") : "none" }, b);
+  }));
+  const row = (r, cls) => el("tr", cls ? { class: cls } : {}, ...cols.map((c) => el("td", { class: [c.num ? "num" : "", c.cls || ""].join(" ").trim(), text: show(c, r) })));
+  box.replaceChildren(el("div", { class: "table-wrap" }, el("table", { class: "report" },
+    el("thead", {}, head), el("tbody", {}, ...sorted.map((r) => row(r))), el("tfoot", {}, row(total, "total")))));
+}
+
+// The report as CSV, with raw numbers rather than the rounded ones shown.
+function reportCsv() {
+  const cols = reportCols();
+  const cell = (v) => { const t = v == null ? "" : String(v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  const lines = [cols.map((c) => cell(c.key === "name" ? state.by : c.key)).join(",")]
+    .concat(reportRows.map((r) => cols.map((c) => cell(cellValue(c, r))).join(",")));
+  const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
+  const a = el("a", { href: url, download: `agent-top-report-${state.by}-${state.range === "0" ? "all" : state.range + "d"}.csv` });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function setBy(by) {
+  state.by = BY_LABEL[by] ? by : "harness";
+  for (const b of document.querySelectorAll("#report-by button")) b.setAttribute("aria-checked", String(b.dataset.by === state.by));
+}
+
 // ---- wiring ------------------------------------------------------------------
 
-async function load() {
-  const main = document.getElementById("main");
-  main.classList.add("loading");
-  try {
-    const p = filterParams();
-    const [ov, tl, mc, ss] = await Promise.all([api("overview", p), api("tools", p), api("mcp", p), api("sessions", p)]);
+// Each tab fetches only what it draws, and draws while visible, so charts
+// measure their real width.
+const LOADERS = {
+  overview: async (p) => {
+    const ov = await api("overview", p);
     tiles(ov.totals || {}, ov.compactions);
     daily(ov.by_day);
     bars("chart-project", ov.by_project);
     bars("chart-model", ov.by_model);
+  },
+  report: async (p) => report(await api("report", { ...p, by: state.by })),
+  sessions: async (p) => sessions(await api("sessions", p)),
+  tools: async (p) => {
+    const [tl, mc] = await Promise.all([api("tools", p), api("mcp", p)]);
     tools(tl);
     mcp(mc);
-    sessions(ss);
+  },
+};
+
+let loading = 0;
+async function load() {
+  const main = document.getElementById("main");
+  const tab = state.tab, n = ++loading;
+  main.classList.add("loading");
+  const panel = document.getElementById("panel-" + tab);
+  panel.querySelector(":scope > .load-error")?.remove();
+  try {
+    await LOADERS[tab](filterParams());
   } catch (e) {
-    document.getElementById("tiles").replaceChildren(el("div", { class: "empty", text: String(e.message || e) }));
+    if (n === loading) panel.prepend(el("div", { class: "empty load-error", text: String(e.message || e) }));
   } finally {
-    main.classList.remove("loading");
+    if (n === loading) main.classList.remove("loading");
   }
+}
+
+// ---- tabs ----------------------------------------------------------------------
+
+const tabLink = (tab) => location.pathname + location.search + (tab === "overview" ? "" : "#" + (tab === "report" ? `report/${state.by}` : tab));
+
+function showTab(tab) {
+  state.tab = TABS.includes(tab) ? tab : "overview";
+  for (const b of document.querySelectorAll("#tabs [role=tab]")) {
+    const on = b.dataset.tab === state.tab;
+    b.setAttribute("aria-selected", String(on));
+    b.tabIndex = on ? 0 : -1;
+  }
+  for (const t of TABS) document.getElementById("panel-" + t).hidden = t !== state.tab;
+  remember("agent-top-tab", state.tab);
+}
+
+// The link names the tab, the report's grouping, or an open session:
+// #report/model, #sessions, #tools, #s/<harness>/<id>. No link is the
+// overview, except on first load, which reopens the tab last used.
+function route(first) {
+  const h = location.hash;
+  const s = h.match(/^#s\/([^/]+)\/(.+)$/);
+  if (s) {
+    showTab("sessions");
+    load();
+    openSession({ harness: decodeURIComponent(s[1]), session_id: decodeURIComponent(s[2]) });
+    return;
+  }
+  const [tab, by] = h.slice(1).split("/");
+  if (tab === "report" && by) setBy(by);
+  showTab(h ? tab : (first === true && recall("agent-top-tab")) || "overview");
+  if (!h && state.tab !== "overview") history.replaceState(null, "", tabLink(state.tab));
+  if (!document.getElementById("detail").hidden) closeSession();
+  load();
+}
+
+function goTab(tab) {
+  if (tab === state.tab) return;
+  if (!document.getElementById("detail").hidden) closeSession();
+  history.pushState(null, "", tabLink(tab));
+  showTab(tab);
+  load();
 }
 
 async function meta() {
@@ -875,6 +1008,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     setRange(b.dataset.range); load();
   });
   document.getElementById("harness").addEventListener("change", (e) => { state.harness = e.target.value; load(); });
+  const tabs = [...document.querySelectorAll("#tabs [role=tab]")];
+  for (const b of tabs) {
+    b.addEventListener("click", () => goTab(b.dataset.tab));
+    // Arrow keys move along the tabs, as the ARIA tabs pattern describes.
+    b.addEventListener("keydown", (e) => {
+      const i = tabs.indexOf(b);
+      const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+      if (j == null) return;
+      e.preventDefault();
+      const next = tabs[(j + tabs.length) % tabs.length];
+      next.focus();
+      goTab(next.dataset.tab);
+    });
+  }
+  document.getElementById("report-by").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    setBy(b.dataset.by);
+    state.sort = null;
+    history.replaceState(null, "", tabLink("report"));
+    load();
+  });
+  document.getElementById("report-csv").addEventListener("click", reportCsv);
+  window.addEventListener("popstate", () => route(false));
   document.getElementById("theme").addEventListener("click", () => {
     const dark = getComputedStyle(document.documentElement).colorScheme === "dark";
     const next = dark ? "light" : "dark";
@@ -896,8 +1052,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (e.key === "Escape" && !document.getElementById("detail").hidden) closeSession();
   });
   window.addEventListener("resize", () => { clearTimeout(window.__rt); window.__rt = setTimeout(load, 200); });
+  setBy("harness");
   try { await meta(); } catch (e) { document.getElementById("meta").textContent = String(e.message || e); }
-  await load();
-  const m = location.hash.match(/^#s\/([^/]+)\/(.+)$/);
-  if (m) openSession({ harness: decodeURIComponent(m[1]), session_id: decodeURIComponent(m[2]) });
+  route(true);
 });
