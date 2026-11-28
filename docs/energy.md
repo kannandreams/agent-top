@@ -4,7 +4,7 @@ description: "Estimating the CO2e and energy of your coding agents' tokens: what
 
 # Energy and CO2e
 
-`agent-top report --energy` estimates the carbon (CO2e) and energy behind your agents' tokens, by model, harness, project or day. The estimate comes from a table of coefficients that you write. agent-top ships none, because no provider publishes energy per token for the models it prices.
+`agent-top report --energy` and the Report tab of [`agent-top ui`](store/ui.md) estimate the carbon (CO2e) and energy behind your agents' tokens, by model, harness, project or day. The estimate comes from a table of coefficients that you write. agent-top ships none, because no provider publishes energy per token for the models it prices.
 
 ```sh
 agent-top report --energy                 # last 30 days, by harness
@@ -116,4 +116,4 @@ and the top level has `energy_table` with the path, the grid and every entry wit
 
 - A session is estimated with its own model. Subagent tokens are counted in their session without a split by model, so a subagent on another model is estimated with the session model's figures.
 - Training, the hardware's manufacture, and water are outside the estimate, unless the source you copied includes them.
-- The live view and `agent-top ui` do not show the estimate yet.
+- The live view does not show the estimate. `agent-top ui` shows it in the Report tab: CO2e and energy for every row, the share from cache reads, and CO2e by day as a range.

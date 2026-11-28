@@ -148,7 +148,25 @@ pub struct Estimate {
     pub unestimated_tokens: u64,
 }
 
+impl Range {
+    pub fn to_json(self) -> serde_json::Value {
+        serde_json::json!({ "low": self.low, "high": self.high })
+    }
+}
+
 impl Estimate {
+    /// The shape `report --json` and the web API both use, CO2e first.
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "estimated": true,
+            "co2e_g": self.co2e_g.to_json(),
+            "energy_wh": self.energy_wh.to_json(),
+            "cache_read_wh": self.cache_read_wh.to_json(),
+            "estimated_tokens": self.estimated_tokens,
+            "unestimated_tokens": self.unestimated_tokens,
+        })
+    }
+
     pub fn add(&mut self, other: &Estimate) {
         self.energy_wh = self.energy_wh.plus(other.energy_wh);
         self.co2e_g = self.co2e_g.plus(other.co2e_g);

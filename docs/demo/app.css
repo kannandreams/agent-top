@@ -350,3 +350,23 @@ tbody tr.click:hover .open-hint svg, tbody tr.click:focus .open-hint svg { trans
 tbody tr.click:hover { background: var(--wash); }
 .hint { display: flex; align-items: center; gap: 8px; margin: -4px 0 12px; padding: 8px 12px; border-radius: 8px; background: var(--wash); color: var(--ink-2); font-size: 13px; }
 .hint svg { width: 16px; height: 16px; flex: none; stroke: var(--accent); stroke-width: 1.7; fill: none; }
+
+/* Energy and CO2e (RFC-111): from the user's table, always a range. */
+.energy { display: grid; gap: 20px; }
+.energy:empty { display: none; }
+.energy-kpis { grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); }
+.kpi.hero-soft { background: var(--wash); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+.kpi.hero-soft .value { color: var(--accent); font-size: 30px; }
+@media (max-width: 1100px) { .energy-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.co2-low { fill: var(--accent); }
+.co2-high { fill: var(--accent); fill-opacity: 0.28; }
+.legend .k-low { background: var(--accent); }
+.legend .k-high { background: var(--accent); opacity: 0.28; }
+td.est { white-space: nowrap; color: var(--ink); }
+.callout { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: start; }
+.callout h2 { margin-bottom: 6px; }
+.callout p { margin: 0 0 8px; color: var(--ink-2); max-width: 75ch; }
+.callout a { color: var(--accent); font-weight: 500; }
+.callout-mark { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--wash); }
+.callout-mark svg { width: 22px; height: 22px; stroke: var(--accent); stroke-width: 1.7; fill: none; }
+.foot-note a { color: var(--accent); }

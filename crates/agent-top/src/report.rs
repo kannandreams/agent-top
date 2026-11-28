@@ -411,7 +411,7 @@ impl Report {
                 "output_tokens": b.output, "uncached_prompt_tokens": b.uncached_prompt(),
             });
             if let Some(t) = table.filter(|t| t.is_usable()) {
-                g["estimate"] = estimate_json(&b.estimate(t));
+                g["estimate"] = b.estimate(t).to_json();
             }
             g
         };
@@ -525,34 +525,19 @@ impl Report {
     }
 }
 
-fn range_json(r: Range) -> serde_json::Value {
-    serde_json::json!({ "low": r.low, "high": r.high })
-}
-
-fn estimate_json(e: &Estimate) -> serde_json::Value {
-    serde_json::json!({
-        "estimated": true,
-        "co2e_g": range_json(e.co2e_g),
-        "energy_wh": range_json(e.energy_wh),
-        "cache_read_wh": range_json(e.cache_read_wh),
-        "estimated_tokens": e.estimated_tokens,
-        "unestimated_tokens": e.unestimated_tokens,
-    })
-}
-
 fn table_json(t: &energy::Table) -> serde_json::Value {
     serde_json::json!({
         "path": t.path.as_deref().map(|p| p.to_string_lossy().into_owned()),
         "usable": t.is_usable(),
         "warnings": t.warnings,
         "grid": t.gco2e_per_kwh.map(|g| serde_json::json!({
-            "gco2e_per_kwh": range_json(g), "source": t.grid_source, "checked": t.grid_checked,
+            "gco2e_per_kwh": Range::to_json(g), "source": t.grid_source, "checked": t.grid_checked,
         })),
         "models": t.entries.iter().map(|e| serde_json::json!({
             "model": e.model, "source": e.source, "checked": e.checked,
             "wh_per_million": {
-                "input": range_json(e.coefficients.input), "cache_write": range_json(e.coefficients.cache_write),
-                "cache_read": range_json(e.coefficients.cache_read), "output": range_json(e.coefficients.output),
+                "input": Range::to_json(e.coefficients.input), "cache_write": Range::to_json(e.coefficients.cache_write),
+                "cache_read": Range::to_json(e.coefficients.cache_read), "output": Range::to_json(e.coefficients.output),
             },
         })).collect::<Vec<_>>(),
     })

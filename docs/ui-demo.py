@@ -353,11 +353,14 @@ def shoot(port):
             suffix = "" if scheme == "light" else "-dark"
             page.screenshot(path=str(OUT / f"ui-overview{suffix}.png"), clip={"x": 0, "y": 0, "width": 1280, "height": 900})
             if scheme == "light":
+                page.set_viewport_size({"width": 1280, "height": 1180})
                 page.click("#tab-report")
                 page.click("#report-by button[data-by='model']")
                 page.wait_for_selector("#report table")
                 page.wait_for_timeout(300)
-                page.screenshot(path=str(OUT / "ui-report.png"), clip={"x": 0, "y": 0, "width": 1280, "height": 560})
+                page.wait_for_selector("#energy .kpi")
+                page.wait_for_timeout(300)
+                page.screenshot(path=str(OUT / "ui-report.png"), clip={"x": 0, "y": 0, "width": 1280, "height": 1180})
                 page.click("#tab-sessions")
                 page.wait_for_selector("#sessions table")
                 # The detail opens in a side panel that scrolls on its own, so
@@ -382,6 +385,20 @@ def shoot(port):
             page.close()
         browser.close()
 
+
+ENERGY_TABLE = """[grid]
+gco2e_per_kwh = [94, 420]
+source = "Google 2024 market-based (arXiv 2508.15734) to a US grid average"
+checked = "2026-11-28"
+
+[models."claude-opus-5-5"]
+input = [0, 390]
+cache_write = [0, 490]
+cache_read = [0, 39]
+output = [1950, 28000]
+source = "low: price-scaled output only; high: price-scaled input and cache, EcoLogits output at Claude 3 Opus size"
+checked = "2026-11-28"
+"""
 
 DEMO = ROOT / "docs/demo"
 GIF = ROOT / "docs/ui-demo.gif"
@@ -408,6 +425,8 @@ def export(port):
     shutil.rmtree(DEMO / "api", ignore_errors=True)
     meta = get("meta")
     meta["store"] = "demo store, invented sessions"
+    if meta.get("energy"):
+        meta["energy"]["path"] = "energy.toml, the example in the docs"
     put("meta", meta)
     now = int(time.time() * 1000)
     for days in (7, 30, 90, 0):
@@ -761,7 +780,13 @@ def main():
     DB_DIR.mkdir(parents=True)
     db = DB_DIR / "agent-top.db"
     home = Path(tempfile.mkdtemp())
-    env = {**os.environ, "HOME": str(home), "XDG_DATA_HOME": str(home), "AGENT_TOP_NO_UPDATE_CHECK": "1"}
+    # The energy table from docs/energy.md, so the Report tab shows its CO2e
+    # section. It has an entry for one of the demo's models only, as a real
+    # table would: the others show as unestimated.
+    energy = DB_DIR / "energy.toml"
+    energy.write_text(ENERGY_TABLE)
+    env = {**os.environ, "HOME": str(home), "XDG_DATA_HOME": str(home), "AGENT_TOP_NO_UPDATE_CHECK": "1",
+           "AGENT_TOP_ENERGY": str(energy)}
     # An empty home: sync finds no transcripts and only creates the schema.
     subprocess.run([BIN, "sync", "--db", str(db)], env=env, check=True, stdout=subprocess.DEVNULL)
     print(f"seeded {seed(db)} sessions into {db}")
