@@ -74,6 +74,7 @@ hooks:
   - docs/hooks/nav_icons.py
   - docs/hooks/security_scan.py
   - docs/hooks/recent_posts.py
+  - docs/hooks/repo_stars.py
 
 extra:
   generator: false
