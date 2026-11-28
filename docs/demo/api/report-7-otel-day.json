@@ -1,0 +1,1 @@
+[{"cache_read":20000,"cache_write":0,"cost_usd":0.021,"input":4000,"name":"2026-11-27","output":900,"sessions":1,"tokens":24900,"tool_calls":2,"turns":1,"unpriced_tokens":0},{"cache_read":20000,"cache_write":0,"cost_usd":0.021,"input":4000,"name":"2026-11-22","output":900,"sessions":1,"tokens":24900,"tool_calls":2,"turns":1,"unpriced_tokens":0}]

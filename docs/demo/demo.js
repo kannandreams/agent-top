@@ -29,6 +29,12 @@
         file = `${m[1]}-${range}-${key(p.get("harness"))}`;
         break;
       }
+      case "report": {
+        const since = Number(p.get("since") || 0);
+        const range = since ? Math.round((Date.now() - since) / DAY) : 0;
+        file = `report-${range}-${key(p.get("harness"))}-${key(p.get("by") || "harness")}`;
+        break;
+      }
       case "session":
         file = `session/${key(p.get("harness"))}/${key(p.get("id"))}`;
         break;

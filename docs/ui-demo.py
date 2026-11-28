@@ -348,11 +348,18 @@ def shoot(port):
         for scheme in ("light", "dark"):
             page = browser.new_page(viewport={"width": 1280, "height": 900}, device_scale_factor=2, color_scheme=scheme)
             page.goto(f"http://127.0.0.1:{port}/")
-            page.wait_for_selector("#sessions table")
+            page.wait_for_selector("#tiles .tile")
             page.wait_for_timeout(300)
             suffix = "" if scheme == "light" else "-dark"
             page.screenshot(path=str(OUT / f"ui-overview{suffix}.png"), clip={"x": 0, "y": 0, "width": 1280, "height": 900})
             if scheme == "light":
+                page.click("#tab-report")
+                page.click("#report-by button[data-by='model']")
+                page.wait_for_selector("#report table")
+                page.wait_for_timeout(300)
+                page.screenshot(path=str(OUT / "ui-report.png"), clip={"x": 0, "y": 0, "width": 1280, "height": 560})
+                page.click("#tab-sessions")
+                page.wait_for_selector("#sessions table")
                 # The detail opens in a side panel that scrolls on its own, so
                 # the panel's contents are shot in a window tall enough to hold them.
                 page.set_viewport_size({"width": 1280, "height": 2400})
@@ -408,6 +415,8 @@ def export(port):
             since = now - days * DAY_MS if days else 0
             for path in ("overview", "tools", "mcp", "sessions"):
                 put(f"{path}-{days}-{key(harness)}", get(path, since=since, harness=harness))
+            for by in ("harness", "model", "project", "day"):
+                put(f"report-{days}-{key(harness)}-{by}", get("report", since=since, harness=harness, by=by))
     files = 0
     for s in get("sessions", since=0, harness=""):
         d = get("session", harness=s["harness"], id=s["session_id"])
@@ -453,7 +462,7 @@ def record(port):
         ctx = browser.new_context(viewport=size, record_video_dir=str(vid), record_video_size=size, color_scheme="light")
         page = ctx.new_page()
         page.goto(f"http://127.0.0.1:{port}/")
-        page.wait_for_selector("#sessions table")
+        page.wait_for_selector("#tiles .tile")
         page.wait_for_timeout(1800)
         for r in ("7", "90", "30"):
             page.click(f"#range button[data-range='{r}']")
@@ -462,8 +471,16 @@ def record(port):
         page.wait_for_timeout(1300)
         page.select_option("#harness", "")
         page.wait_for_timeout(800)
-        # A jump, not a smooth scroll: every scrolled frame is a new GIF frame.
-        page.evaluate("document.getElementById('h-sessions').scrollIntoView({block: 'start'})")
+        # The Report tab, by model and then by day.
+        page.click("#tab-report")
+        page.wait_for_selector("#report table")
+        page.wait_for_timeout(1300)
+        page.click("#report-by button[data-by='model']")
+        page.wait_for_timeout(1300)
+        page.click("#report-by button[data-by='day']")
+        page.wait_for_timeout(1300)
+        page.click("#tab-sessions")
+        page.wait_for_selector("#sessions table")
         page.wait_for_timeout(1500)
         # The run graph: open the session with subagents from its row; the
         # side panel opens on its first subagent. Then walk the others.
@@ -586,12 +603,12 @@ def record_context(port):
             page.wait_for_timeout(400)
 
         page.goto(f"http://127.0.0.1:{port}/")
-        page.wait_for_selector("#sessions table")
+        page.wait_for_selector("#tiles .tile")
         page.mouse.move(640, 400)
         caption("agent-top 0.30: watch your coding agent's context fill up", 2400)
-        page.evaluate("document.getElementById('h-sessions').scrollIntoView({block: 'start'})")
-        page.wait_for_timeout(600)
-        caption("Open a session", 600)
+        caption("Open a session", 300)
+        click(page.locator("#tab-sessions"), 600)
+        page.wait_for_selector("#sessions table")
         click(page.locator(f"#sessions tr[data-key='claude/{RUN_GRAPH_ID}']").locator("td").first, 1600)
         page.wait_for_selector("#detail-body .ctx .chart svg")
         show_ctx()

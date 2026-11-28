@@ -67,6 +67,15 @@ h2 { font: 600 12px/1.2 var(--mono); letter-spacing: 0.04em; text-transform: upp
 .meta { color: var(--ink-2); font: 12px var(--mono); flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
 .theme { background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 6px; width: 32px; height: 32px; cursor: pointer; }
 
+/* Tabs: one view at a time; the filters below them apply to every tab. */
+.tabs { display: flex; gap: 4px; padding: 0 24px; margin-bottom: 12px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tabs [role="tab"] { border: 0; background: none; color: var(--ink-2); font: 600 13px var(--mono); padding: 10px 12px 9px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.tabs [role="tab"]:hover { color: var(--ink); background: var(--wash); border-radius: 6px 6px 0 0; }
+.tabs [role="tab"][aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabs [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px 6px 0 0; }
+.panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+.panel[hidden] { display: none; }
+
 .filters { display: flex; gap: 16px; align-items: center; padding: 0 24px 12px; flex-wrap: wrap; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--card); }
 .seg button { border: 0; background: none; color: var(--ink-2); font: 12px var(--mono); padding: 7px 12px; cursor: pointer; }
@@ -204,6 +213,13 @@ tbody tr[aria-current="true"] { background: var(--wash); box-shadow: inset 3px 0
 .tip .lk { width: 12px; height: 2px; display: inline-block; }
 
 .foot { color: var(--muted); font-size: 12px; padding: 8px 24px 24px; }
-@media (max-width: 640px) { .top, .filters { padding-left: 16px; padding-right: 16px; } main { padding: 0 16px 16px; } .foot { padding: 8px 16px 16px; } }
+@media (max-width: 640px) { .top, .filters, .tabs { padding-left: 16px; padding-right: 16px; } main { padding: 0 16px 16px; } .foot { padding: 8px 16px 16px; } }
 
 .ctx-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* Report: sortable headings, and a totals row. */
+th .sort { all: unset; cursor: pointer; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; }
+th .sort:hover { color: var(--ink); }
+th .sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+th[aria-sort="ascending"], th[aria-sort="descending"] { color: var(--ink); }
+table.report tfoot td { font-weight: 600; border-top: 1px solid var(--axis); border-bottom: 0; }

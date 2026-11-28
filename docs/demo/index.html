@@ -15,6 +15,13 @@
   <button type="button" class="theme" id="theme" aria-label="Switch light or dark">◐</button>
 </header>
 
+<div class="tabs" role="tablist" aria-label="Views" id="tabs">
+  <button type="button" role="tab" id="tab-overview" aria-controls="panel-overview" data-tab="overview">Overview</button>
+  <button type="button" role="tab" id="tab-report" aria-controls="panel-report" data-tab="report">Report</button>
+  <button type="button" role="tab" id="tab-sessions" aria-controls="panel-sessions" data-tab="sessions">Sessions</button>
+  <button type="button" role="tab" id="tab-tools" aria-controls="panel-tools" data-tab="tools">Tools</button>
+</div>
+
 <nav class="filters" aria-label="Filters">
   <div class="seg" role="radiogroup" aria-label="Time range" id="range">
     <button type="button" role="radio" data-range="7">7 days</button>
@@ -28,6 +35,7 @@
 </nav>
 
 <main id="main">
+<div class="panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
   <section class="tiles" id="tiles" aria-label="Totals"></section>
 
   <section class="card" aria-labelledby="h-daily">
@@ -50,7 +58,33 @@
       <div class="bars" id="chart-model"></div>
     </section>
   </div>
+</div>
 
+<div class="panel" role="tabpanel" id="panel-report" aria-labelledby="tab-report" hidden>
+  <section class="card" aria-labelledby="h-report">
+    <div class="card-head">
+      <h2 id="h-report">Report</h2>
+      <div class="seg" role="radiogroup" aria-label="Group by" id="report-by">
+        <button type="button" role="radio" data-by="harness">Harness</button>
+        <button type="button" role="radio" data-by="model">Model</button>
+        <button type="button" role="radio" data-by="project">Project</button>
+        <button type="button" role="radio" data-by="day">Day</button>
+      </div>
+      <button type="button" class="toggle" id="report-csv">CSV</button>
+    </div>
+    <div id="report"></div>
+    <div class="note">The groups <code>agent-top report</code> prints, from the local store. Select a column heading to sort by it.</div>
+  </section>
+</div>
+
+<div class="panel" role="tabpanel" id="panel-sessions" aria-labelledby="tab-sessions" hidden>
+  <section class="card" aria-labelledby="h-sessions">
+    <div class="card-head"><h2 id="h-sessions">Sessions</h2><span class="note">newest first; select one for its spans</span></div>
+    <div id="sessions"></div>
+  </section>
+</div>
+
+<div class="panel" role="tabpanel" id="panel-tools" aria-labelledby="tab-tools" hidden>
   <section class="card" aria-labelledby="h-tools">
     <div class="card-head"><h2 id="h-tools">Tool latency</h2><span class="note">finished calls, nearest-rank percentiles</span></div>
     <div id="tools"></div>
@@ -60,11 +94,7 @@
     <div class="card-head"><h2 id="h-mcp">MCP servers</h2></div>
     <div id="mcp"></div>
   </section>
-
-  <section class="card" aria-labelledby="h-sessions">
-    <div class="card-head"><h2 id="h-sessions">Sessions</h2><span class="note">newest first; select one for its spans</span></div>
-    <div id="sessions"></div>
-  </section>
+</div>
 
   <section class="card drawer" id="detail" hidden aria-labelledby="h-detail">
     <div class="card-head"><h2 id="h-detail">Session</h2><button type="button" class="toggle" id="close-detail">Close</button></div>

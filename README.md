@@ -371,7 +371,7 @@ spans in the selected turn. It opens the store read-only and loads nothing
 from another address. The [demo](https://agenttop.dev/demo/) is the same page
 on a made-up store, to try in a browser without installing anything.
 
-![A walk through agent-top ui: switching the range and harness, then opening a session's run graph and each subagent's spans](https://raw.githubusercontent.com/kannandreams/agent-top/main/docs/ui-demo.gif)
+![A walk through agent-top ui: switching the range and harness, the Report tab by model and by day, then a session's run graph and each subagent's spans](https://raw.githubusercontent.com/kannandreams/agent-top/main/docs/ui-demo.gif)
 
 The store holds what `--json` shows, which includes working-directory paths
 and project names. Only `sync` and `serve` write it. See

@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- `agent-top ui` has Overview, Report, Sessions and Tools tabs. Report groups tokens and cost by harness, model, project or day, sorts by any column, and downloads as CSV.
+
 ## [0.30.0] - 2026-11-23
 
 ### Highlights
