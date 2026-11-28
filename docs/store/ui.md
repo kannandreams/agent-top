@@ -29,7 +29,7 @@ The page has four tabs: **Overview**, **Report**, **Sessions** and **Tools**. Th
 | Overview | Cost by day | one column per day, stacked by harness; **Table** shows the same numbers as rows |
 | Overview | Cost by project, cost by model | the ten most expensive |
 | Report | Report | one row per harness, model, project or day, the groups `agent-top report` prints: sessions, turns, tool calls, input, cache write, cache read, output, tokens, cache hit, cost and unpriced tokens, with a total row; select a heading to sort, **CSV** to download the rows |
-| Report | CO2e and energy | with an [energy table](../energy.md): the estimate's totals, its share from cache reads, CO2e by day from its low to its high bound, and CO2e and energy columns in the report; without one, how to add it |
+| Report | CO2e and energy (experimental) | with an [energy table](../energy.md): the estimate's totals, its share from cache reads, CO2e by day from its low to its high bound, and CO2e and energy columns in the report; without one, how to add it |
 | Tools | Tool latency | calls, errors, p50, p95 and the longest call for each tool |
 | Tools | MCP servers | calls and errors per server, when any session used one |
 | Sessions | Sessions | the 200 most recent, with a count on those that ran subagents; select one for its detail |

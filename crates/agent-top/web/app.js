@@ -936,7 +936,7 @@ function energyPanel(rows, days) {
     box.replaceChildren(el("section", { class: "card callout" },
       el("div", { class: "callout-mark", "aria-hidden": "true" }, leaf()),
       el("div", {},
-        el("h2", { text: "Add a CO2e estimate" }),
+        el("h2", { text: "Add a CO2e estimate" }, el("span", { class: "exp", text: "Experimental" })),
         el("p", { text: `No provider publishes energy per token, so agent-top ships no figure of its own. Write the coefficients you trust to ${en.path || "~/.config/agent-top/energy.toml"}, with a source for each, and this tab shows CO2e and energy for every row.` }),
         why ? el("p", { class: "err", text: why }) : null,
         el("p", {}, link("Published figures and how to write the table")))));
@@ -953,7 +953,7 @@ function energyPanel(rows, days) {
     kpi("From cache reads", t.estimated_tokens ? `${Math.round(share("low") * 100)}–${Math.round(share("high") * 100)}%` : "-", "of the energy; unmeasured by any source"),
     kpi("Unestimated tokens", missing ? compact(t.unestimated_tokens) : "0", missing ? "on models with no entry in your table" : "every model has an entry"));
   const chart = el("section", { class: "card" },
-    el("div", { class: "card-head" }, el("h2", { text: "CO2e by day, estimated" }),
+    el("div", { class: "card-head" }, el("h2", { text: "CO2e by day, estimated" }, el("span", { class: "exp", text: "Experimental" })),
       el("div", { class: "legend" }, el("span", {}, el("i", { class: "k-low" }), "low bound"), el("span", {}, el("i", { class: "k-high" }), "up to the high bound"))),
     co2eChart(days),
     el("p", { class: "foot-note" }, `From ${en.path}. The grid figure's source: ${en.grid_source || "-"}. Every model's source is in `,

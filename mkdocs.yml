@@ -15,7 +15,7 @@ site_url: https://agenttop.dev
 repo_url: https://github.com/kannandreams/agent-top
 repo_name: kannandreams/agent-top
 edit_uri: edit/main/docs/
-copyright: <span class="at-footer">MIT licensed. <img src="/assets/favicon.svg" alt="" width="18" height="18"> agent-top is built with ❤️ and 🦀 Rust.</span>
+copyright: <span class="at-footer">MIT licensed. <img src="/assets/logo-white.svg" alt="" width="18" height="18"> agent-top is built with ❤️ and 🦀 Rust.</span>
 
 docs_dir: docs
 site_dir: site
@@ -34,7 +34,7 @@ theme:
   language: en
   # No web fonts: the stylesheet names system faces instead.
   font: false
-  logo: assets/favicon.svg
+  logo: assets/logo.svg
   icon:
     repo: fontawesome/brands/github
   favicon: assets/favicon.svg
@@ -73,16 +73,44 @@ hooks:
   - docs/hooks/cache_bust.py
   - docs/hooks/nav_icons.py
   - docs/hooks/security_scan.py
+  - docs/hooks/recent_posts.py
+  - docs/hooks/repo_stars.py
 
 extra:
   generator: false
+  # One line under each page in the header's Docs menu
+  # (docs/overrides/partials/header.html), by source path.
+  menu_notes:
+    getting-started.md: Install, first run, the keys
+    live-view.md: Every panel and where its numbers come from
+    views-and-panes.md: Popups, pinned panels and multiplexer panes
+    context-timeline.md: Prompt size, compactions and what filled them
+    trace.md: Tool calls as a Chrome or OTLP trace
+    replay.md: Save the screen as JSON, open it anywhere
+    report.md: Cost and tokens by harness, model, project or day
+    prices.md: The price table and how to override it
+    accounting.md: Where each number comes from
+    energy.md: CO2e and energy from your own table
+    store/index.md: A SQLite file that keeps the history
+    store/sync.md: Read transcripts into the store
+    store/query.md: Read-only SQL, with saved views
+    store/ui.md: The local web dashboard
+    store/telemetry.md: OpenTelemetry spans from your own agents
+    store/schema.md: Tables and columns
+    harnesses.md: What is read from each harness
+  # Sections in the Docs menu, by column; any section not named here goes in
+  # the strip along the bottom.
+  menu_columns:
+    - [Using agent-top]
+    - [Cost, Harnesses]
+    - [Local store]
   # Icons for the top-level sidebar entries, by title, applied by
   # docs/hooks/nav_icons.py. Names are Material's bundled icon paths.
   nav_icons:
-    Home: octicons/home-16
     Getting started: octicons/rocket-16
     Using agent-top: octicons/terminal-16
     Cost: octicons/credit-card-16
+    Local store: octicons/database-16
     Harnesses: octicons/plug-16
     Project: octicons/repo-16
     Blogs: octicons/note-16
@@ -123,7 +151,6 @@ plugins:
       categories: false
 
 nav:
-  - Home: index.md
   - Getting started: getting-started.md
   - Using agent-top:
       - The live view: live-view.md

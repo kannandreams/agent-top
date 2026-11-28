@@ -1,0 +1,232 @@
+{% extends "main.html" %}
+
+{#
+  The home page: the landing layout from docs/stylesheets/home.css, in place
+  of Material's sidebars and footer; the header is shared, from partials/header.html. Every other page keeps the docs
+  layout. Sections link into the docs; the numbers in the sustainability
+  block are an invented example and say so on the page.
+#}
+{% block styles %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ 'stylesheets/home.css' | url }}">
+{% endblock %}
+{% block tabs %}{% endblock %}
+{% block site_nav %}{% endblock %}
+{% block container %}{% endblock %}
+{% block hero %}
+<div class="at-home">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="logo" viewBox="92 92 840 840"><path d="M282 367V295c0-60 33-86 86-86h288c53 0 86 26 86 86v72z"/><path d="M282 411h460v57h115a43 43 0 0 1 0 86H167a43 43 0 0 1 0-86h115z"/><path d="M265 641h145c25 0 38 10 48 28h107c10-18 23-28 48-28h147c37 0 55 18 55 55v63c0 37-18 55-55 55H610c-37 0-55-18-55-55v-46h-87v46c0 30-25 55-55 55H265c-30 0-55-25-55-55v-63c0-30 25-55 55-55zM627 684v87h43v-87z" fill-rule="evenodd"/></symbol></svg>
+
+<div class="frame">
+
+<section class="hero">
+  <div class="copy">
+    <a class="badge" href="#footprint"><b></b>New, experimental: CO2e for every session <span aria-hidden="true">›</span></a>
+    <h1>Observability for the agents on your machine.</h1>
+    <p class="lead">One view of every Claude Code, Codex, Gemini CLI, OpenCode and Kodelet session: what it is doing, what it has spent, and what it left running.</p>
+    <div class="install" id="install"><span><span class="p">$</span> brew install kannandreams/tap/agent-top</span><button type="button">Copy</button></div>
+    <div class="ctas"><a class="btn solid lg" href="{{ 'getting-started/' | url }}">Get started</a><a class="btn ghost lg" href="{{ 'demo/' | url }}">Open the live demo</a></div>
+  </div>
+  <div class="instrument" aria-hidden="true">
+    <div class="scope">
+      <svg class="rings" viewBox="0 0 520 520"><circle cx="260" cy="260" r="110"/><circle cx="260" cy="260" r="205"/><circle cx="260" cy="260" r="258"/></svg>
+      <div class="beam"></div>
+      <div class="ses " style="left:330px;top:67px;animation-delay:-7.56s"><i></i><span>claude</span>$3.12</div><div class="ses " style="left:458px;top:207px;animation-delay:-6.33s"><i></i><span>opus-5-5</span>812k ctx</div><div class="ses " style="left:422px;top:386px;animation-delay:-5.16s"><i></i><span>tool</span>Bash 2.4s</div><div class="ses " style="left:260px;top:465px;animation-delay:-4.00s"><i></i><span>codex</span>41k tok/m</div><div class="ses " style="left:98px;top:386px;animation-delay:-2.84s"><i></i><span>subagent</span>Explore</div><div class="ses orphan" style="left:67px;top:190px;animation-delay:-1.56s"><i></i><span>mcp</span>pid 72761</div><div class="ses " style="left:173px;top:74px;animation-delay:-0.56s"><i></i><span>opencode</span>waiting</div>
+      <div class="agent"><svg viewBox="92 92 840 840" id="agent-mark" data-fill="scan"><defs>
+          <pattern id="f-scan" width="40" height="22" patternUnits="userSpaceOnUse"><rect width="40" height="22" fill="#12141a"/><rect y="15" width="40" height="7" fill="#2453e0"/><animateTransform attributeName="patternTransform" type="translate" from="0 0" to="0 22" dur="1.6s" repeatCount="indefinite"/></pattern>
+        </defs><g class="hat"><path d="M282 367V295c0-60 33-86 86-86h288c53 0 86 26 86 86v72z"/><path d="M282 411h460v57h115a43 43 0 0 1 0 86H167a43 43 0 0 1 0-86h115z"/></g><path d="M265 641h145c25 0 38 10 48 28h107c10-18 23-28 48-28h147c37 0 55 18 55 55v63c0 37-18 55-55 55H610c-37 0-55-18-55-55v-46h-87v46c0 30-25 55-55 55H265c-30 0-55-25-55-55v-63c0-30 25-55 55-55zM627 684v87h43v-87z" fill-rule="evenodd"/><rect class="glint" x="627" y="684" width="43" height="87"/></svg></div>
+    </div>
+  </div>
+</section>
+
+<section class="row strip" aria-label="Supported harnesses">
+  <div class="strip-label"><strong>Works with</strong><span class="mono">the agents you already run, no setup in any of them</span></div>
+  <div class="marquee"><ul class="track"><li class="h-claude"><svg viewBox="0 0 24 24"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg><span>Claude Code</span></li><li class="h-codex"><svg viewBox="0 0 24 24"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg><span>Codex</span></li><li class="h-gemini"><svg viewBox="0 0 24 24"><path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg><span>Gemini CLI</span></li><li class="h-opencode"><svg viewBox="0 0 16 20"><path d="M12 16H4V8H12V16Z" opacity=".4"/><path d="M12 4H4V16H12V4ZM16 20H0V0H16V20Z"/></svg><span>OpenCode</span></li><li class="h-kodelet"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="12"/><path d="M16 15v34m0-12 18-17M22 31l14 18m5 0h12" fill="none" stroke="var(--paper)" stroke-width="6" stroke-linejoin="round"/></svg><span>Kodelet</span></li><li class="h-otel"><svg viewBox="0 0 24 24"><path d="M12.6974 13.1173c-1.0224 1.0224-1.0224 2.68 0 3.7024 1.0224 1.0224 2.68 1.0224 3.7024 0 1.0224-1.0223 1.0224-2.68 0-3.7024-1.0223-1.0223-2.68-1.0223-3.7024 0zm2.7677 2.7701c-.5063.5063-1.3267.5063-1.833 0s-.5063-1.3266 0-1.833c.5063-.5062 1.3267-.5062 1.833 0 .5063.504.5063 1.3267 0 1.833zM16.356.2355l-1.6041 1.6042c-.314.314-.314.83 0 1.144L21.015 9.247c.314.314.83.314 1.144 0l1.6042-1.6041c.314-.314.314-.83 0-1.144L17.4976.2354c-.314-.314-.8276-.314-1.1416 0zM5.1173 20.734c.2848-.2848.2848-.7497 0-1.0345l-.8155-.8155c-.2848-.2848-.7497-.2848-1.0345 0l-1.6845 1.6845-.0024.0024-.4625-.4625c-.2556-.2556-.6718-.2556-.925 0-.2556.2556-.2556.6718 0 .925l2.775 2.775c.2556.2556.6718.2556.925 0 .2532-.2556.2556-.6718 0-.925l-.4625-.4625.0024-.0024zm8.4856-15.893-3.5637 3.5637c-.3164.3164-.3164.8374 0 1.1538l2.2006 2.2005c1.5554-1.1197 3.7365-.981 5.1361.4187l1.7819-1.7818c.3164-.3165.3164-.8374 0-1.1538l-4.401-4.401c-.3165-.319-.8374-.319-1.1539 0zm-2.2881 7.8455-1.2999-1.2999c-.3043-.3043-.8033-.3043-1.1076 0l-4.5836 4.586c-.3042.3043-.3042.8033 0 1.1076l2.5973 2.5973c.3043.3043.8033.3043 1.1076 0l2.9478-2.9527c-.6231-1.2877-.5112-2.8431.3384-4.0383z"/></svg><span>OpenTelemetry</span></li></ul><ul class="track" aria-hidden="true"><li class="h-claude"><svg viewBox="0 0 24 24"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg><span>Claude Code</span></li><li class="h-codex"><svg viewBox="0 0 24 24"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg><span>Codex</span></li><li class="h-gemini"><svg viewBox="0 0 24 24"><path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg><span>Gemini CLI</span></li><li class="h-opencode"><svg viewBox="0 0 16 20"><path d="M12 16H4V8H12V16Z" opacity=".4"/><path d="M12 4H4V16H12V4ZM16 20H0V0H16V20Z"/></svg><span>OpenCode</span></li><li class="h-kodelet"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="12"/><path d="M16 15v34m0-12 18-17M22 31l14 18m5 0h12" fill="none" stroke="var(--paper)" stroke-width="6" stroke-linejoin="round"/></svg><span>Kodelet</span></li><li class="h-otel"><svg viewBox="0 0 24 24"><path d="M12.6974 13.1173c-1.0224 1.0224-1.0224 2.68 0 3.7024 1.0224 1.0224 2.68 1.0224 3.7024 0 1.0224-1.0223 1.0224-2.68 0-3.7024-1.0223-1.0223-2.68-1.0223-3.7024 0zm2.7677 2.7701c-.5063.5063-1.3267.5063-1.833 0s-.5063-1.3266 0-1.833c.5063-.5062 1.3267-.5062 1.833 0 .5063.504.5063 1.3267 0 1.833zM16.356.2355l-1.6041 1.6042c-.314.314-.314.83 0 1.144L21.015 9.247c.314.314.83.314 1.144 0l1.6042-1.6041c.314-.314.314-.83 0-1.144L17.4976.2354c-.314-.314-.8276-.314-1.1416 0zM5.1173 20.734c.2848-.2848.2848-.7497 0-1.0345l-.8155-.8155c-.2848-.2848-.7497-.2848-1.0345 0l-1.6845 1.6845-.0024.0024-.4625-.4625c-.2556-.2556-.6718-.2556-.925 0-.2556.2556-.2556.6718 0 .925l2.775 2.775c.2556.2556.6718.2556.925 0 .2532-.2556.2556-.6718 0-.925l-.4625-.4625.0024-.0024zm8.4856-15.893-3.5637 3.5637c-.3164.3164-.3164.8374 0 1.1538l2.2006 2.2005c1.5554-1.1197 3.7365-.981 5.1361.4187l1.7819-1.7818c.3164-.3165.3164-.8374 0-1.1538l-4.401-4.401c-.3165-.319-.8374-.319-1.1539 0zm-2.2881 7.8455-1.2999-1.2999c-.3043-.3043-.8033-.3043-1.1076 0l-4.5836 4.586c-.3042.3043-.3042.8033 0 1.1076l2.5973 2.5973c.3043.3043.8033.3043 1.1076 0l2.9478-2.9527c-.6231-1.2877-.5112-2.8431.3384-4.0383z"/></svg><span>OpenTelemetry</span></li></ul></div>
+</section>
+
+<section class="row facts" aria-label="agent-top in numbers">
+  <div><span class="mono">Binary</span><div class="n">1</div><p>Static, Rust, macOS and Linux. No daemon, no runtime.</p></div>
+  <div><span class="mono">Harnesses</span><div class="n">5 + OTLP</div><p>Plus any agent that sends OpenTelemetry spans.</p></div>
+  <div><span class="mono">Writes to your agents</span><div class="n">0</div><p>Read-only. It never signals, kills or connects to one.</p></div>
+  <div><span class="mono">Licence</span><div class="n">MIT</div><p>Open source on GitHub.</p></div>
+</section>
+
+<section class="row pad" id="features">
+  <div class="sec-head">
+    <h2>Everything your agents don't tell you.</h2>
+    <p>Each harness shows one session at a time. agent-top lines them all up, from the live terminal view to a month of history.</p>
+  </div>
+  <div class="tabs" role="tablist" aria-label="Features">
+    <button role="tab" aria-selected="true" data-p="live"><span class="mono">Live view</span>Every session, now</button>
+    <button role="tab" aria-selected="false" data-p="mcp"><span class="mono">MCP</span>Leaked servers</button>
+    <button role="tab" aria-selected="false" data-p="cost"><span class="mono">Report</span>Cost by anything</button>
+    <button role="tab" aria-selected="false" data-p="web"><span class="mono">Web view</span>Run graph</button>
+    <button role="tab" aria-selected="false" data-p="ctx"><span class="mono">Context</span>Window timeline</button>
+    <button role="tab" aria-selected="false" data-p="otel"><span class="mono">Telemetry</span>Your own agents</button>
+  </div>
+  <div class="panel stage" data-panel="live">
+    <div class="txt"><span class="mono">agent-top</span><h3>Who is working, who is waiting.</h3><p>A terminal table of every agent process, with its state, tokens, burn rate and cost, and a detail pane for the one you pick.</p>
+      <ul><li>Subagents nested under their parent</li><li>Tool calls that never came back</li><li>Rate-limit windows for Codex</li></ul>
+      <div class="cmd">$ agent-top</div></div>
+    <div class="shot term"><img src="{{ 'screenshots/overview.png' | url }}" loading="lazy" alt="The agent-top live view"></div>
+  </div>
+  <div class="panel stage" data-panel="mcp" hidden>
+    <div class="txt"><span class="mono">MCP servers</span><h3>Servers left running after the agent quit.</h3><p>Each MCP server's calls, errors, CPU and memory, joined to its process. An orphan turns red and says which agent it came from.</p>
+      <ul><li>One row per server, per agent</li><li>npx and uvx wrappers counted once</li></ul><div class="cmd">$ agent-top mcp</div></div>
+    <div class="shot term"><img src="{{ 'screenshots/mcp-full.png' | url }}" loading="lazy" alt="MCP server panel"></div>
+  </div>
+  <div class="panel stage" data-panel="cost" hidden>
+    <div class="txt"><span class="mono">agent-top report</span><h3>What it all cost.</h3><p>Tokens and dollars at list price, by harness, model, project or day, from the transcripts already on disk.</p>
+      <ul><li>Unpriced tokens shown, never guessed</li><li>Cache reads and writes split out</li><li>JSON for your own scripts</li></ul><div class="cmd">$ agent-top report --by model</div></div>
+    <div class="shot"><img src="{{ 'screenshots/home-report.png' | url }}" loading="lazy" alt="The Report tab in agent-top ui, dark mode: CO2e and energy cards, CO2e by day, and usage and cost by model"></div>
+  </div>
+  <div class="panel stage" data-panel="web" hidden>
+    <div class="txt"><span class="mono">agent-top ui</span><h3>A local dashboard for the history.</h3><p>Overview, report, sessions and tools, served on 127.0.0.1 from the local store. Open a session for its run graph and turns.</p>
+      <ul><li>Read-only, no login, no cloud</li><li>CSV export</li></ul><div class="cmd">$ agent-top ui</div></div>
+    <div class="shot"><img src="{{ 'screenshots/home-run-graph.png' | url }}" loading="lazy" alt="A session open beside the session list: the run graph of its subagents and one subagent's span waterfall"></div>
+  </div>
+  <div class="panel stage" data-panel="ctx" hidden>
+    <div class="txt"><span class="mono">Context timeline</span><h3>Where the context window went.</h3><p>Every turn's context, split by source, with compactions marked. See which files and tool results filled it.</p>
+      <ul><li>Claude Code, Codex and OpenCode</li><li>Subagents on their own track</li></ul><div class="cmd">$ agent-top ui  →  Sessions</div></div>
+    <div class="shot"><img src="{{ 'screenshots/home-context.png' | url }}" loading="lazy" alt="A session's context timeline: prompt size per response, six compactions, and what filled the context before the first"></div>
+  </div>
+  <div class="panel stage" data-panel="otel" hidden>
+    <div class="txt"><span class="mono">serve --listen</span><h3>Agents you built yourself.</h3><p>Point any OpenTelemetry SDK at agent-top and its spans join the store, priced from the same table as the coding agents.</p>
+      <ul><li>OTLP over HTTP, JSON or protobuf</li><li>Works from a container</li></ul><div class="cmd">$ agent-top serve --listen 127.0.0.1:4318</div></div>
+    <div class="shot"><img src="{{ 'screenshots/home-telemetry.png' | url }}" loading="lazy" alt="Sessions received as OpenTelemetry spans, filtered to the otel harness"></div>
+  </div>
+</section>
+
+<section class="row pad">
+  <div class="sec-head"><h2>Nothing to install in your agents.</h2><p>agent-top reads what is already on your disk and in your process table. Your transcripts stay on your machine.</p></div>
+  <div class="how">
+    <div><svg class="glyph" viewBox="0 0 44 44" aria-hidden="true"><rect x="6" y="8" width="26" height="30" fill="none" stroke="currentColor"/><path d="M11 16h16M11 22h16M11 28h10" stroke="#2453e0"/><rect x="14" y="4" width="26" height="30" fill="none" stroke="#9db2ee" stroke-dasharray="3 3"/></svg><h3>Transcripts</h3><p>The JSONL and SQLite files each harness writes, parsed for tokens, models, tool calls and timing.</p></div>
+    <div><svg class="glyph" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="9" r="4" fill="none" stroke="currentColor"/><circle cx="10" cy="33" r="4" fill="none" stroke="#2453e0"/><circle cx="34" cy="33" r="4" fill="none" stroke="#c0392b"/><path d="M22 13v8H10v8M22 21h12v8" fill="none" stroke="currentColor"/></svg><h3>Process table</h3><p>Which agent owns which child, so MCP servers and shells are counted, and orphans are caught.</p></div>
+    <div><svg class="glyph" viewBox="0 0 44 44" aria-hidden="true"><ellipse cx="22" cy="10" rx="14" ry="5" fill="none" stroke="currentColor"/><path d="M8 10v24c0 3 6 5 14 5s14-2 14-5V10" fill="none" stroke="currentColor"/><path d="M8 22c0 3 6 5 14 5s14-2 14-5" fill="none" stroke="#2453e0"/></svg><h3>A local store</h3><p>One SQLite file for history: <code>sync</code> to fill it, <code>sql</code> to query it, <code>ui</code> to browse it.</p></div>
+  </div>
+</section>
+
+<section class="row eco" id="footprint">
+  <svg class="contours" viewBox="0 0 1240 900" preserveAspectRatio="none" aria-hidden="true">
+    <g class="contour-lines" fill="none" stroke-width="1">
+      <path d="M-20 120 C 200 60, 380 180, 620 120 S 1000 40, 1260 110"/>
+      <path d="M-20 170 C 210 110, 400 230, 630 170 S 1010 90, 1260 160"/>
+      <path d="M-20 780 C 240 700, 420 840, 700 760 S 1060 690, 1260 760"/>
+      <path d="M-20 830 C 250 760, 430 890, 710 810 S 1070 740, 1260 810"/>
+      <path d="M-20 880 C 260 820, 440 930, 720 860 S 1080 800, 1260 860"/>
+    </g>
+  </svg>
+  <div class="pad">
+    <div class="sec-head">
+      <div><span class="badge"><b></b>Energy and CO2e <em class="exp">Experimental</em></span><h2 style="margin-top:18px">What your tokens cost the planet.</h2></div>
+      <p>agent-top turns the tokens it already counts into a CO2e and energy range, from coefficients you choose and cite. For scale, the example range below is set against things you can picture.</p>
+    </div>
+    <div class="eco-tools">
+      <div class="seg" role="group" aria-label="Period"><button type="button" data-p="7" aria-pressed="false">7 days</button><button type="button" data-p="30" aria-pressed="true">30 days</button><button type="button" data-p="90" aria-pressed="false">90 days</button></div>
+      <span class="mono">Example store, invented numbers</span>
+    </div>
+    <div class="eco-grid">
+      <div>
+        <span class="mono" id="e-head">Last 30 days · 5.05B tokens</span>
+        <div class="big"><span id="e-co2">22–100</span><small>kg CO2e</small></div>
+        <div class="trend"><span id="e-arrow">▲</span><span id="e-trend">22% more than the 30 days before</span></div>
+        <div class="rangebar" aria-hidden="true"><i class="lo"></i><i class="hi"></i></div>
+        <div class="sub"><span id="e-kwh">238 kWh</span>, 82% of it from cache reads. Solid to the low bound, hatched to the high one.</div>
+      </div>
+      <div>
+        <div class="equiv">
+          <svg class="icon" viewBox="0 0 52 52" aria-hidden="true"><path class="soft" d="M6 34h40v6H6z"/><path d="M6 34h40v6H6zM12 34l6-10h16l6 10"/><circle cx="15" cy="41" r="4" fill="#f8f9fa"/><circle cx="37" cy="41" r="4" fill="#f8f9fa"/></svg>
+          <div><div class="v" id="e-km">90–410 km</div><div class="d">driven in an average petrol car</div><div class="s">EPA, 393 g per mile</div></div>
+        </div>
+        <div class="equiv">
+          <svg class="icon" viewBox="0 0 52 52" aria-hidden="true"><path d="M26 46V30"/><g class="grow"><circle class="soft" cx="26" cy="20" r="12"/><circle cx="26" cy="20" r="12"/></g><path d="M14 46h24"/></svg>
+          <div><div class="v" id="e-seed">0.4–1.7 seedlings</div><div class="d">grown for ten years to take it back</div><div class="s">EPA, 60 kg per urban seedling</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="equiv">
+          <svg class="icon" viewBox="0 0 52 52" aria-hidden="true"><path d="M2 38c6-3 10 3 16 0s10-3 16 0 10 3 16 0"/><path class="ice-melt soft" d="M10 32l6-14 10 4 8-8 8 18z"/><path class="ice-melt" d="M10 32l6-14 10 4 8-8 8 18z"/></svg>
+          <div><div class="v" id="e-ice">1–5 sheets of A4</div><div class="d">of September Arctic sea ice, <span id="e-m2">0.07–0.3</span> m²</div><div class="s">Notz and Stroeve 2016, 3 m² per tonne</div></div>
+        </div>
+        <div class="equiv">
+          <svg class="icon" viewBox="0 0 52 52" aria-hidden="true"><path class="soft" d="M14 34c4 3 20 3 24 0a12 12 0 0 1-24 0z"/><path d="M26 6c8 12 14 19 14 27a14 14 0 0 1-28 0c0-8 6-15 14-27z"/></svg>
+          <div><div class="v" id="e-water">≈ 86 litres</div><div class="d">of data-centre cooling water</div><div class="s">at 0.36 L per kWh, an example figure</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="truth">
+      <div><h4><i style="background:var(--ink)"></i>Counted exactly</h4><ul><li>Tokens per model, per session</li><li>Cache reads, writes and output, split</li><li>When each session ran, and in which project</li></ul></div>
+      <div><h4><i style="background:repeating-linear-gradient(135deg,var(--ink) 0 3px,transparent 3px 6px);border:1px solid var(--ink)"></i>Estimated, as a range</h4><ul><li>Energy per token, from your table</li><li>Grid carbon intensity</li><li>Data-centre overhead (PUE)</li></ul></div>
+      <div><h4><i style="border:1px dashed var(--ink)"></i>Not published by anyone</h4><ul><li>Energy of a Claude or GPT token</li><li>What a cache read costs</li><li>Which region served a request</li></ul></div>
+    </div>
+    <p class="eco-note">agent-top ships no coefficients: you write ~/.config/agent-top/energy.toml with a source for each figure.</p>
+  </div>
+</section>
+
+<section class="row pad" id="blog">
+  <div class="sec-head"><h2>From the blog.</h2><p>How agent-top reads each harness, what its numbers mean, and what it found along the way. <a class="more" href="{{ 'blog/' | url }}">All posts</a></p></div>
+  <div class="posts">
+    {% for post in config.extra.recent_posts %}
+    <a class="post" href="{{ post.url | url }}">
+      {% if post.image %}<span class="post-img"><img src="{{ post.image | url }}" alt="{{ post.alt | e }}" loading="lazy"></span>{% endif %}
+      <span class="mono">{{ post.date.strftime('%-d %B %Y') }}</span>
+      <h3>{{ post.title }}</h3>
+      <p>{{ post.description }}</p>
+      <span class="read">Read the post</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="row close pad">
+  <svg class="close-logo" aria-hidden="true"><use href="#logo"/></svg>
+  <h2>See every agent at once.</h2>
+  <p>One command. Nothing to configure.</p>
+  <div class="ctas" style="justify-content:center"><a class="btn solid lg" href="{{ 'getting-started/' | url }}">Get started</a><a class="btn ghost lg" href="{{ 'live-view/' | url }}">Read the docs</a></div>
+</section>
+
+<footer class="row">
+  <div><a class="brand" href="{{ '.' | url }}" style="color:var(--ink)"><svg aria-hidden="true"><use href="#logo"/></svg>agent-top</a><p class="mono" style="margin-top:10px">MIT licensed. Built with Rust.</p></div>
+  <div><h5>Using</h5><a href="{{ 'getting-started/' | url }}">Getting started</a><a href="{{ 'live-view/' | url }}">Live view</a><a href="{{ 'views-and-panes/' | url }}">Views and panes</a><a href="{{ 'context-timeline/' | url }}">Context timeline</a><a href="{{ 'trace/' | url }}">Tool trace</a><a href="{{ 'replay/' | url }}">Replay</a></div>
+  <div><h5>Cost</h5><a href="{{ 'report/' | url }}">Report</a><a href="{{ 'prices/' | url }}">Prices</a><a href="{{ 'accounting/' | url }}">Accounting</a><a href="{{ 'energy/' | url }}">Energy and CO2e</a></div>
+  <div><h5>Local store</h5><a href="{{ 'store/sync/' | url }}">Sync</a><a href="{{ 'store/query/' | url }}">Query</a><a href="{{ 'store/ui/' | url }}">Web view</a><a href="{{ 'store/telemetry/' | url }}">Telemetry</a><a href="{{ 'store/schema/' | url }}">Schema</a></div>
+  <div><h5>Project</h5><a href="{{ 'blog/' | url }}">Blog</a><a href="{{ 'changelog/' | url }}">Changelog</a><a href="{{ 'harnesses/' | url }}">Harnesses</a><a href="{{ 'security/' | url }}">Security</a><a href="https://github.com/kannandreams/agent-top">GitHub</a><a href="https://crates.io/crates/agent-top">crates.io</a></div>
+</footer>
+</div>
+</div>
+{% endblock %}
+{% block footer %}{% endblock %}
+{% block scripts %}
+  {{ super() }}
+{% raw %}
+<script>
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
+  document.querySelectorAll('.panel').forEach(p => p.hidden = p.dataset.panel !== b.dataset.p);
+}));
+// sustainability: one CO2e range per period drives every figure; the trend against the previous period sets the text colour
+const P = { 7: { lo: 5.1, hi: 23, kwh: 55, tok: 1.18, chg: -12 }, 30: { lo: 22, hi: 100, kwh: 238, tok: 5.05, chg: 22 }, 90: { lo: 66, hi: 300, kwh: 714, tok: 15.2, chg: 8 } };
+const f = n => n >= 100 ? Math.round(n).toLocaleString() : n >= 10 ? String(Math.round(n)) : n.toFixed(1);
+const $ = id => document.getElementById(id), eco = document.querySelector('.eco');
+function period(d) { const p = P[d], up = p.chg > 0;
+  eco.classList.toggle('up', up);
+  $('e-head').textContent = `Last ${d} days · ${p.tok.toFixed(2)}B tokens`;
+  $('e-co2').textContent = f(p.lo) + '–' + f(p.hi);
+  $('e-arrow').textContent = up ? '▲' : '▼';
+  $('e-trend').textContent = `${Math.abs(p.chg)}% ${up ? 'more' : 'less'} than the ${d} days before`;
+  $('e-kwh').textContent = f(p.kwh) + ' kWh';
+  $('e-km').textContent = f(p.lo / .2442) + '–' + f(p.hi / .2442) + ' km';
+  $('e-seed').textContent = f(p.lo / 60) + '–' + f(p.hi / 60) + ' seedlings';
+  $('e-ice').textContent = f(p.lo * .003 / .0624) + '–' + f(p.hi * .003 / .0624) + ' sheets of A4';
+  $('e-m2').textContent = (p.lo * .003).toFixed(2) + '–' + (p.hi * .003).toFixed(2);
+  $('e-water').textContent = '≈ ' + f(p.kwh * .36) + ' litres'; }
+document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b)); period(b.dataset.p); }));
+period(30);
+</script>
+<script>
+const mark = document.getElementById('agent-mark');
+if (matchMedia('(prefers-reduced-motion: reduce)').matches) mark.pauseAnimations();
+</script>
+{% endraw %}
+{% endblock %}

@@ -4,6 +4,9 @@ description: "Estimating the CO2e and energy of your coding agents' tokens: what
 
 # Energy and CO2e
 
+!!! note "Experimental"
+    The estimate, the table format and the JSON fields may change between releases.
+
 `agent-top report --energy` and the Report tab of [`agent-top ui`](store/ui.md) estimate the carbon (CO2e) and energy behind your agents' tokens, by model, harness, project or day. The estimate comes from a table of coefficients that you write. agent-top ships none, because no provider publishes energy per token for the models it prices.
 
 ```sh

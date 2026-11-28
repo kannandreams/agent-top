@@ -138,7 +138,7 @@ enum Command {
         /// Read only the transcripts on disk, not the local store.
         #[arg(long)]
         no_store: bool,
-        /// Add an estimate of CO2e and energy, from the coefficients in
+        /// Experimental. Add an estimate of CO2e and energy, from the coefficients in
         /// ~/.config/agent-top/energy.toml. agent-top ships none: no provider
         /// publishes them. Without the file, shows the token activity alone.
         #[arg(long)]
