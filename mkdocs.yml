@@ -135,6 +135,7 @@ nav:
       - Cost report: report.md
       - Prices: prices.md
       - Accounting: accounting.md
+      - Energy and CO2e: energy.md
   - Local store:
       - Overview: store/index.md
       - Sync: store/sync.md

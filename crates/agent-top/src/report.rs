@@ -14,6 +14,7 @@
 //! instead of parsed again. The report never writes the store.
 
 use agent_top_core::Harness;
+use agent_top_core::energy::{self, Estimate, Range};
 use agent_top_core::harness::SessionSummary;
 use agent_top_core::harness::{self, SpanRetention};
 use agent_top_core::model::{TokenUsage, project_name};
@@ -99,9 +100,27 @@ struct Bucket {
     tool_calls_lower_bound: bool,
     prompt: u64,
     cache_read: u64,
+    output: u64,
+    /// The group's tokens by model, kept apart so an energy table can be
+    /// applied per model when the report is printed. "" is no model.
+    by_model: BTreeMap<String, TokenUsage>,
 }
 
 impl Bucket {
+    /// The prompt tokens not read from cache: fresh input and cache writes.
+    fn uncached_prompt(&self) -> u64 {
+        self.prompt - self.cache_read
+    }
+
+    /// The group's estimate under `table`, model by model.
+    fn estimate(&self, table: &energy::Table) -> Estimate {
+        let mut e = Estimate::default();
+        for (model, usage) in &self.by_model {
+            e.add(&table.estimate((!model.is_empty()).then_some(model.as_str()), usage));
+        }
+        e
+    }
+
     /// Share of the prompt served from cache across the group, when there is a
     /// meaningful amount of prompt to judge.
     fn cache_hit(&self) -> Option<f64> {
@@ -189,6 +208,14 @@ impl Bucket {
         self.tool_calls_lower_bound |= s.tool_calls_lower_bound;
         self.prompt += s.usage.prompt();
         self.cache_read += s.usage.cache_read;
+        self.output += s.usage.output;
+        let u = self.by_model.entry(s.model.clone().unwrap_or_default()).or_default();
+        u.input += s.usage.input;
+        u.cache_write_5m += s.usage.cache_write_5m;
+        u.cache_write_1h += s.usage.cache_write_1h;
+        u.cache_write_unsplit += s.usage.cache_write_unsplit;
+        u.cache_read += s.usage.cache_read;
+        u.output += s.usage.output;
     }
 }
 
@@ -371,18 +398,24 @@ impl Report {
         out
     }
 
-    /// The report as JSON, for feeding somewhere else.
-    pub fn to_json(&self) -> serde_json::Value {
+    /// The report as JSON, for feeding somewhere else, with each group's
+    /// estimate under `table` when one is given.
+    pub fn to_json_with(&self, table: Option<&energy::Table>) -> serde_json::Value {
         let group = |b: &Bucket| {
-            serde_json::json!({
+            let mut g = serde_json::json!({
                 "sessions": b.sessions, "tokens": b.tokens, "cost_usd": b.cost,
                 "unpriced_tokens": b.unpriced, "turns": b.turns, "tool_calls": b.tool_calls,
                 "tool_calls_lower_bound": b.tool_calls_lower_bound,
                 "prompt_tokens": b.prompt, "cache_read_tokens": b.cache_read,
                 "cache_hit_rate": b.cache_hit(),
-            })
+                "output_tokens": b.output, "uncached_prompt_tokens": b.uncached_prompt(),
+            });
+            if let Some(t) = table.filter(|t| t.is_usable()) {
+                g["estimate"] = estimate_json(&b.estimate(t));
+            }
+            g
         };
-        serde_json::json!({
+        let mut out = serde_json::json!({
             "since": format_date(self.since),
             "group_by": self.by.label(),
             "scanned": self.scanned,
@@ -397,8 +430,160 @@ impl Report {
                     "store": null, "store_only_sessions": 0, "received_sessions": 0, "reused_from_store": 0,
                 }),
             },
-        })
+        });
+        if let Some(t) = table {
+            out["energy_table"] = table_json(t);
+        }
+        out
     }
+
+    /// The report with its estimate: the exact activity behind it, then CO2e
+    /// and energy as ranges from the user's table. Without a usable table it
+    /// prints the activity alone and says where the table goes.
+    pub fn to_plain_energy(&self, table: &energy::Table) -> String {
+        let usable = table.is_usable();
+        let mut out = String::new();
+        out.push_str(&format!("agent-top report · since {} · by {} · energy\n\n", format_date(self.since), self.by.label()));
+        let head = |out: &mut String| {
+            out.push_str(&format!(
+                "{:<22} {:>8} {:>10} {:>10} {:>11}",
+                self.by.label().to_uppercase(),
+                "SESSIONS",
+                "OUTPUT",
+                "UNCACHED",
+                "CACHE READ"
+            ));
+            if usable {
+                out.push_str(&format!(" {:>17} {:>17} {:>17} {:>11}", "CO2E (EST.)", "ENERGY (EST.)", "OF IT CACHE READ", "UNESTIMATED"));
+            }
+            out.push('\n');
+        };
+        let line = |out: &mut String, k: &str, b: &Bucket| {
+            out.push_str(&format!(
+                "{:<22} {:>8} {:>10} {:>10} {:>11}",
+                truncate(k, 22),
+                b.sessions,
+                tokens(b.output),
+                tokens(b.uncached_prompt()),
+                tokens(b.cache_read)
+            ));
+            if usable {
+                let e = b.estimate(table);
+                let some = e.estimated_tokens > 0;
+                out.push_str(&format!(
+                    " {:>17} {:>17} {:>17} {:>11}",
+                    if some { grams(e.co2e_g) } else { "-".into() },
+                    if some { watt_hours(e.energy_wh) } else { "-".into() },
+                    if some { watt_hours(e.cache_read_wh) } else { "-".into() },
+                    if e.unestimated_tokens > 0 { tokens(e.unestimated_tokens) } else { "-".into() }
+                ));
+            }
+            out.push('\n');
+        };
+        head(&mut out);
+        let mut rows: Vec<(&String, &Bucket)> = self.groups.iter().collect();
+        rows.sort_by(|a, b| b.1.cost.partial_cmp(&a.1.cost).unwrap_or(std::cmp::Ordering::Equal).then(b.1.tokens.cmp(&a.1.tokens)));
+        for (k, b) in rows {
+            line(&mut out, k, b);
+        }
+        out.push_str(&format!("{:-<width$}\n", "", width = if usable { 138 } else { 65 }));
+        line(&mut out, "total", &self.total);
+        out.push('\n');
+        if usable {
+            let e = self.total.estimate(table);
+            if let (Some(g), Some(src)) = (table.gco2e_per_kwh, &table.grid_source) {
+                out.push_str(&format!(
+                    "Estimated from {}: watt-hours per token for each model, and {} g CO2e per kWh ({src}). No provider publishes these figures; each entry names its source.\n",
+                    table.path.as_deref().map(|p| p.display().to_string()).unwrap_or_default(),
+                    range(g, 0)
+                ));
+            }
+            if e.unestimated_tokens > 0 {
+                let missing: Vec<&str> = self
+                    .total
+                    .by_model
+                    .keys()
+                    .filter(|m| table.entry(m).is_none())
+                    .map(|m| if m.is_empty() { "(no model)" } else { m.as_str() })
+                    .collect();
+                out.push_str(&format!(
+                    "{} tokens ran on models with no entry in the table, so they are not in the estimate: {}.\n",
+                    tokens(e.unestimated_tokens),
+                    missing.join(", ")
+                ));
+            }
+        } else {
+            out.push_str(
+                "No energy table, so there is no CO2e estimate. No provider publishes energy per token; write the figures you trust to\n",
+            );
+            out.push_str(&format!(
+                "{} with a source for each. See https://agenttop.dev/energy/ for the published figures.\n",
+                table.path.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "~/.config/agent-top/energy.toml".into())
+            ));
+        }
+        out
+    }
+}
+
+fn range_json(r: Range) -> serde_json::Value {
+    serde_json::json!({ "low": r.low, "high": r.high })
+}
+
+fn estimate_json(e: &Estimate) -> serde_json::Value {
+    serde_json::json!({
+        "estimated": true,
+        "co2e_g": range_json(e.co2e_g),
+        "energy_wh": range_json(e.energy_wh),
+        "cache_read_wh": range_json(e.cache_read_wh),
+        "estimated_tokens": e.estimated_tokens,
+        "unestimated_tokens": e.unestimated_tokens,
+    })
+}
+
+fn table_json(t: &energy::Table) -> serde_json::Value {
+    serde_json::json!({
+        "path": t.path.as_deref().map(|p| p.to_string_lossy().into_owned()),
+        "usable": t.is_usable(),
+        "warnings": t.warnings,
+        "grid": t.gco2e_per_kwh.map(|g| serde_json::json!({
+            "gco2e_per_kwh": range_json(g), "source": t.grid_source, "checked": t.grid_checked,
+        })),
+        "models": t.entries.iter().map(|e| serde_json::json!({
+            "model": e.model, "source": e.source, "checked": e.checked,
+            "wh_per_million": {
+                "input": range_json(e.coefficients.input), "cache_write": range_json(e.coefficients.cache_write),
+                "cache_read": range_json(e.coefficients.cache_read), "output": range_json(e.coefficients.output),
+            },
+        })).collect::<Vec<_>>(),
+    })
+}
+
+/// A range in a unit, as "low-high" or one number when the bounds agree.
+fn range(r: Range, decimals: usize) -> String {
+    let one = |v: f64| format!("{v:.decimals$}");
+    if (r.high - r.low).abs() < f64::EPSILON * r.high.max(1.0) { one(r.low) } else { format!("{}-{}", one(r.low), one(r.high)) }
+}
+
+/// Picks the unit by the high bound so both ends share it.
+fn scaled(r: Range, units: [&str; 3]) -> String {
+    let (k, unit) = if r.high >= 1e6 {
+        (1e6, units[2])
+    } else if r.high >= 1e3 {
+        (1e3, units[1])
+    } else {
+        (1.0, units[0])
+    };
+    let s = Range { low: r.low / k, high: r.high / k };
+    let decimals = if s.high >= 100.0 { 0 } else { 1 };
+    format!("{} {unit}", range(s, decimals))
+}
+
+fn grams(r: Range) -> String {
+    scaled(r, ["g", "kg", "t"])
+}
+
+fn watt_hours(r: Range) -> String {
+    scaled(r, ["Wh", "kWh", "MWh"])
 }
 
 /// USD, with a `+` when the figure is a floor because some tokens were unpriced.
@@ -519,7 +704,7 @@ mod tests {
     }
 
     fn totals(r: &Report) -> serde_json::Value {
-        let mut j = r.to_json();
+        let mut j = r.to_json_with(None);
         j.as_object_mut().unwrap().remove("source");
         j.as_object_mut().unwrap().remove("scanned");
         j
@@ -567,6 +752,39 @@ mod tests {
         assert_eq!(source(&kept), (1, 0));
         assert_eq!(totals(&kept), totals(&before));
         assert!(kept.to_plain().contains("1 session is only in the store, its transcript deleted."));
+    }
+
+    #[test]
+    fn the_energy_view_shows_activity_and_estimates_only_listed_models() {
+        let (path, _, _) = synced("energy");
+        let r = build_with(listed(&path), UNIX_EPOCH, GroupBy::Model, None, false);
+        let model = r.total.by_model.keys().next().unwrap().clone();
+
+        let none = energy::Table::default();
+        let plain = r.to_plain_energy(&none);
+        assert!(plain.contains("No energy table, so there is no CO2e estimate."), "{plain}");
+        assert!(!plain.contains("CO2E"), "{plain}");
+        let j = r.to_json_with(Some(&none));
+        assert_eq!(j["total"]["output_tokens"], r.total.output);
+        assert_eq!(j["total"]["uncached_prompt_tokens"].as_u64().unwrap() + r.total.cache_read, r.total.prompt);
+        assert!(j["total"].get("estimate").is_none());
+
+        let text = format!(
+            "[grid]\ngco2e_per_kwh = [100, 400]\nsource = \"t\"\nchecked = \"2026-11-28\"\n\n[models.\"{model}\"]\ninput = 1\ncache_write = 1\ncache_read = 1\noutput = 1\nsource = \"t\"\nchecked = \"2026-11-28\"\n"
+        );
+        let table = energy::build(&text, PathBuf::from("/tmp/energy.toml"));
+        assert!(table.is_usable(), "{:?}", table.warnings);
+        let plain = r.to_plain_energy(&table);
+        assert!(plain.contains("CO2E (EST.)") && plain.contains("No provider publishes these figures"), "{plain}");
+        let e = &r.to_json_with(Some(&table))["total"]["estimate"];
+        // 1 Wh per million tokens of every kind: the energy is the token count.
+        let total = r.total.tokens as f64 / 1e6;
+        assert!((e["energy_wh"]["low"].as_f64().unwrap() - total).abs() < 1e-9, "{e}");
+        assert_eq!(e["unestimated_tokens"], 0);
+
+        let other = energy::build(&text.replace(&model, "some-other-model"), PathBuf::from("/tmp/energy.toml"));
+        let plain = r.to_plain_energy(&other);
+        assert!(plain.contains("not in the estimate") && plain.contains(&model), "{plain}");
     }
 
     #[test]

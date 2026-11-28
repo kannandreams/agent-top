@@ -21,7 +21,10 @@ agent-top report --by project             # which repository cost the most
 agent-top report --json                   # the same, structured
 agent-top report --no-store               # only the transcripts on disk
 agent-top report --db ./mine.db           # a store at another path
+agent-top report --energy                 # add an estimate of CO2e and energy
 ```
+
+`--energy` needs a table of coefficients you write; [Energy and CO2e](energy.md) lists the published figures and how to write it.
 
 ## By harness
 
