@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 - `agent-top ui` has Overview, Report, Sessions and Tools tabs. Report groups tokens and cost by harness, model, project or day, sorts by any column, and downloads as CSV. ([#110](https://github.com/kannandreams/agent-top/pull/110))
-- `agent-top ui` has a new look: a sidebar with the agent-top logo, a cost card with daily bars, harness pills, a cost-share column in Report, and a filter box on Sessions.
+- `agent-top ui` has a new look: a sidebar with the agent-top logo, a cost card with daily bars, harness pills, a cost-share column in Report, and a filter box on Sessions. ([#111](https://github.com/kannandreams/agent-top/pull/111))
 
 ## [0.30.0] - 2026-11-23
 
