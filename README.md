@@ -1,4 +1,4 @@
-# <img src="https://raw.githubusercontent.com/kannandreams/agent-top/main/docs/assets/favicon.svg" width="32" alt="" align="top"> agent-top
+# <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/kannandreams/agent-top/main/docs/assets/logo-white.svg"><img src="https://raw.githubusercontent.com/kannandreams/agent-top/main/docs/assets/logo.svg" width="36" alt="" align="top"></picture> agent-top
 
 **htop for local coding agents.**
 
