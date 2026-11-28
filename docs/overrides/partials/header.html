@@ -20,14 +20,36 @@
       <div class="at-dd">
         <button type="button" aria-haspopup="true" aria-expanded="false" aria-controls="at-docs-menu">Docs <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" stroke="currentColor" fill="none"/></svg></button>
         <div class="at-menu" id="at-docs-menu">
-          <div class="at-col"><h4>Start</h4>
-            {% for item in nav if item.is_page and not item.is_homepage %}<a href="{{ item.url | url }}">{{ item.title }}</a>{% endfor %}
+          {%- set notes = config.extra.menu_notes or {} %}
+          {%- set icons = config.extra.nav_icons or {} %}
+          {%- set placed = config.extra.menu_columns | sum(start=[]) %}
+          {%- macro entry(p) -%}
+            <a href="{{ p.url | url }}"{% if p == page %} aria-current="page"{% endif %}><b>{{ p.title }}</b>{% if notes[p.file.src_uri] %}<span>{{ notes[p.file.src_uri] }}</span>{% endif %}</a>
+          {%- endmacro %}
+          {%- macro heading(title) -%}
+            <h4>{% if icons[title] %}{% include ".icons/" ~ icons[title] ~ ".svg" %}{% endif %}{{ title }}</h4>
+          {%- endmacro %}
+          <div class="at-menu-cols">
+            {% for col in config.extra.menu_columns %}
+            <div class="at-col">
+              {% if loop.first %}
+                {% for item in nav if item.is_page and not item.is_homepage %}
+                  <div class="at-group">{{ heading(item.title) }}{{ entry(item) }}</div>
+                {% endfor %}
+              {% endif %}
+              {% for title in col %}{% for item in nav if item.is_section and item.title == title %}
+                <div class="at-group">{{ heading(title) }}{% for child in item.children if child.is_page %}{{ entry(child) }}{% endfor %}</div>
+              {% endfor %}{% endfor %}
+            </div>
+            {% endfor %}
           </div>
-          {% for item in nav if item.is_section and item.children and item.children[0].is_page and not item.children[0].url.startswith('blog/') %}
-          <div class="at-col"><h4>{{ item.title }}</h4>
-            {% for child in item.children if child.is_page %}<a href="{{ child.url | url }}">{{ child.title }}</a>{% endfor %}
+          <div class="at-menu-foot">
+            {% for item in nav if item.is_section and item.title not in placed and item.children and item.children[0].is_page and not item.children[0].url.startswith('blog/') %}
+              <span class="at-foot-title">{{ item.title }}</span>
+              {% for child in item.children if child.is_page %}<a href="{{ child.url | url }}">{{ child.title }}</a>{% endfor %}
+            {% endfor %}
+            <a class="at-demo" href="{{ 'demo/' | url }}">Open the live demo</a>
           </div>
-          {% endfor %}
         </div>
       </div>
       <a href="{{ home }}#features">Features</a>

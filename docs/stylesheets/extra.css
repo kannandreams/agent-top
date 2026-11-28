@@ -648,38 +648,101 @@
 .at-menu {
   position: absolute;
   top: 100%;
-  left: -0.9rem;
-  width: 36rem;
+  left: -1.2rem;
+  width: 44rem;
   display: none;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.2rem 1.4rem;
-  padding: 1rem 1.1rem;
+  flex-direction: column;
   background: var(--at-panel);
   border: 1px solid var(--at-line);
-  box-shadow: 0 12px 32px rgba(18, 20, 26, 0.1);
+  box-shadow: 0 16px 40px rgba(18, 20, 26, 0.12);
   z-index: 5;
 }
 .at-dd.open .at-menu,
 .at-dd:focus-within .at-menu {
+  display: flex;
+}
+.at-menu-cols {
   display: grid;
+  grid-template-columns: repeat(3, 1fr);
 }
 .at-col {
   display: flex;
   flex-direction: column;
-  padding-bottom: 0.6rem;
+  gap: 1rem;
+  padding: 1.1rem 1.1rem 1.2rem;
+  border-left: 1px solid var(--at-line);
+}
+.at-col:first-child {
+  border-left: 0;
+}
+.at-group {
+  display: flex;
+  flex-direction: column;
 }
 .at-menu h4 {
-  margin: 0.3rem 0 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.35rem;
   font: 500 0.56rem var(--at-mono);
   color: var(--at-muted);
 }
-.at-menu a {
-  padding: 0.2rem 0;
-  font-size: 0.68rem;
+.at-menu h4 svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  fill: currentColor;
+}
+.at-menu-cols a {
+  display: block;
+  margin: 0 -0.5rem;
+  padding: 0.32rem 0.5rem;
   color: var(--at-ink);
 }
-.at-menu a:hover {
+.at-menu-cols a b {
+  display: block;
+  font-weight: 500;
+  font-size: 0.68rem;
+}
+.at-menu-cols a span {
+  display: block;
+  font-size: 0.6rem;
+  line-height: 1.4;
+  color: var(--at-muted);
+}
+.at-menu-cols a:hover,
+.at-menu-cols a:focus-visible {
+  background: var(--at-paper);
+  outline: none;
+}
+.at-menu-cols a:hover b,
+.at-menu-cols a[aria-current] b {
   color: var(--at-blue);
+}
+.at-menu-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 1rem;
+  padding: 0.7rem 1.1rem;
+  border-top: 1px solid var(--at-line);
+  background: var(--at-paper);
+  font-size: 0.62rem;
+}
+.at-menu-foot a {
+  color: var(--at-muted);
+}
+.at-menu-foot a:hover {
+  color: var(--at-ink);
+}
+.at-foot-title {
+  font: 500 0.56rem var(--at-mono);
+  color: var(--at-muted);
+  margin-right: 0.2rem;
+}
+.at-menu-foot .at-demo {
+  margin-left: auto;
+  color: var(--at-blue);
+  font-weight: 500;
 }
 .at-gh {
   display: inline-flex;
@@ -742,4 +805,63 @@
   .md-nav--primary > .md-nav__title {
     display: none;
   }
+}
+
+/* The right side of the header, as on the home page: square, outlined
+ * controls in one row. Search is a button that opens the search field over
+ * the header's links, rather than a field that is always there. */
+.at-header .md-header__option,
+.at-header label.md-header__button[for="__search"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  margin: 0 0 0 0.4rem;
+  padding: 0;
+  border: 1px solid var(--at-line);
+  color: var(--at-ink);
+}
+.at-header .md-header__option > label.md-header__button {
+  margin: 0;
+  padding: 0;
+}
+.at-header .md-header__option:hover,
+.at-header label.md-header__button[for="__search"]:hover {
+  border-color: var(--at-ink);
+}
+.at-header .md-header__button svg {
+  width: 1rem;
+  height: 1rem;
+}
+.at-gh {
+  height: 1.8rem;
+}
+@media screen and (min-width: 60em) {
+  .at-header label.md-header__button[for="__search"] {
+    display: inline-flex;
+  }
+  .at-header .md-search {
+    position: absolute;
+    right: 0.8rem;
+    top: 0.45rem;
+    padding: 0;
+    display: none;
+    z-index: 6;
+  }
+  [data-md-toggle="search"]:checked ~ .md-header .md-search {
+    display: block;
+  }
+  .at-header .md-search__inner {
+    width: 26rem;
+    float: none;
+  }
+  .at-header .md-search__form {
+    height: 1.8rem;
+  }
+}
+.at-header .md-search__form,
+.at-header .md-search__output,
+.at-header .md-search__scrollwrap {
+  border-radius: 0;
 }
