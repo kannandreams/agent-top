@@ -15,7 +15,7 @@ site_url: https://agenttop.dev
 repo_url: https://github.com/kannandreams/agent-top
 repo_name: kannandreams/agent-top
 edit_uri: edit/main/docs/
-copyright: <span class="at-footer">MIT licensed. <img src="/assets/favicon.svg" alt="" width="18" height="18"> agent-top is built with ❤️ and 🦀 Rust.</span>
+copyright: <span class="at-footer">MIT licensed. <img src="/assets/logo-white.svg" alt="" width="18" height="18"> agent-top is built with ❤️ and 🦀 Rust.</span>
 
 docs_dir: docs
 site_dir: site
@@ -34,7 +34,7 @@ theme:
   language: en
   # No web fonts: the stylesheet names system faces instead.
   font: false
-  logo: assets/favicon.svg
+  logo: assets/logo.svg
   icon:
     repo: fontawesome/brands/github
   favicon: assets/favicon.svg

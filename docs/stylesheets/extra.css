@@ -558,6 +558,7 @@
   gap: 0.45em;
 }
 .at-footer img {
+  border: 0;
   border-radius: 0;
 }
 .md-footer-meta {
@@ -864,4 +865,10 @@
 .at-header .md-search__output,
 .at-header .md-search__scrollwrap {
   border-radius: 0;
+}
+.md-header__button.md-logo svg.at-logo,
+.md-nav__button.md-logo svg.at-logo {
+  width: 1.6rem;
+  height: 1.6rem;
+  color: var(--at-ink);
 }
