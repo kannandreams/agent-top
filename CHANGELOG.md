@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
-- `agent-top report --energy` estimates CO2e and energy from coefficients you write in `~/.config/agent-top/energy.toml`; agent-top ships none. `--json` gains `output_tokens`, `uncached_prompt_tokens` and an `estimate` per group. `agent-top ui` shows the estimate in its Report tab. ([#112](https://github.com/kannandreams/agent-top/pull/112))
+- Experimental: `agent-top report --energy` estimates CO2e and energy from coefficients you write in `~/.config/agent-top/energy.toml`; agent-top ships none. `--json` gains `output_tokens`, `uncached_prompt_tokens` and an `estimate` per group. `agent-top ui` shows the estimate in its Report tab. ([#112](https://github.com/kannandreams/agent-top/pull/112))
 - `agent-top ui` has Overview, Report, Sessions and Tools tabs. Report groups tokens and cost by harness, model, project or day, sorts by any column, and downloads as CSV. ([#110](https://github.com/kannandreams/agent-top/pull/110))
 - `agent-top ui` has a new look: a sidebar with the agent-top logo, a cost card with daily bars, harness pills, a cost-share column in Report, a filter box and a details cue on Sessions, and a new harness palette (cobalt, gold, teal, plum, coral, sky). ([#111](https://github.com/kannandreams/agent-top/pull/111))
 

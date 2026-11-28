@@ -659,6 +659,8 @@ def record_context(port):
             pick = page.locator("#detail-body .ctx select")
             sweep(900)
         caption("Codex sessions also show the model's context limit", 400)
+        # The side panel covers the list; close it before opening the Codex session.
+        click(page.locator("#close-detail"), 500)
         page.mouse.move(100, 300)
         page.evaluate("document.getElementById('h-sessions').scrollIntoView({block: 'start'})")
         page.wait_for_timeout(500)

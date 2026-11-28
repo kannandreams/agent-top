@@ -443,7 +443,7 @@ impl Report {
     pub fn to_plain_energy(&self, table: &energy::Table) -> String {
         let usable = table.is_usable();
         let mut out = String::new();
-        out.push_str(&format!("agent-top report · since {} · by {} · energy\n\n", format_date(self.since), self.by.label()));
+        out.push_str(&format!("agent-top report · since {} · by {} · energy (experimental)\n\n", format_date(self.since), self.by.label()));
         let head = |out: &mut String| {
             out.push_str(&format!(
                 "{:<22} {:>8} {:>10} {:>10} {:>11}",
