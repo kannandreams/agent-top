@@ -143,7 +143,7 @@
   font-family: var(--at-mono);
 }
 .md-header__topic:first-child .md-ellipsis::after {
-  content: "observability for local coding agents";
+  content: none;
   margin-left: 0.9rem;
   font-weight: 400;
   color: var(--at-muted);
@@ -599,4 +599,147 @@
 }
 .md-source__fact {
   font-family: var(--at-mono);
+}
+
+/* The shared header (docs/overrides/partials/header.html): name, the Docs
+ * menu and the home page's sections on the left; palette, search and the
+ * GitHub button with its star count on the right. Same on every page. */
+.at-header .at-name {
+  flex: none;
+  margin: 0 1.6rem 0 0.1rem;
+  font: 600 0.9rem var(--at-display);
+  letter-spacing: -0.01em;
+  color: var(--at-ink);
+}
+.at-links {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  margin-right: auto;
+  font-family: var(--at-display);
+  font-size: 0.72rem;
+  color: var(--at-muted);
+}
+.at-links > a,
+.at-dd > button {
+  color: var(--at-muted);
+}
+.at-links > a:hover,
+.at-dd > button:hover,
+.at-dd.open > button {
+  color: var(--at-ink);
+}
+.at-dd {
+  position: relative;
+  padding: 0.6rem 0;
+  margin: -0.6rem 0;
+}
+.at-dd > button {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.at-dd > button:focus-visible {
+  outline: 2px solid var(--at-blue);
+  outline-offset: 3px;
+}
+.at-menu {
+  position: absolute;
+  top: 100%;
+  left: -0.9rem;
+  width: 36rem;
+  display: none;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.2rem 1.4rem;
+  padding: 1rem 1.1rem;
+  background: var(--at-panel);
+  border: 1px solid var(--at-line);
+  box-shadow: 0 12px 32px rgba(18, 20, 26, 0.1);
+  z-index: 5;
+}
+.at-dd.open .at-menu,
+.at-dd:focus-within .at-menu {
+  display: grid;
+}
+.at-col {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0.6rem;
+}
+.at-menu h4 {
+  margin: 0.3rem 0 0.25rem;
+  font: 500 0.56rem var(--at-mono);
+  color: var(--at-muted);
+}
+.at-menu a {
+  padding: 0.2rem 0;
+  font-size: 0.68rem;
+  color: var(--at-ink);
+}
+.at-menu a:hover {
+  color: var(--at-blue);
+}
+.at-gh {
+  display: inline-flex;
+  align-items: stretch;
+  margin-left: 0.6rem;
+  border: 1px solid var(--at-ink);
+  color: var(--at-ink);
+  font: 500 0.66rem var(--at-display);
+  white-space: nowrap;
+}
+.at-gh > svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  fill: currentColor;
+  align-self: center;
+  margin-left: 0.6rem;
+}
+.at-gh-name {
+  display: flex;
+  align-items: center;
+  padding: 0.35rem 0.6rem 0.35rem 0.4rem;
+}
+.at-stars {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.6rem;
+  border-left: 1px solid var(--at-ink);
+  background: var(--at-panel);
+  font-family: var(--at-mono);
+}
+.at-stars[hidden] {
+  display: none;
+}
+.at-stars svg {
+  width: 0.65rem;
+  height: 0.65rem;
+  fill: #c9a227;
+}
+.at-stars b {
+  font-weight: 500;
+}
+.at-gh:hover,
+.at-gh:hover .at-stars {
+  background: var(--at-ink);
+  color: var(--at-paper);
+}
+@media screen and (max-width: 59.9375em) {
+  .at-links,
+  .at-gh-name {
+    display: none;
+  }
+  .at-gh > svg {
+    margin-right: 0.6rem;
+  }
+}
+/* The sidebar starts at the first section: the site name and Home are in
+ * the header already. On a phone the drawer keeps its title bar. */
+@media screen and (min-width: 76.25em) {
+  .md-nav--primary > .md-nav__title {
+    display: none;
+  }
 }

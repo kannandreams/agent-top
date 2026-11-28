@@ -9,7 +9,7 @@ It also writes the hosted demo, docs/demo/ (the page plus one JSON file per
 API request, answered by docs/demo/demo.js), and two recordings that need
 ffmpeg: docs/ui-demo.gif, a walk through the page, and docs/context-demo.mp4,
 a walk through the context timeline. `ui-demo.py context` records only the
-second.
+second; `ui-demo.py home` takes only the home page's dark panels (home-*.png).
 
     cargo build --release
     uv run --with playwright python docs/ui-demo.py
@@ -406,6 +406,44 @@ WEB = ROOT / "crates/agent-top/web"
 DAY_MS = 86_400_000
 
 
+def shoot_home(port):
+    """The home page's feature panels: the web view in dark mode, one view each,
+    at a wide-screen size so the panel crops them evenly. `ui-demo.py home`
+    takes only these."""
+    from playwright.sync_api import sync_playwright
+
+    size = {"width": 1440, "height": 900}
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport=size, device_scale_factor=2, color_scheme="dark")
+
+        def shot(name):
+            page.mouse.move(0, 0)
+            page.wait_for_timeout(300)
+            page.screenshot(path=str(OUT / f"home-{name}.png"))
+
+        page.goto(f"http://127.0.0.1:{port}/#report/model")
+        page.wait_for_selector("#energy .kpi")
+        page.wait_for_selector("#report table")
+        shot("report")
+        page.goto(f"http://127.0.0.1:{port}/#sessions")
+        page.wait_for_selector("#sessions table")
+        page.select_option("#harness", "otel")
+        page.wait_for_timeout(500)
+        shot("telemetry")
+        page.goto(f"http://127.0.0.1:{port}/#s/claude/{RUN_GRAPH_ID}")
+        page.reload()
+        page.wait_for_selector("#detail-body .run .waterfall svg[aria-label^='Span waterfall']")
+        # The panel scrolls on its own under a sticky heading; leave room for it.
+        to = "(sel) => { const d = document.getElementById('detail'); d.scrollTop += document.querySelector(sel).getBoundingClientRect().top - 70; }"
+        page.evaluate(to, "#detail-body .run")
+        shot("run-graph")
+        page.locator("#detail-body .ctx tbody tr").first.click()
+        page.evaluate(to, "#detail-body .ctx")
+        shot("context")
+        browser.close()
+
+
 def key(s):
     """The file-name form of a value, the same as `key` in docs/demo/demo.js."""
     return re.sub(r"[^A-Za-z0-9._-]", "_", s or "") or "_"
@@ -776,6 +814,7 @@ def record_terminal(work):
 
 def main():
     only_context = sys.argv[1:] == ["context"]
+    only_home = sys.argv[1:] == ["home"]
     if not Path(BIN).exists():
         sys.exit(f"{BIN} not found; run `cargo build --release` first or set AGENT_TOP_BIN")
     shutil.rmtree(DB_DIR, ignore_errors=True)
@@ -804,7 +843,11 @@ def main():
         if only_context:
             record_context(port)
             return
+        if only_home:
+            shoot_home(port)
+            return
         shoot(port)
+        shoot_home(port)
         export(port)
         record(port)
         record_context(port)

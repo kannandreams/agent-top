@@ -2,7 +2,7 @@
 
 {#
   The home page: the landing layout from docs/stylesheets/home.css, in place
-  of Material's header, sidebars and footer. Every other page keeps the docs
+  of Material's sidebars and footer; the header is shared, from partials/header.html. Every other page keeps the docs
   layout. Sections link into the docs; the numbers in the sustainability
   block are an invented example and say so on the page.
 #}
@@ -10,49 +10,12 @@
   {{ super() }}
   <link rel="stylesheet" href="{{ 'stylesheets/home.css' | url }}">
 {% endblock %}
-{# Material's scripts look up the header, and its palette inputs choose light
-   or dark from the reader's setting; both stay, hidden behind the home nav. #}
-{% block header %}
-<header class="md-header" data-md-component="header" hidden>
-  {% if config.theme.palette %}{% if not config.theme.palette is mapping %}
-    {% include "partials/palette.html" %}
-    {% include "partials/javascripts/palette.html" %}
-  {% endif %}{% endif %}
-</header>
-{% endblock %}
 {% block tabs %}{% endblock %}
 {% block site_nav %}{% endblock %}
 {% block container %}{% endblock %}
 {% block hero %}
 <div class="at-home">
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="logo" viewBox="92 92 840 840"><path d="M282 367V295c0-60 33-86 86-86h288c53 0 86 26 86 86v72z"/><path d="M282 411h460v57h115a43 43 0 0 1 0 86H167a43 43 0 0 1 0-86h115z"/><path d="M265 641h145c25 0 38 10 48 28h107c10-18 23-28 48-28h147c37 0 55 18 55 55v63c0 37-18 55-55 55H610c-37 0-55-18-55-55v-46h-87v46c0 30-25 55-55 55H265c-30 0-55-25-55-55v-63c0-30 25-55 55-55zM627 684v87h43v-87z" fill-rule="evenodd"/></symbol></svg>
-<nav class="at-nav" aria-label="Main">
-  <div class="in">
-    <a class="brand" href="{{ '.' | url }}"><svg aria-hidden="true"><use href="#logo"/></svg>agent-top</a>
-    <div class="links">
-      <div class="dd">
-        <button type="button" aria-haspopup="true" aria-expanded="false" aria-controls="docs-menu">Docs <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" stroke="currentColor" fill="none"/></svg></button>
-        <div class="menu" id="docs-menu">
-          <div><h4>Using</h4>
-            <a href="{{ 'getting-started/' | url }}">Getting started<span>Install, first run, the keys</span></a>
-            <a href="{{ 'live-view/' | url }}">The live view<span>Every panel and where its numbers come from</span></a>
-            <a href="{{ 'views-and-panes/' | url }}">Views and panes<span>Pin a panel, open it in tmux or zellij</span></a>
-            <a href="{{ 'replay/' | url }}">Snapshots and replay</a></div>
-          <div><h4>Cost and impact</h4>
-            <a href="{{ 'report/' | url }}">Cost report<span>By harness, model, project or day</span></a>
-            <a href="{{ 'energy/' | url }}">Energy and CO2e<span>Your table, ranges, sources</span></a>
-            <h4>Local store</h4>
-            <a href="{{ 'store/' | url }}">Sync, SQL and the web view</a>
-            <a href="{{ 'store/telemetry/' | url }}">Receive telemetry</a></div>
-        </div>
-      </div>
-      <a href="#features">Features</a>
-      <a href="{{ 'blog/' | url }}">Blog</a>
-      <a href="#footprint">Footprint</a>
-    </div>
-    <div class="cta"><a class="gh" href="https://github.com/kannandreams/agent-top" aria-label="agent-top on GitHub, star count"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span><span class="stars"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 .9l2.2 4.5 4.9.7-3.6 3.5.9 4.9L8 12.2l-4.4 2.3.9-4.9L.9 6.1l4.9-.7z"/></svg><b id="stars">26</b></span></a></div>
-  </div>
-</nav>
 
 <div class="frame">
 
@@ -105,32 +68,32 @@
     <div class="txt"><span class="mono">agent-top</span><h3>Who is working, who is waiting.</h3><p>A terminal table of every agent process, with its state, tokens, burn rate and cost, and a detail pane for the one you pick.</p>
       <ul><li>Subagents nested under their parent</li><li>Tool calls that never came back</li><li>Rate-limit windows for Codex</li></ul>
       <div class="cmd">$ agent-top</div></div>
-    <div class="shot"><img src="{{ 'screenshots/overview.png' | url }}" loading="lazy" alt="The agent-top live view"></div>
+    <div class="shot term"><img src="{{ 'screenshots/overview.png' | url }}" loading="lazy" alt="The agent-top live view"></div>
   </div>
   <div class="panel stage" data-panel="mcp" hidden>
     <div class="txt"><span class="mono">MCP servers</span><h3>Servers left running after the agent quit.</h3><p>Each MCP server's calls, errors, CPU and memory, joined to its process. An orphan turns red and says which agent it came from.</p>
       <ul><li>One row per server, per agent</li><li>npx and uvx wrappers counted once</li></ul><div class="cmd">$ agent-top mcp</div></div>
-    <div class="shot"><img src="{{ 'screenshots/mcp-full.png' | url }}" loading="lazy" alt="MCP server panel"></div>
+    <div class="shot term"><img src="{{ 'screenshots/mcp-full.png' | url }}" loading="lazy" alt="MCP server panel"></div>
   </div>
   <div class="panel stage" data-panel="cost" hidden>
     <div class="txt"><span class="mono">agent-top report</span><h3>What it all cost.</h3><p>Tokens and dollars at list price, by harness, model, project or day, from the transcripts already on disk.</p>
       <ul><li>Unpriced tokens shown, never guessed</li><li>Cache reads and writes split out</li><li>JSON for your own scripts</li></ul><div class="cmd">$ agent-top report --by model</div></div>
-    <div class="shot"><img src="{{ 'screenshots/report-by-model.png' | url }}" loading="lazy" alt="Cost report by model"></div>
+    <div class="shot"><img src="{{ 'screenshots/home-report.png' | url }}" loading="lazy" alt="The Report tab in agent-top ui, dark mode: CO2e and energy cards, CO2e by day, and usage and cost by model"></div>
   </div>
   <div class="panel stage" data-panel="web" hidden>
     <div class="txt"><span class="mono">agent-top ui</span><h3>A local dashboard for the history.</h3><p>Overview, report, sessions and tools, served on 127.0.0.1 from the local store. Open a session for its run graph and turns.</p>
       <ul><li>Read-only, no login, no cloud</li><li>CSV export</li></ul><div class="cmd">$ agent-top ui</div></div>
-    <div class="shot"><img src="{{ 'screenshots/ui-run-graph.png' | url }}" loading="lazy" alt="Run graph in the web view"></div>
+    <div class="shot"><img src="{{ 'screenshots/home-run-graph.png' | url }}" loading="lazy" alt="A session open beside the session list: the run graph of its subagents and one subagent's span waterfall"></div>
   </div>
   <div class="panel stage" data-panel="ctx" hidden>
     <div class="txt"><span class="mono">Context timeline</span><h3>Where the context window went.</h3><p>Every turn's context, split by source, with compactions marked. See which files and tool results filled it.</p>
       <ul><li>Claude Code, Codex and OpenCode</li><li>Subagents on their own track</li></ul><div class="cmd">$ agent-top ui  →  Sessions</div></div>
-    <div class="shot"><img src="{{ 'screenshots/ui-context.png' | url }}" loading="lazy" alt="Context timeline"></div>
+    <div class="shot"><img src="{{ 'screenshots/home-context.png' | url }}" loading="lazy" alt="A session's context timeline: prompt size per response, six compactions, and what filled the context before the first"></div>
   </div>
   <div class="panel stage" data-panel="otel" hidden>
     <div class="txt"><span class="mono">serve --listen</span><h3>Agents you built yourself.</h3><p>Point any OpenTelemetry SDK at agent-top and its spans join the store, priced from the same table as the coding agents.</p>
       <ul><li>OTLP over HTTP, JSON or protobuf</li><li>Works from a container</li></ul><div class="cmd">$ agent-top serve --listen 127.0.0.1:4318</div></div>
-    <div class="shot"><img src="{{ 'screenshots/ui-overview.png' | url }}" loading="lazy" alt="Web view overview"></div>
+    <div class="shot"><img src="{{ 'screenshots/home-telemetry.png' | url }}" loading="lazy" alt="Sessions received as OpenTelemetry spans, filtered to the otel harness"></div>
   </div>
 </section>
 
@@ -200,6 +163,21 @@
   </div>
 </section>
 
+<section class="row pad" id="blog">
+  <div class="sec-head"><h2>From the blog.</h2><p>How agent-top reads each harness, what its numbers mean, and what it found along the way. <a class="more" href="{{ 'blog/' | url }}">All posts</a></p></div>
+  <div class="posts">
+    {% for post in config.extra.recent_posts %}
+    <a class="post" href="{{ post.url | url }}">
+      {% if post.image %}<span class="post-img"><img src="{{ post.image | url }}" alt="{{ post.alt | e }}" loading="lazy"></span>{% endif %}
+      <span class="mono">{{ post.date.strftime('%-d %B %Y') }}</span>
+      <h3>{{ post.title }}</h3>
+      <p>{{ post.description }}</p>
+      <span class="read">Read the post</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
 <section class="row close pad">
   <svg class="close-logo" aria-hidden="true"><use href="#logo"/></svg>
   <h2>See every agent at once.</h2>
@@ -249,21 +227,6 @@ period(30);
 <script>
 const mark = document.getElementById('agent-mark');
 if (matchMedia('(prefers-reduced-motion: reduce)').matches) mark.pauseAnimations();
-</script>
-<script>
-fetch('https://api.github.com/repos/kannandreams/agent-top').then(r => r.ok ? r.json() : null).then(d => {
-  if (d && typeof d.stargazers_count === 'number') document.getElementById('stars').textContent = d.stargazers_count.toLocaleString(); }).catch(() => {});
-</script>
-<script>
-// Docs menu: opens on hover or click, stays while the pointer is on the button or the menu, closes on Escape or a click outside
-(() => { const dd = document.querySelector('.dd'), btn = dd.querySelector('button'); let t;
-  const set = o => { clearTimeout(t); dd.classList.toggle('open', o); btn.setAttribute('aria-expanded', o); };
-  dd.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') set(true); });
-  dd.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') t = setTimeout(() => set(false), 250); });
-  btn.addEventListener('click', () => set(!dd.classList.contains('open')));
-  document.addEventListener('click', e => { if (!dd.contains(e.target)) set(false); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && dd.classList.contains('open')) { set(false); btn.focus(); } });
-})();
 </script>
 {% endraw %}
 {% endblock %}

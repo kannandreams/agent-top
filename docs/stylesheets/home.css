@@ -29,32 +29,8 @@ a { color: inherit; }
 .mono { font-family: var(--mono); font-size: 12px; letter-spacing: .02em; color: var(--muted); }
 
 /* nav */
-nav.at-nav { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
-nav.at-nav .in { max-width: 1240px; margin: 0 auto; display: flex; align-items: center; gap: 28px; padding: 14px 32px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; text-decoration: none; }
 .brand svg { width: 30px; height: 30px; fill: currentColor; }
-nav.at-nav .links { display: flex; gap: 22px; font-size: 14px; color: var(--muted); }
-nav.at-nav .links a { text-decoration: none; }
-nav.at-nav .links a:hover { color: var(--ink); }
-.dd { position: relative; }
-.dd > button { all: unset; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
-.dd > button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
-.dd .menu { position: absolute; top: 100%; left: -18px; margin-top: 0; width: 520px; background: var(--sheet); border: 1px solid var(--line); padding: 18px; display: none; grid-template-columns: 1fr 1fr; gap: 4px 24px; box-shadow: 0 12px 32px rgba(18,20,26,.08); }
-/* the padding is the bridge between the button and the menu, so the pointer never crosses a gap */
-.dd { padding: 12px 0; margin: -12px 0; }
-.dd.open .menu, .dd:focus-within .menu { display: grid; }
-.menu h4 { grid-column: span 1; margin: 6px 0 2px; font: 500 11px var(--mono); color: var(--faint); }
-.menu a { display: block; padding: 5px 0; color: var(--ink); font-size: 14px; }
-.menu a span { display: block; color: var(--faint); font-size: 12px; }
-nav.at-nav .cta { margin-left: auto; display: flex; gap: 10px; }
-.gh { display: inline-flex; align-items: stretch; border: 1px solid var(--ink); text-decoration: none; font: 500 14px var(--display); }
-.gh > svg { width: 17px; height: 17px; fill: currentColor; margin: 10px 0 10px 13px; align-self: center; }
-.gh > span:first-of-type { padding: 9px 13px 9px 8px; display: flex; align-items: center; }
-.gh .stars { display: flex; align-items: center; gap: 6px; padding: 9px 13px; border-left: 1px solid var(--ink); color: var(--ink); background: var(--sheet); font: 13px var(--mono); }
-.gh .stars svg { width: 13px; height: 13px; fill: #c9a227; }
-.gh .stars b { font-weight: 500; }
-.gh:hover { background: var(--ink); color: var(--paper); }
-.gh:hover .stars { background: var(--ink); color: var(--paper); }
 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; font: 500 14px var(--display); text-decoration: none; border: 1px solid var(--ink); }
 .btn.solid { background: var(--ink); color: var(--paper); }
 .btn.ghost { background: transparent; }
@@ -224,7 +200,6 @@ footer a:hover { color: var(--ink); }
 
 @media (max-width: 900px) {
   .pad { padding: 48px 16px; }
-  nav.at-nav .in { padding: 12px 16px; } nav.at-nav .links { display: none; }
   .hero, .sec-head, .stage, .eco-grid, .truth, .how { grid-template-columns: 1fr; }
   .hero .copy { padding: 48px 16px; } h1 { font-size: 40px; }
   .instrument { min-height: 440px; border-left: 0; border-top: 1px solid var(--line); }
@@ -242,7 +217,7 @@ footer a:hover { color: var(--ink); }
   --line: #2c313b; --rail: #1f232a; --band: #0b0d10;
   --good: #3fae74; --bad: #e0675a;
 }
-.md-main, .md-header, .md-tabs, .md-footer { display: none; }
+.md-main, .md-tabs, .md-footer { display: none; }
 .at-home a { color: inherit; }
 .at-home h1, .at-home h2, .at-home h3 { color: inherit; }
 .badge .exp { font: 500 11px var(--mono); font-style: normal; color: var(--paper); background: var(--ink); padding: 1px 6px; margin-left: 4px; }
@@ -251,3 +226,23 @@ footer a:hover { color: var(--ink); }
 .close .btn.solid { color: #12141a; }
 [data-md-color-scheme="slate"] .tabs button[aria-selected="true"] .mono { color: var(--cobalt); }
 [data-md-color-scheme="slate"] .agent { box-shadow: 0 0 0 1px var(--line), 0 0 0 10px var(--paper); }
+/* From the blog: the three newest posts, from docs/hooks/recent_posts.py. */
+.sec-head .more { display: inline-block; margin-left: 6px; color: var(--cobalt); text-underline-offset: 3px; }
+.posts { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); background: var(--sheet); }
+.post { display: flex; flex-direction: column; gap: 8px; padding: 0 0 24px; border-left: 1px solid var(--line); text-decoration: none; color: var(--ink); }
+.post:first-child { border-left: 0; }
+.post-img { display: block; aspect-ratio: 16 / 9; overflow: hidden; border-bottom: 1px solid var(--line); background: var(--rail); margin-bottom: 8px; }
+.post-img img { width: 100%; height: 100%; object-fit: cover; object-position: top left; display: block; transition: transform .3s; }
+.post .mono, .post h3, .post p, .post .read { margin: 0 24px; }
+.post h3 { font-weight: 500; font-size: 19px; line-height: 1.25; letter-spacing: -.01em; }
+.post p { font-size: 14px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.post .read { margin-top: auto; padding-top: 6px; font-size: 14px; font-weight: 500; color: var(--cobalt); }
+.post:hover h3 { text-decoration: underline; text-underline-offset: 4px; }
+.post:hover .post-img img { transform: scale(1.03); }
+@media (max-width: 900px) { .posts { grid-template-columns: 1fr; } .post { border-left: 0; border-top: 1px solid var(--line); } .post:first-child { border-top: 0; } }
+@media (prefers-reduced-motion: reduce) { .post-img img { transition: none; } }
+/* Feature panels: the web view's dark screenshots fill the frame from the top
+ * left; the terminal ones sit whole on the same dark ground. */
+.stage .shot { padding: 0; aspect-ratio: 16 / 10; overflow: hidden; background: var(--band); }
+.stage .shot img { width: 100%; height: 100%; max-height: none; object-fit: cover; object-position: top left; border: 0; box-shadow: none; }
+.stage .shot.term img { object-fit: contain; object-position: center; padding: 22px; }

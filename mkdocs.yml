@@ -73,13 +73,13 @@ hooks:
   - docs/hooks/cache_bust.py
   - docs/hooks/nav_icons.py
   - docs/hooks/security_scan.py
+  - docs/hooks/recent_posts.py
 
 extra:
   generator: false
   # Icons for the top-level sidebar entries, by title, applied by
   # docs/hooks/nav_icons.py. Names are Material's bundled icon paths.
   nav_icons:
-    Home: octicons/home-16
     Getting started: octicons/rocket-16
     Using agent-top: octicons/terminal-16
     Cost: octicons/credit-card-16
@@ -123,7 +123,6 @@ plugins:
       categories: false
 
 nav:
-  - Home: index.md
   - Getting started: getting-started.md
   - Using agent-top:
       - The live view: live-view.md
